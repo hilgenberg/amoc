@@ -1,0 +1,145 @@
+This file does not list all bugs which:
+
+- are known but rarely encountered,
+- are not visible to the user,
+- are programming errors detectable only with the aid of testing tools,
+- are benign, or
+- have been reported but not yet confirmed to be attributable to MOC.
+
+It also does not contain many "To Do" items as these are often quite fluid
+and can evolve rapidly over time.
+
+The MOC Maintainer does hold a master list containing bugs, feature requests,
+program change requests and future requirements, and once it is possible to
+generate this file from that list automatically it may be updated more
+frequently so it is current and comprehensive.
+
+
+Known Bugs:
+
+* Character set problems:
+  - Do we assume filesystem in UTF-8?  It's incorrect.
+  - id3tags v2.3 with UTF-16 are not properly handled by libid3tag, taglib
+    has no problems.  Need to use libtag here?
+  - Recognition of ID3 tags v1 is broken (example: small.mp3).  [node/234]
+  - Perhaps MOC can add support for the frame field_type to differentiate
+    between ID3_FIELD_TYPE_LATIN1 and ID3_FIELD_TYPE_STRING.  [node/234]
+  - Some national characters in file and directory names don't get displayed
+    correctly.
+* Program crashes:
+  - I have a problem with MOC 2.4.0 on FreeBSD 6.1-PRERELEASE.  When I build
+    MOC with musepack (libmpcdec) support MOC always core dumps on exit.
+    (This may have been fixed by other storage-related patches and will be
+    removed in MOC 2.7 if no one has confirmed it still exists.)
+  - Using DB_THREAD in combination with DB_CREATE and DB_PRIVATE seems to
+    cause a segfault on OpenWRT.  The circumvention is to configure MOC on
+    OpenWRT with '--disable-cache' or set the MOC configuration option
+    'TagsCacheSize' to zero.
+* Valgrind-detected memory problems:
+  - libasound: memory leaks
+  - libdb: uninitialised parameter storage
+  - libffmpeg: uninitialised storage in conditions and reads
+  - libgme: uninitialised storage in conditions and reads
+  - libmagic: uninitialised storage in reads
+  - librcc: uninitialised storage in conditions
+  - libspeex: uninitialised storage in conditions and reads
+  - The problems above occur in libraries but it needs to be determined
+    whether they somehow arise from MOC's misuse of them.
+  - There are many data race and mutex handling problems (particularly
+    around the time of file-to-file transitions), but these are not visible
+    to the users and difficult to solve without compromising gapless playback.
+* Directory and playlists:
+  - When sorting by file name (directories), put files beginning with a
+    non-alphanumeric character at the top.
+  - mocp -a playlist.pls should not sort added files.  [node/240]
+  - Client does not show changes when a file's tags are updated by another
+    program.
+  - Client continues to show file names after ReadTags is toggled when
+    MOC is started with 'ShowTime=yes' and 'ReadTags=no'.
+* Decoder problems:
+  - Seeking in some formats does not work in the FFmpeg decoder because of
+    the limitations of the FFmpeg libraries (and seeking is disabled for
+    them).  FLV also has seeking issues and is disabled but will be enabled
+    if SEEK_IN_DECODER is set in the FFmpeg decoder plug-in.  (This may be
+    parameterised in due course.)
+  - Some decoders do not currently pass the MD5 sum or sample count checks.
+  - The duration of some AAC audios is incorrectly reported.  This problem
+    arises from the limitations of the format, but MOC now makes much more
+    accurate guesses.
+
+
+Transitional Code Removal:
+
+* Remove TagLib version 1.5 requirement warning.
+* Remove Musepack libmpc (instead of libmpcdec) requirement warning.
+
+
+Pending 2.6 Changes:
+
+* Require at least TagLib version 1.5.
+* Require Musepack libmpc (instead of libmpcdec).
+
+
+Pending 2.7 Changes:
+
+* Remove FreeBSD program crash bug if no one has confirmed it still exists.
+* Remove 'ALSAStutterDefeat' start-up warning.
+
+
+Future Wishlist (items marked with $ are bigger changes requiring more time):
+
+* Move TODO to moc.daper.net/roadmap .
+* A string-valued variable "TitleFormatString", similar to "FormatString".
+  I'd suggest all the same %-escapes, plus:
+  %F -- expands to (the expansion of) the current FormatString
+  if there is a song playing or paused, and empty string if stopped.
+  %S -- expands to play/stop/pause.
+* Command line option to play from a specified file/first from the last
+  added files.  [node/286]
+* Multiple file selection to move many files at once up and down.  [node/288]
+* Review strcat()/strcpy()/sprintf() usage, change to
+  strncat()/strncpy()/snprintf() where possible.
+* More side menus: many directory/playlist views.
+* LADSPA/LV2
+* Editing the title of an item on the playlist (for Internet streams).
+*$ Media library: tree-like menu for artists and albums.
+* Seek by a % value (also using keys for 10%, 20%, etc).
+* Ability to play from a playlist made of items found after searching.
+* JACK: intelligent behaviour when we get disconnected from the server
+  - detect it, try connect and exit if it fails.
+* FastGo instead of FastDir: go to a directory, URL or a playlist.
+* Read tags for sndfile formats.
+*$ http://www.peercast.org/
+* Crossfade.
+* Command to see all information about a file with all tags, also all
+  information about an internet stream (from IceCast headers like icy-url,
+  icy-pub).
+*$ Lyrics downloaded from the Internet.
+* lirc.
+* Don't use PATH_MAX.
+* Seek forward using the content of the output buffer.
+*$ Locales.
+*$ Song ratings or something like Q in XMMS.
+* Configurable sorting.
+* Add a key for switching sort modes.
+*$ Equalizer like in Beep Media Player
+*$ Make equal volume level for every song like in http://volnorm.sourceforge.net
+*$ Replaygain.
+* Seek to arbitrary position (by typing a number).
+*$ ESD.
+*$ CUE-sheet.
+* Command line option to delete the currently played item from the playlist.
+* Scripting.
+* Some options can be changed at run-time using a menu.
+* posix_fadvise() with POSIX_FADV_WILLNEED instead of the input buffer thread
+  for files.
+* Recording played sound to a file.
+* Upgrade TiMidity decoder plug-in to TiMidity++.  This would add support
+  for soundfonts (.sf2) which are now more common.
+
+
+Maybe Never:
+
+* Report ignored server-specific options when the server is not being run.
+* Funny ASCII equalizer.
+* Mouse support.  [node/743]

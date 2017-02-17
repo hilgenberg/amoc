@@ -1,0 +1,488 @@
+.\" Start example.
+.de EX
+.  nr mE \\n(.f
+.  nf
+.  nh
+.  ft CW
+..
+.
+.\" End example.
+.de EE
+.  ft \\n(mE
+.  fi
+.  hy \\n(HY
+..
+.
+.TH MOC 1 "16 November 2016" "Version 2.6-alpha3" "Music On Console"
+.ad l
+.SH NAME
+MOC \- Console audio player
+.LP
+.SH SYNOPSIS
+\fBmocp\fR [\fIOPTIONS\fR] [\fIFILE\fR|\fIDIR\fR ...]
+.LP
+.SH DESCRIPTION
+MOC is a console audio player with simple ncurses interface.  It supports
+OGG, WAV, MP3 and other formats.  Just run \fBmocp\fP, go to some directory
+using the menu and press enter to start playing the file.  The program will
+automatically play the rest of the files in the directory.
+.LP
+With no options and no file arguments the program begins in current
+directory, or in \fBMusicDir\fP if the \fBStartInMusicDir\fP option is set
+in the configuration file.  If you give a directory on the command line,
+MOC will try to go there.  If a playlist is given, then it is loaded.
+With multiple files, playlists or directories, everything will be added to
+the playlist recursively (including the contents of any playlist given).
+(Note that relative paths in playlists are resolved with respect to the
+directory of the playlist, or of the symlink being used to reference it.)
+.LP
+.SH OPTIONS
+If an option can also be set in the configuration file the command line
+overrides it (but see the \fB\-O\fP option for the list-valued
+configuration options exception).
+.LP
+.TP
+\fB\-D\fP, \fB\-\-debug\fP
+Run MOC in debug mode.  The client and server log a lot of information
+to debug files.  Don't use this; the server log is large.  This is only
+available if MOC was compiled without \fB\-\-disable\-debug\fP.
+.LP
+.TP
+\fB\-S\fP, \fB\-\-server\fP
+Run only the server and exit.
+.LP
+.TP
+\fB\-F\fP, \fB\-\-foreground\fP
+Implies \fB\-S\fP.  Run the server in foreground and log everything to stdout.
+.LP
+.TP
+\fB\-R\fP \fINAME\fP[\fB:\fP...], \
+\fB\-\-sound\-driver\fP \fINAME\fP[\fB:\fP...]
+Use the specified sound driver(s).  They can be \fBOSS\fP, \fBALSA\fP,
+\fBJACK\fP, \fBSNDIO\fP or \fBnull\fP (for debugging).  Some of the drivers
+may not have been compiled in.  This option is called \fBSoundDriver\fP in
+the configuration file.
+.LP
+.TP
+\fB\-m\fP, \fB\-\-music\-dir\fP
+Start in \fBMusicDir\fP (set in the configuration file).  This can be also
+set in the configuration file as \fBStartInMusicDir\fP.
+.LP
+.TP
+\fB\-q\fP, \fB\-\-enqueue\fP
+Add files given after command line options to the queue.  Don't start the
+interface.
+.LP
+.TP
+\fB\-a\fP, \fB\-\-append\fP
+Append files, directories (recursively) and playlists given after command
+line options to the playlist.  Don't start the interface.
+.LP
+.TP
+\fB\-c\fP, \fB\-\-clear\fP
+Clear the playlist.
+.LP
+.TP
+\fB\-p\fP, \fB\-\-play\fP
+Start playing from the first item on the playlist.
+.LP
+.TP
+\fB\-l\fP, \fB\-\-playit\fP
+Play files given on the command line without modifying the clients'
+playlists.
+.LP
+.TP
+\fB\-f\fP, \fB\-\-next\fP
+Request playing the next song from the server's playlist.
+.LP
+.TP
+\fB\-r\fP, \fB\-\-previous\fP
+Request playing the previous song from the server's playlist.
+.LP
+.TP
+\fB\-s\fP, \fB\-\-stop\fP
+Request the server to stop playing.
+.LP
+.TP
+\fB\-x\fP, \fB\-\-exit\fP
+Bring down the server.
+.LP
+.TP
+\fB\-P\fP, \fB\-\-pause\fP
+Request the server to pause playing.
+.LP
+.TP
+\fB\-U\fP, \fB\-\-unpause\fP
+Request the server to resume playing when paused.
+.LP
+.TP
+\fB\-G\fP, \fB\-\-toggle\-pause\fP
+Toggle between play and pause.
+.LP
+.TP
+\fB\-k\fP [\fB+\fP|\fB\-\fP]\fIN\fP, \
+\fB\-\-seek \fP[\fB+\fP|\fB\-\fP]\fIN\fP
+Seek forward (positive) or backward (negative) by \fIN\fP seconds in the
+file currently being played.
+.LP
+.TP
+\fB\-T\fP \fITHEME\fP, \fB\-\-theme\fP \fITHEME\fP
+Use a theme file.  If the path is not absolute, the file will be searched
+for in \fB/usr/share/moc/themes/\fP (depends on installation prefix),
+\fB~/.moc/themes/\fP and the current directory.
+.LP
+.TP
+\fB\-C\fP \fIFILE\fP, \fB\-\-config\fP \fIFILE\fP
+Use the specified configuration file (which must be readable) instead of the
+default.  As this file can specify commands which invoke other applications
+MOC will refuse to start if it is not owned by either root or the current
+user, or if it is writable by anyone other than its owner.
+.LP
+.TP
+\fB\-\-no\-config\fP
+Do not read any configuration file but use the built-in defaults.
+.LP
+.TP
+\fB\-O\fP \fINAME\fP[\fB+\fP]\fB=\fP\fIVALUE\fP, \
+\fB\-\-set\-option\fP \fINAME\fP[\fB+\fP]\fB=\fP\fIVALUE\fP
+Override configuration option NAME with VALUE.  This option can be
+repeated as many times as needed and the option name is not case sensitive.
+Most option values are set before the configuration file is processed (which
+allows the new values to be picked up by substitutions); however, list-valued
+options are overridden afterwards (which gives the choice of whether the
+configured values are replaced or added to).
+.IP
+See the example configuration file (\fBconfig.example\fP) for a description
+of the options available.
+.LP
+.RS
+.EX
+Examples: \fB\-O AutoNext=no\fP
+          \fB\-O messagelingertime=1 \-O XTerms+=xxt:xwt\fP
+.EE
+.RE
+.IP
+Note that MOC does not perform variable substitution as it does for values
+read from the configuration file.
+.LP
+.TP
+\fB\-M\fP \fIDIR\fP, \fB\-\-moc\-dir\fP \fIDIR\fP
+Use the specified MOC directory instead of the default.  This also causes
+the configuration file from that directory to be used.  This can also be
+specified in the configuration file using the \fBMOCDir\fP option.
+.LP
+.TP
+\fB\-y\fP, \fB\-\-sync\fP
+This copy of the interface will synchronize its playlist with other clients.
+This option is called \fBSyncPlaylist\fP in the configuration file.
+.LP
+.TP
+\fB\-n\fP, \fB\-\-nosync\fP
+This copy of the interface will not synchronize its playlist with other
+clients (see above).
+.LP
+.TP
+\fB\-A\fP, \fB\-\-ascii\fP
+Use ASCII characters to draw lines.  (This helps on some terminals.)
+.LP
+.TP
+\fB\-i\fP, \fB\-\-info\fP
+Print the information about the file currently being played.
+.LP
+.TP
+\fB\-Q\fP \fIFORMAT_STRING\fP, \fB\-\-format\fP \fIFORMAT_STRING\fP
+Print information about the file currently being played using a format
+string.  Replace string sequences with the actual information:
+.IP
+.RS 16
+.EX
+\fB%state\fP     State
+\fB%file\fP      File
+\fB%title\fP     Title
+\fB%artist\fP    Artist
+\fB%song\fP      SongTitle
+\fB%album\fP     Album
+\fB%tt\fP        TotalTime
+\fB%tl\fP        TimeLeft
+\fB%ts\fP        TotalSec
+\fB%ct\fP        CurrentTime
+\fB%cs\fP        CurrentSec
+\fB%b\fP         Bitrate
+\fB%r\fP         Rate
+.EE
+.RE
+.IP
+It is also possible to use variables from the \fBFormatString\fP
+configuration file option.
+.LP
+.TP
+\fB\-e\fP, \fB\-\-recursively\fP
+Alias of \fB\-a\fP for backward compatibility.
+.LP
+.TP
+\fB\-h\fP, \fB\-\-help\fP
+Print a list of options with short descriptions and exit.
+.LP
+.TP
+\fB\-\-usage\fP
+Print a synopsis of the mocp command and exit.
+.LP
+.TP
+\fB\-V\fP, \fB\-\-version\fP
+Print the program version and exit.
+.LP
+.TP
+\fB\-\-echo-args\fP
+Print the POPT-interpreted command line arguments and exit.
+(Note that this option is not available on OpenWRT.)
+.LP
+.TP
+\fB\-v\fP [\fB+\fP|\fB\-\fP]\fIN\fP, \
+\fB\-\-volume\fP [\fB+\fP|\fB\-\fP]\fIN\fP
+Adjust the mixer volume.  You can set (\fB\-v 50\fP) or adjust
+(\fB\-v +10\fP, \fB\-v \-10\fP).
+.LP
+.TP
+\fB\-t\fP \fIOPTION\fP[\fB,\fP...], \fB\-\-toggle\fP \fIOPTION\fP[\fB,\fP...]
+.TQ
+\fB\-o\fP \fIOPTION\fP[\fB,\fP...], \fB\-\-on\fP \fIOPTION\fP[\fB,\fP...]
+.TQ
+\fB\-u\fP \fIOPTION\fP[\fB,\fP...], \fB\-\-off\fP \fIOPTION\fP[\fB,\fP...]
+Followed by a list of identifiers, these will control MOC's playlist
+options.  Valid identifiers are \fBshuffle\fP, \fBrepeat\fP and \fBautonext\fP.
+They can be shortened to '\fBs\fP', '\fBr\fP' and '\fBn\fP' respectively.
+Both the identifiers and short forms are case insensitive.
+.LP
+.RS
+.EX
+Example: \fB\-t shuffle,R,n\fP
+.EE
+         would toggle shuffle, repeat and autonext all at once.
+.RE
+.LP
+.TP
+\fB\-j\fP \fIN\fP{\fBs\fP|\fB%\fP}, \fB\-\-jump\fP \fIN\fP{\fBs\fP|\fB%\fP}
+Jump to some position in the current file.  \fIN\fP is the number of seconds
+(when followed by an '\fBs\fP') or the percent of total file time (when
+followed by a '\fB%\fP').
+.LP
+.RS
+.EX
+Examples: \fB\-j 10s\fP, \fB\-j 50%\fP
+.EE
+.RE
+.LP
+.SH USING POPT ALIASES
+MOC uses the POPT library to process its command line.  This allows
+users to assign MOC options and arguments to an alias of their choosing.
+The aliases are just lines in the \fB~/.popt\fP text file and have the
+general form:
+.IP
+.RS
+.EX
+.BI mocp " " alias " " \fInewoption\fP " " \fIexpansion\fP
+.EE
+.RE
+.LP
+This works as if \fIexpansion\fP textually replaces \fInewoption\fP
+on the command line.  The replacement is recursive; that is,
+other \fInewoption\fPs can be embedded in the \fIexpansion\fP.
+The \fIexpansion\fP is parsed similarly to a shell command, which
+allows \\, ", and ' to be used for quoting.  If a backslash is the
+final character on a line, the next line in the file is assumed to be a
+logical continuation of the line containing the backslash, just as in
+the shell.  The \fInewoption\fP can be either a short or long option,
+and any syntactically valid name the user wishes to use.
+.LP
+If you add a description for the new option and/or for any argument by
+appending the special POPT options \fB\-\-POPTdesc\fP and \fB\-\-POPTargs\fP,
+then the option will be displayed in the output of \fB\-\-help\fP and
+\fB\-\-usage\fP.  The value for these two options are strings of the form
+\fB$"\fP\fIstring\fP\fB"\fP.
+.LP
+So, for example:
+.IP
+.RS
+.EX
+\fBmocp alias \-\-single \-D \-\-set\-option autonext=no \\\fP
+\fB           \-\-POPTdesc=$"Play just the file selected"
+.EE
+.RE
+.LP
+would allow the user to turn on logging (\fB\-D\fP) and override
+the configuration file's \fBAutoNext\fP option setting just by using
+\fB\-\-single\fP as an option to the mocp command.
+.LP
+Sometimes you may wish to provide values to aliased options from the
+command line.  If just one aliased option has such a value, then it's
+a simple matter of placing it last:
+.LP
+.IP
+.RS
+.EX
+\fBmocp alias \-\-yours \-\-sound-driver OSS \-\-theme
+.EE
+.RE
+.LP
+when used like this:
+.LP
+.IP
+.RS
+.EX
+\fBmocp \-\-yours your_theme
+.EE
+.RE
+.LP
+would result in:
+.LP
+.IP
+.RS
+.EX
+\fBmocp \-\-sound-driver OSS \-\-theme your_theme
+.EE
+.RE
+.LP
+But aliasing multiple options with such values means making use of the
+special construct \fB!#:+\fP (and quoting carefully):
+.LP
+.IP
+.RS
+.EX
+\fBmocp alias \-1 "\-R !#:+" "\-T my_theme" "\-O !#:+"
+.EE
+.RE
+.LP
+when used like this:
+.LP
+.IP
+.RS
+.EX
+\fBmocp \-1 OSS shuffle=yes ~/my_music
+.EE
+.RE
+.LP
+would result in:
+.LP
+.IP
+.RS
+.EX
+\fBmocp \-R OSS \-T my_theme \-O shuffle=yes ~/my_music
+.EE
+.RE
+.LP
+There is also a \fB~/.popt\fP entry which allows for the execution of
+a different program when the associated option is used.  For this, an
+\fBexec\fP is used in place of the \fBalias\fP and the \fIexpansion\fP
+is the program to be executed:
+.LP
+.IP
+.RS
+.EX
+\fBmocp exec \-\-help /usr/bin/man 1 mocp \\
+\fB           POPTdesc=$"Provide the man page instead of help"
+.EE
+.RE
+.LP
+This would override the usual MOC \fB\-\-help\fP output and use the
+system's \fBman\fP program to present this man page instead.
+.LP
+Note that while \fB~/.popt\fP (or \fB/etc/popt\fP) is the default POPT
+configuration file, you can nominate specific file(s) to be used instead
+via the \fBMOCP_POPTRC\fP environment variable.
+.LP
+.SH ENVIRONMENT VARIABLES
+The following environment variables are used directly by MOC.  Additional
+variables may be relevant to the libraries MOC uses.  Also, any environment
+variable may be accessed from the configuration file.
+.LP
+.TP
+.B ESCDELAY
+An ncurses(3X) variable which specifies the delay (in milliseconds)
+after which it will treat an ESC as a standalone key and not part of
+an escaped character sequence (such as is generated by function keys).
+MOC sets this value to 25ms by default, which is sufficient for most
+systems.
+.LP
+.TP
+.B HOME
+Tells MOC where your home directory is located and is used for various
+purposes, including the default location of the MOC directory.
+.LP
+.TP
+.B MOCP_OPTS
+The value of this variable will be prepended to the command line options
+before they are processed.
+.LP
+.TP
+.B MOCP_POPTRC
+A colon-separated list of POPT configuration files which will be loaded in
+sequence by MOC during initialisation.  If the variable is unset then the
+ default POPT configuration file will be used.  If the variable is set but
+empty then no POPT configuration file will be loaded.  If the variable is
+set then those files which exist will be loaded and those which don't will
+be skipped.
+.IP
+As these files can specify commands which invoke other applications, MOC
+will refuse to start if they are not owned by root or the current user,
+or they are writable by anyone other than their owner.
+.LP
+.TP
+.B TERM \fPand\fB WINDOW
+Used by MOC to distinguish between X-terminals, screen(1) and console
+terminals.  MOC uses the configuration options \fBXTerms\fP and
+\fBScreenTerms\fP to help make this determination.
+.LP
+.SH FILES
+.TP
+.B ~/.moc
+MOC directory for the configuration file, socket, the pid file and other data.
+.LP
+.TP
+.B ~/.moc/config
+Configuration file for MOC.  The format is very simple; to see how to use
+it look at the example configuration file (\fBconfig.example\fP) distributed
+with the program.  The example file fully describes all the configuration
+options, and so is a useful reference when using the \fB\-O\fP option.  As
+this file can specify commands which invoke other applications MOC will
+refuse to start if it is not owned by either root or the current user, or if
+it is writable by anyone other than its owner.
+.LP
+.TP
+.B ~/.popt
+.TQ
+.B /etc/popt
+The default files POPT reads to obtain aliased options.  As these files can
+specify commands which invoke other applications, MOC will refuse to start
+if it is not owned by root or the current user, or if it is writable by
+anyone other than its owner.  (Also see the \fBMOCP_POPTRC\fP environment
+variable above.)
+.LP
+.TP
+.B ~/.moc/themes
+.TQ
+.B /usr/share/moc/themes
+Default directories for the theme files.
+.LP
+.TP
+.B /usr/share/moc/decoder_plugins
+Default directories for the audio decoder plugins.
+.LP
+.TP
+.B mocp_client_log
+.TQ
+.B mocp_server_log
+Client and server log files.  These files are created in the directory in
+which the client and server are started.  (Also see the \fB\-D\fP option.)
+.LP
+.SH BUGS
+Command line options that affect the server behaviour (like
+\fB\-\-sound\-driver\fP) are ignored if the server is already running at
+the time of executing \fBmocp\fP.  The user is not warned about this.
+.LP
+.SH HOMEPAGE
+http://moc.daper.net/
+.LP
+.SH AUTHOR
+Damian Pietras     <daper@daper.net>
+.br
+MOC Maintainer(s)  <mocmaint@daper.net>
