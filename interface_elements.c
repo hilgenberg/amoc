@@ -2654,7 +2654,7 @@ static void queued_message_destroy (struct queued_message *msg)
 static void set_startup_message (struct info_win *w)
 {
 	assert (w != NULL);
-
+#if 0
 	w->current_message = queued_message_create (NORMAL_MSG);
 	w->current_message->msg = xstrdup (STARTUP_MESSAGE);
 	w->current_message->timeout = time (NULL);
@@ -2671,6 +2671,7 @@ static void set_startup_message (struct info_win *w)
 		w->queued_message_tail = msg;
 		w->queued_message_total = 1;
 	}
+#endif
 }
 
 static void info_win_init (struct info_win *w)

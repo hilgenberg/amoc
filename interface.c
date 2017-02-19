@@ -1017,8 +1017,8 @@ static void clear_playlist ()
 	plist_clear (playlist);
 	iface_clear_plist ();
 
-	if (!waiting_for_plist_load)
-		interface_message ("The playlist was cleared.");
+	//if (!waiting_for_plist_load)
+	//	interface_message ("The playlist was cleared.");
 	iface_set_status ("");
 }
 
@@ -1406,7 +1406,7 @@ static int go_to_playlist (const char *file, const int load_serial,
 			iface_update_queue_positions (queue, playlist, NULL, NULL);
 		}
 
-		interface_message ("Playlist loaded.");
+		//interface_message ("Playlist loaded.");
 	}
 	else {
 		interface_message ("The playlist is empty");
