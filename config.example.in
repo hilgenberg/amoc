@@ -107,6 +107,7 @@
 # Default FormatString:
 #
 #   %n - Track number
+#   %N - Track number, right-aligned, 2 characters wide
 #   %a - Artist
 #   %A - Album
 #   %t - Title

@@ -487,6 +487,10 @@ static const char *title_expn_subs(char fmt, const struct file_tags *tags)
 				break;
 			snprintf (track, sizeof(track), "%d", tags->track);
 			return track;
+		case 'N':
+			if (!tags || tags->track == -1) return "  ";
+			snprintf (track, sizeof(track), "%2d", tags->track);
+			return track;
 		case 'a':
 			return if_not_empty (tags->artist);
 		case 'A':
