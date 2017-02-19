@@ -210,6 +210,12 @@
 # Show time played as a percentage in the time progress bar.
 #ShowTimePercent = no
 
+# Draw a line as the time progress bar? To do so, set either or both
+# characters. TimeBarLine is for the filled part of the bar, TimeBarSpace
+# for the rest. Only relevant if ShowTimePercent is 'no'.
+#TimeBarLine = ""
+#TimeBarSpace = ""
+
 # Values of the TERM environment variable which are deemed to be managed by
 # screen(1).  If you are setting a specific terminal using screen(1)'s
 # '-T <term>' option, then you will need to add 'screen.<term>' to this list.

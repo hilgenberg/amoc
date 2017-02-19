@@ -136,14 +136,17 @@ static struct main_win
 /* Bar for displaying mixer state or progress. */
 struct bar
 {
-	int width;	/* width in chars */
-	float filled;	/* how much is it filled in percent */
-	char *orig_title;	/* optional title */
-	char title[512];	/* title with the percent value */
-	int show_val;	/* show the title and the value? */
-	int show_pct;	/* show percentage in the title value? */
-	int fill_color;	/* color (ncurses attributes) of the filled part */
-	int empty_color;	/* color of the empty part */
+	int   width;       /* width in chars */
+	float filled;      /* how much is it filled in percent */
+	char *orig_title;  /* optional title */
+	char  title[512];  /* title with the percent value */
+	int   show_val;    /* show the title and the value? */
+	int   show_pct;    /* show percentage in the title value? */
+	int   fill_color;  /* color (ncurses attributes) of the filled part */
+	int   empty_color; /* color of the empty part */
+	int   show_line;   /* draw line in the bar? */
+	const char *line_char;  /* not owned, can be NULL */
+	const char *space_char; /* same here */
 };
 
 /* History for entries' values. */
@@ -2537,9 +2540,10 @@ static void bar_update_title (struct bar *b)
 static void bar_set_title (struct bar *b, const char *title)
 {
 	assert (b != NULL);
-	assert (b->show_val);
 	assert (title != NULL);
 	assert (strlen(title) < sizeof(b->title) - 5);
+
+	if (!b->show_val) return;
 
 	strncpy (b->orig_title, title, b->width);
 	b->orig_title[b->width] = 0;
@@ -2548,7 +2552,8 @@ static void bar_set_title (struct bar *b, const char *title)
 
 static void bar_init (struct bar *b, const int width, const char *title,
 		const int show_val, const int show_pct,
-		const int fill_color, const int empty_color)
+		const int fill_color, const int empty_color,
+		const char *line_char, const char *space_char)
 {
 	assert (b != NULL);
 	assert (width > 5 && width < ssizeof(b->title));
@@ -2561,7 +2566,22 @@ static void bar_init (struct bar *b, const int width, const char *title,
 	b->fill_color = fill_color;
 	b->empty_color = empty_color;
 
-	if (show_val) {
+	b->line_char = NULL;
+	b->space_char = NULL;
+	b->show_line = 0;
+
+	if (!show_pct && ((line_char && *line_char) || (space_char && *space_char)))
+	{
+		b->show_line = 1;
+		b->show_val = 0;
+
+		if (! line_char || !* line_char)  line_char = " ";
+		if (!space_char || !*space_char) space_char = " ";
+		b->line_char = line_char;
+		b->space_char = space_char;
+	}
+
+	if (b->show_val) {
 		b->orig_title = xmalloc (b->width + 1);
 		bar_set_title (b, title);
 	} else {
@@ -2583,11 +2603,26 @@ static void bar_draw (const struct bar *b, WINDOW *win, const int pos_x,
 
 	fill_chars = b->filled * b->width / 100.0;
 
-	wattrset (win, b->fill_color);
-	xmvwaddnstr (win, pos_y, pos_x, b->title, fill_chars);
+	if (b->show_line)
+	{
+		int x = 0;
 
-	wattrset (win, b->empty_color);
-	xwaddstr (win, b->title + fill_chars);
+		wattrset (win, b->fill_color);
+		for (; x < fill_chars; ++x)
+			xmvwaddstr (win, pos_y, pos_x+x, b->line_char);
+
+		wattrset (win, b->empty_color);
+		for (; x < b->width; ++x)
+			xmvwaddstr (win, pos_y, pos_x+x, b->space_char);
+	}
+	else
+	{
+		wattrset (win, b->fill_color);
+		xmvwaddnstr (win, pos_y, pos_x, b->title, fill_chars);
+
+		wattrset (win, b->empty_color);
+		xwaddstr (win, b->title + fill_chars);
+	}
 }
 
 static void bar_set_fill (struct bar *b, const double fill)
@@ -2717,11 +2752,14 @@ static void info_win_init (struct info_win *w)
 
 	bar_init (&w->mixer_bar, 20, "", 1, 1,
 	          get_color(CLR_MIXER_BAR_FILL),
-	          get_color(CLR_MIXER_BAR_EMPTY));
+	          get_color(CLR_MIXER_BAR_EMPTY),
+		  NULL, NULL);
 	bar_init (&w->time_bar, COLS - 4, "", 1,
 	          options_get_bool("ShowTimePercent") ? 1 : 0,
 	          get_color(CLR_TIME_BAR_FILL),
-	          get_color(CLR_TIME_BAR_EMPTY));
+	          get_color(CLR_TIME_BAR_EMPTY),
+	          options_get_str("TimeBarLine"),
+	          options_get_str("TimeBarSpace"));
 }
 
 static void info_win_destroy (struct info_win *w)

@@ -643,6 +643,9 @@ void options_init ()
 	add_str  ("RatingSpace", " ", CHECK_NONE);
 	add_str  ("RatingFile", "ratings", CHECK_NONE);
 
+	add_str  ("TimeBarLine",  "", CHECK_NONE);
+	add_str  ("TimeBarSpace", "", CHECK_NONE);
+
 	add_str  ("FastDir1", NULL, CHECK_NONE);
 	add_str  ("FastDir2", NULL, CHECK_NONE);
 	add_str  ("FastDir3", NULL, CHECK_NONE);
