@@ -431,126 +431,34 @@ static struct command commands[] = {
 		{ '[', -1 },
 		1
 	},
-	{
-		KEY_CMD_VOLUME_10,
-		"volume_10",
-		"Set volume to 10%",
-		CON_MENU,
-		{ '1' | META_KEY_FLAG, -1 },
-		1
-	},
-	{
-		KEY_CMD_VOLUME_20,
-		"volume_20",
-		"Set volume to 20%",
-		CON_MENU,
-		{ '2' | META_KEY_FLAG, -1 },
-		1
-	},
-	{
-		KEY_CMD_VOLUME_30,
-		"volume_30",
-		"Set volume to 30%",
-		CON_MENU,
-		{ '3' | META_KEY_FLAG, -1 },
-		1
-	},
-	{
-		KEY_CMD_VOLUME_40,
-		"volume_40",
-		"Set volume to 40%",
-		CON_MENU,
-		{ '4' | META_KEY_FLAG, -1 },
-		1
-	},
-	{
-		KEY_CMD_VOLUME_50,
-		"volume_50",
-		"Set volume to 50%",
-		CON_MENU,
-		{ '5' | META_KEY_FLAG, -1 },
-		1
-	},
-	{
-		KEY_CMD_VOLUME_60,
-		"volume_60",
-		"Set volume to 60%",
-		CON_MENU,
-		{ '6' | META_KEY_FLAG, -1 },
-		1
-	},
-	{
-		KEY_CMD_VOLUME_70,
-		"volume_70",
-		"Set volume to 70%",
-		CON_MENU,
-		{ '7' | META_KEY_FLAG, -1 },
-		1
-	},
-	{
-		KEY_CMD_VOLUME_80,
-		"volume_80",
-		"Set volume to 80%",
-		CON_MENU,
-		{ '8' | META_KEY_FLAG, -1 },
-		1
-	},
-	{
-		KEY_CMD_VOLUME_90,
-		"volume_90",
-		"Set volume to 90%",
-		CON_MENU,
-		{ '9' | META_KEY_FLAG, -1 },
-		1
-	},
-	{
-		KEY_CMD_RATE_0,
-		"rate_0",
-		"Set rating to 0 stars",
-		CON_MENU,
-		{ '0', -1 },
-		1
-	},
-	{
-		KEY_CMD_RATE_1,
-		"rate_1",
-		"Set rating to 1 star",
-		CON_MENU,
-		{ '1', -1 },
-		1
-	},
-	{
-		KEY_CMD_RATE_2,
-		"rate_2",
-		"Set rating to 2 stars",
-		CON_MENU,
-		{ '2', -1 },
-		1
-	},
-	{
-		KEY_CMD_RATE_3,
-		"rate_3",
-		"Set rating to 3 stars",
-		CON_MENU,
-		{ '3', -1 },
-		1
-	},
-	{
-		KEY_CMD_RATE_4,
-		"rate_4",
-		"Set rating to 4 stars",
-		CON_MENU,
-		{ '4', -1 },
-		1
-	},
-	{
-		KEY_CMD_RATE_5,
-		"rate_5",
-		"Set rating to 5 stars",
-		CON_MENU,
-		{ '5', -1 },
-		1
-	},
+	{ KEY_CMD_VOLUME_10, "volume_10", "Set volume to 10%", CON_MENU, { '1' | META_KEY_FLAG, -1 }, 1 },
+	{ KEY_CMD_VOLUME_20, "volume_20", "Set volume to 20%", CON_MENU, { '2' | META_KEY_FLAG, -1 }, 1 },
+	{ KEY_CMD_VOLUME_30, "volume_30", "Set volume to 30%", CON_MENU, { '3' | META_KEY_FLAG, -1 }, 1 },
+	{ KEY_CMD_VOLUME_40, "volume_40", "Set volume to 40%", CON_MENU, { '4' | META_KEY_FLAG, -1 }, 1 },
+	{ KEY_CMD_VOLUME_50, "volume_50", "Set volume to 50%", CON_MENU, { '5' | META_KEY_FLAG, -1 }, 1 },
+	{ KEY_CMD_VOLUME_60, "volume_60", "Set volume to 60%", CON_MENU, { '6' | META_KEY_FLAG, -1 }, 1 },
+	{ KEY_CMD_VOLUME_70, "volume_70", "Set volume to 70%", CON_MENU, { '7' | META_KEY_FLAG, -1 }, 1 },
+	{ KEY_CMD_VOLUME_80, "volume_80", "Set volume to 80%", CON_MENU, { '8' | META_KEY_FLAG, -1 }, 1 },
+	{ KEY_CMD_VOLUME_90, "volume_90", "Set volume to 90%", CON_MENU, { '9' | META_KEY_FLAG, -1 }, 1 },
+
+	{ KEY_CMD_RATE_0, "rate_0", "Set rating to 0 stars", CON_MENU, { '0', -1 }, 1 },
+	{ KEY_CMD_RATE_1, "rate_1", "Set rating to 1 star", CON_MENU, { '1', -1 }, 1 },
+	{ KEY_CMD_RATE_2, "rate_2", "Set rating to 2 stars", CON_MENU, { '2', -1 }, 1 },
+	{ KEY_CMD_RATE_3, "rate_3", "Set rating to 3 stars", CON_MENU, { '3', -1 }, 1 },
+	{ KEY_CMD_RATE_4, "rate_4", "Set rating to 4 stars", CON_MENU, { '4', -1 }, 1 },
+	{ KEY_CMD_RATE_5, "rate_5", "Set rating to 5 stars", CON_MENU, { '5', -1 }, 1 },
+
+	{ KEY_CMD_SEEK_0, "seek_0", "Seek to start of song", CON_MENU, { -1 }, 0 },
+	{ KEY_CMD_SEEK_1, "seek_1", "Seek to 10% of song", CON_MENU, { -1 }, 0 },
+	{ KEY_CMD_SEEK_2, "seek_2", "Seek to 20% of song", CON_MENU, { -1 }, 0 },
+	{ KEY_CMD_SEEK_3, "seek_3", "Seek to 30% of song", CON_MENU, { -1 }, 0 },
+	{ KEY_CMD_SEEK_4, "seek_4", "Seek to 40% of song", CON_MENU, { -1 }, 0 },
+	{ KEY_CMD_SEEK_5, "seek_5", "Seek to 50% of song", CON_MENU, { -1 }, 0 },
+	{ KEY_CMD_SEEK_6, "seek_6", "Seek to 60% of song", CON_MENU, { -1 }, 0 },
+	{ KEY_CMD_SEEK_7, "seek_7", "Seek to 70% of song", CON_MENU, { -1 }, 0 },
+	{ KEY_CMD_SEEK_8, "seek_8", "Seek to 80% of song", CON_MENU, { -1 }, 0 },
+	{ KEY_CMD_SEEK_9, "seek_9", "Seek to 90% of song", CON_MENU, { -1 }, 0 },
+
  	{
  		KEY_CMD_MARK_START,
  		"mark_start",
@@ -567,86 +475,18 @@ static struct command commands[] = {
  		{ '\"', -1 },
  		1
  	},
- 	{
- 		KEY_CMD_FAST_DIR_1,
- 		"go_to_fast_dir1",
- 		"Go to a fast dir 1",
- 		CON_MENU,
- 		{ '!', -1 },
- 		1
- 	},
- 	{
- 		KEY_CMD_FAST_DIR_2,
- 		"go_to_fast_dir2",
- 		"Go to a fast dir 2",
- 		CON_MENU,
- 		{ '@', -1 },
- 		1
- 	},
- 	{
- 		KEY_CMD_FAST_DIR_3,
- 		"go_to_fast_dir3",
- 		"Go to a fast dir 3",
- 		CON_MENU,
- 		{ '#', -1 },
- 		1
- 	},
- 	{
- 		KEY_CMD_FAST_DIR_4,
- 		"go_to_fast_dir4",
- 		"Go to a fast dir 4",
- 		CON_MENU,
- 		{ '$', -1 },
- 		1
- 	},
- 	{
- 		KEY_CMD_FAST_DIR_5,
- 		"go_to_fast_dir5",
- 		"Go to a fast dir 5",
- 		CON_MENU,
- 		{ '%', -1 },
- 		1
- 	},
- 	{
- 		KEY_CMD_FAST_DIR_6,
- 		"go_to_fast_dir6",
- 		"Go to a fast dir 6",
- 		CON_MENU,
- 		{ '^', -1 },
- 		1
- 	},
- 	{
- 		KEY_CMD_FAST_DIR_7,
- 		"go_to_fast_dir7",
- 		"Go to a fast dir 7",
- 		CON_MENU,
- 		{ '&', -1 },
- 		1
- 	},
- 	{
- 		KEY_CMD_FAST_DIR_8,
- 		"go_to_fast_dir8",
- 		"Go to a fast dir 8",
- 		CON_MENU,
- 		{ '*', -1 },
- 		1
- 	},
- 	{
- 		KEY_CMD_FAST_DIR_9,
- 		"go_to_fast_dir9",
- 		"Go to a fast dir 9",
- 		CON_MENU,
- 		{ '(', -1 },
- 		1
- 	},
- 	{
- 		KEY_CMD_FAST_DIR_10,
- 		"go_to_fast_dir10",
- 		"Go to a fast dir 10",
- 		CON_MENU,
- 		{ ')', -1 },
- 		1
-  	},
+
+ 	{ KEY_CMD_FAST_DIR_1, "go_to_fast_dir1", "Go to a fast dir 1", CON_MENU, { '!', -1 }, 1 },
+ 	{ KEY_CMD_FAST_DIR_2, "go_to_fast_dir2", "Go to a fast dir 2", CON_MENU, { '@', -1 }, 1 },
+ 	{ KEY_CMD_FAST_DIR_3, "go_to_fast_dir3", "Go to a fast dir 3", CON_MENU, { '#', -1 }, 1 },
+ 	{ KEY_CMD_FAST_DIR_4, "go_to_fast_dir4", "Go to a fast dir 4", CON_MENU, { '$', -1 }, 1 },
+ 	{ KEY_CMD_FAST_DIR_5, "go_to_fast_dir5", "Go to a fast dir 5", CON_MENU, { '%', -1 }, 1 },
+ 	{ KEY_CMD_FAST_DIR_6, "go_to_fast_dir6", "Go to a fast dir 6", CON_MENU, { '^', -1 }, 1 },
+ 	{ KEY_CMD_FAST_DIR_7, "go_to_fast_dir7", "Go to a fast dir 7", CON_MENU, { '&', -1 }, 1 },
+ 	{ KEY_CMD_FAST_DIR_8, "go_to_fast_dir8", "Go to a fast dir 8", CON_MENU, { '*', -1 }, 1 },
+ 	{ KEY_CMD_FAST_DIR_9, "go_to_fast_dir9", "Go to a fast dir 9", CON_MENU, { '(', -1 }, 1 },
+ 	{ KEY_CMD_FAST_DIR_10, "go_to_fast_dir10", "Go to a fast dir 10", CON_MENU, { ')', -1 }, 1 },
+
  	{
  		KEY_CMD_HISTORY_UP,
  		"history_up",
@@ -767,86 +607,18 @@ static struct command commands[] = {
  		{ 'T', -1 },
  		1
   	},
- 	{
- 		KEY_CMD_EXEC1,
- 		"exec_command1",
- 		"Execute ExecCommand1",
- 		CON_MENU,
- 		{ KEY_F(1), -1 },
- 		1
-  	},
- 	{
- 		KEY_CMD_EXEC2,
- 		"exec_command2",
- 		"Execute ExecCommand2",
- 		CON_MENU,
- 		{ KEY_F(2), -1 },
- 		1
-  	},
- 	{
- 		KEY_CMD_EXEC3,
- 		"exec_command3",
- 		"Execute ExecCommand3",
- 		CON_MENU,
- 		{ KEY_F(3), -1 },
- 		1
-  	},
- 	{
- 		KEY_CMD_EXEC4,
- 		"exec_command4",
- 		"Execute ExecCommand4",
- 		CON_MENU,
- 		{ KEY_F(4), -1 },
- 		1
-  	},
- 	{
- 		KEY_CMD_EXEC5,
- 		"exec_command5",
- 		"Execute ExecCommand5",
- 		CON_MENU,
- 		{ KEY_F(5), -1 },
- 		1
-  	},
- 	{
- 		KEY_CMD_EXEC6,
- 		"exec_command6",
- 		"Execute ExecCommand6",
- 		CON_MENU,
- 		{ KEY_F(6), -1 },
- 		1
-  	},
- 	{
- 		KEY_CMD_EXEC7,
- 		"exec_command7",
- 		"Execute ExecCommand7",
- 		CON_MENU,
- 		{ KEY_F(7), -1 },
- 		1
-  	},
- 	{
- 		KEY_CMD_EXEC8,
- 		"exec_command8",
- 		"Execute ExecCommand8",
- 		CON_MENU,
- 		{ KEY_F(8), -1 },
- 		1
-  	},
- 	{
- 		KEY_CMD_EXEC9,
- 		"exec_command9",
- 		"Execute ExecCommand9",
- 		CON_MENU,
- 		{ KEY_F(9), -1 },
- 		1
-  	},
- 	{
- 		KEY_CMD_EXEC10,
- 		"exec_command10",
- 		"Execute ExecCommand10",
- 		CON_MENU,
- 		{ KEY_F(10), -1 },
- 		1
-  	},
+
+ 	{ KEY_CMD_EXEC1, "exec_command1", "Execute ExecCommand1", CON_MENU, { KEY_F(1), -1 }, 1 },
+ 	{ KEY_CMD_EXEC2, "exec_command2", "Execute ExecCommand2", CON_MENU, { KEY_F(2), -1 }, 1 },
+ 	{ KEY_CMD_EXEC3, "exec_command3", "Execute ExecCommand3", CON_MENU, { KEY_F(3), -1 }, 1 },
+ 	{ KEY_CMD_EXEC4, "exec_command4", "Execute ExecCommand4", CON_MENU, { KEY_F(4), -1 }, 1 },
+ 	{ KEY_CMD_EXEC5, "exec_command5", "Execute ExecCommand5", CON_MENU, { KEY_F(5), -1 }, 1 },
+ 	{ KEY_CMD_EXEC6, "exec_command6", "Execute ExecCommand6", CON_MENU, { KEY_F(6), -1 }, 1 },
+ 	{ KEY_CMD_EXEC7, "exec_command7", "Execute ExecCommand7", CON_MENU, { KEY_F(7), -1 }, 1 },
+ 	{ KEY_CMD_EXEC8, "exec_command8", "Execute ExecCommand8", CON_MENU, { KEY_F(8), -1 }, 1 },
+ 	{ KEY_CMD_EXEC9, "exec_command9", "Execute ExecCommand9", CON_MENU, { KEY_F(9), -1 }, 1 },
+ 	{ KEY_CMD_EXEC10, "exec_command10", "Execute ExecCommand10", CON_MENU, { KEY_F(10), -1 }, 1 },
+
 	{
 		KEY_CMD_LYRICS,
 		"show_lyrics",
