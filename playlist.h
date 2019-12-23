@@ -30,7 +30,6 @@ enum file_type
 	F_SOUND,
 	F_URL,
 	F_PLAYLIST,
-	F_THEME,
 	F_OTHER
 };
 

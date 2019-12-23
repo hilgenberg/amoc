@@ -126,12 +126,6 @@ Seek forward (positive) or backward (negative) by \fIN\fP seconds in the
 file currently being played.
 .LP
 .TP
-\fB\-T\fP \fITHEME\fP, \fB\-\-theme\fP \fITHEME\fP
-Use a theme file.  If the path is not absolute, the file will be searched
-for in \fB/usr/share/moc/themes/\fP (depends on installation prefix),
-\fB~/.moc/themes/\fP and the current directory.
-.LP
-.TP
 \fB\-C\fP \fIFILE\fP, \fB\-\-config\fP \fIFILE\fP
 Use the specified configuration file (which must be readable) instead of the
 default.  As this file can specify commands which invoke other applications
@@ -459,13 +453,7 @@ variable above.)
 .LP
 .TP
 .B ~/.moc/themes
-.TQ
-.B /usr/share/moc/themes
-Default directories for the theme files.
-.LP
-.TP
-.B /usr/share/moc/decoder_plugins
-Default directories for the audio decoder plugins.
+Default directory for the theme files.
 .LP
 .TP
 .B mocp_client_log

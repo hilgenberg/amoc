@@ -470,7 +470,6 @@ enum {
 	CL_NOIFACE,
 	CL_SDRIVER,
 	CL_MUSICDIR,
-	CL_THEME,
 	CL_SETOPTION,
 	CL_MOCDIR,
 	CL_SYNCPL,
@@ -508,8 +507,6 @@ static struct poptOption general_opts[] = {
 			"Use the first valid sound driver", "DRIVERS"},
 	{"ascii", 'A', POPT_ARG_NONE, NULL, CL_ASCII,
 			"Use ASCII characters to draw lines", NULL},
-	{"theme", 'T', POPT_ARG_STRING, NULL, CL_THEME,
-			"Use the selected theme file (read from ~/.moc/themes if the path is not absolute)", "FILE"},
 	{"sync", 'y', POPT_ARG_NONE, NULL, CL_SYNCPL,
 			"Synchronize the playlist with other clients", NULL},
 	{"nosync", 'n', POPT_ARG_NONE, NULL, CL_NOSYNC,
@@ -1005,9 +1002,6 @@ static void process_options (poptContext ctx, lists_t_strs *deferred)
 			break;
 		case CL_NOIFACE:
 			params.allow_iface = 0;
-			break;
-		case CL_THEME:
-			options_set_str ("ForceTheme", arg);
 			break;
 		case CL_SETOPTION:
 			override_config_option (arg, deferred);

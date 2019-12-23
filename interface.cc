@@ -2723,145 +2723,6 @@ static void cmd_next ()
 	}
 }
 
-/* Add themes found in the directory to the list of theme files. */
-static void add_themes_to_list (lists_t_strs *themes, const char *themes_dir)
-{
-	DIR *dir;
-	struct dirent *entry;
-
-	assert (themes);
-	assert (themes_dir);
-
-	if (!(dir = opendir (themes_dir))) {
-		char *err = xstrerror (errno);
-		logit ("Can't open themes directory %s: %s", themes_dir, err);
-		free (err);
-		return;
-	}
-
-	while ((entry = readdir(dir))) {
-		int rc;
-		char file[PATH_MAX];
-
-		if (entry->d_name[0] == '.')
-			continue;
-
-		/* Filter out backup files (*~). */
-		if (entry->d_name[strlen(entry->d_name)-1] == '~')
-			continue;
-
-		rc = snprintf(file, sizeof(file), "%s/%s", themes_dir, entry->d_name);
-		if (rc >= ssizeof(file))
-			continue;
-
-		lists_strs_append (themes, file);
-	}
-
-	closedir (dir);
-}
-
-/* Compare two pathnames based on filename. */
-static int themes_cmp (const void *a, const void *b)
-{
-	int result;
-	char *sa = *(char **)a;
-	char *sb = *(char **)b;
-
-	result = strcoll (strrchr (sa, '/') + 1, strrchr (sb, '/') + 1);
-	if (result == 0)
-		result = strcoll (sa, sb);
-
-	return result;
-}
-
-/* Add themes found in the directories to the theme selection menu.
- * Return the number of items added. */
-static int add_themes_to_menu (const char *user_themes,
-                               const char *system_themes)
-{
-	int ix;
-	lists_t_strs *themes;
-
-	assert (user_themes);
-	assert (system_themes);
-
-	themes = lists_strs_new (16);
-	add_themes_to_list (themes, user_themes);
-	add_themes_to_list (themes, system_themes);
-	lists_strs_sort (themes, themes_cmp);
-
-	for (ix = 0; ix < lists_strs_size (themes); ix += 1) {
-		char *file;
-
-		file = lists_strs_at (themes, ix);
-		iface_add_file (file, strrchr (file, '/') + 1, F_THEME);
-	}
-
-	lists_strs_free (themes);
-
-	return ix;
-}
-
-static void make_theme_menu ()
-{
-	iface_switch_to_theme_menu ();
-
-	if (add_themes_to_menu (create_file_name ("themes"),
-	                        SYSTEM_THEMES_DIR) == 0) {
-		if (!cwd[0])
-			enter_first_dir (); /* we were at the playlist from the startup */
-		else
-			iface_switch_to_dir ();
-
-		error ("No themes found.");
-	}
-
-	iface_update_theme_selection (get_current_theme ());
-	iface_refresh ();
-}
-
-/* Use theme from the currently selected file. */
-static void use_theme ()
-{
-	char *file = iface_get_curr_file ();
-
-	assert (iface_curritem_get_type() == F_THEME);
-
-	if (!file)
-		return;
-
-	themes_switch_theme (file);
-	iface_update_attrs ();
-	iface_refresh ();
-
-	free (file);
-}
-
-/* Handle keys while in the theme menu. */
-static void theme_menu_key (const struct iface_key *k)
-{
-	if (!iface_key_is_resize(k)) {
-		enum key_cmd cmd = get_key_cmd (CON_MENU, k);
-
-		switch (cmd) {
-			case KEY_CMD_GO:
-				use_theme ();
-				break;
-			case KEY_CMD_MENU_DOWN:
-			case KEY_CMD_MENU_UP:
-			case KEY_CMD_MENU_NPAGE:
-			case KEY_CMD_MENU_PPAGE:
-			case KEY_CMD_MENU_FIRST:
-			case KEY_CMD_MENU_LAST:
-				iface_menu_key (cmd);
-				break;
-			default:
-				iface_switch_to_dir ();
-				logit ("Bad key");
-		}
-	}
-}
-
 /* Make sure that we have tags and a title for this file which is in a menu. */
 static void make_sure_tags_exist (const char *file)
 {
@@ -3177,8 +3038,6 @@ static void menu_key (const struct iface_key *k)
 		iface_handle_lyrics_key (k);
 	else if (iface_in_entry ())
 		entry_key (k);
-	else if (iface_in_theme_menu ())
-		theme_menu_key (k);
 	else if (!iface_key_is_resize (k)) {
 		enum key_cmd cmd = get_key_cmd (CON_MENU, k);
 
@@ -3460,9 +3319,6 @@ static void menu_key (const struct iface_key *k)
 				break;
 			case KEY_CMD_ADD_STREAM:
 				iface_make_entry (ENTRY_ADD_URL);
-				break;
-			case KEY_CMD_THEME_MENU:
-				make_theme_menu ();
 				break;
 			case KEY_CMD_EXEC1:
 				exec_custom_command ("ExecCommand1");

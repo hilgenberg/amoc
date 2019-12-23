@@ -9,21 +9,7 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
-#if defined HAVE_NCURSESW_CURSES_H
-# include <ncursesw/curses.h>
-#elif defined HAVE_NCURSESW_H
-# include <ncursesw.h>
-#elif defined HAVE_NCURSES_CURSES_H
-# include <ncurses/curses.h>
-#elif defined HAVE_NCURSES_H
 # include <ncurses.h>
-#elif defined HAVE_CURSES_H
-# include <curses.h>
-#endif
 
 #include <stdio.h>
 #include <assert.h>
@@ -31,11 +17,9 @@
 #include <strings.h>
 #include <errno.h>
 
-#include "common.h"
 #include "interface.h"
 #include "themes.h"
 #include "files.h"
-#include "options.h"
 
 /* ncurses extension */
 #ifndef COLOR_DEFAULT
@@ -284,13 +268,6 @@ static char *find_theme_file (const char *name)
 	if (file_exists(path))
 		return path;
 
-	/* Try the system directory */
-	rc = snprintf(path, sizeof(path), "%s/%s", SYSTEM_THEMES_DIR, name);
-	if (rc >= ssizeof(path))
-		interface_fatal ("Theme path too long!");
-	if (file_exists(path))
-		return path;
-
 	/* File related to the current directory? */
 	strncpy (path, name, sizeof(path));
 	if (path[sizeof(path)-1])
@@ -523,11 +500,7 @@ void theme_init (bool has_xterm)
 	if (has_colors ()) {
 		char *file;
 
-		if ((file = options_get_str ("ForceTheme"))) {
-			load_color_theme (file, 1);
-			strncpy (current_theme, find_theme_file (file), PATH_MAX);
-		}
-		else if (has_xterm && (file = options_get_str ("XTermTheme"))) {
+		if (has_xterm && (file = options_get_str ("XTermTheme"))) {
 			load_color_theme (file, 1);
 			strncpy (current_theme, find_theme_file (file), PATH_MAX);
 		}
@@ -535,9 +508,6 @@ void theme_init (bool has_xterm)
 			load_color_theme (file, 1);
 			strncpy (current_theme, find_theme_file (file), PATH_MAX);
 		}
-		else
-			snprintf (current_theme, PATH_MAX, "%s/example_theme",
-			                                   SYSTEM_THEMES_DIR);
 
 		set_default_colors ();
 	}
@@ -550,22 +520,3 @@ int get_color (const enum color_index index)
 	return colors[index];
 }
 
-void themes_switch_theme (const char *file)
-{
-	if (has_colors()) {
-		reset_colors_table ();
-		if (!load_color_theme(file, 0)) {
-			interface_error ("Error loading theme!");
-			reset_colors_table ();
-		}
-		else
-			strncpy (current_theme, file, PATH_MAX);
-
-		set_default_colors ();
-	}
-}
-
-const char *get_current_theme ()
-{
-	return current_theme;
-}

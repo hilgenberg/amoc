@@ -1,10 +1,4 @@
 
-#define SYSTEM_THEMES_DIR "/usr/share/moc/themes/"
-
-
-/* Define if building universal (internal helper macro) */
-/* #undef AC_APPLE_UNIVERSAL_BUILD */
-
 /* Define to the configuration used to build MOC. */
 #define CONFIGURATION ""
 
