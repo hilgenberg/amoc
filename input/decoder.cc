@@ -8,7 +8,6 @@
  * (at your option) any later version.
  *
  */
-#include "common.h"
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
@@ -18,12 +17,9 @@
 #include <assert.h>
 
 #include "decoder.h"
-#include "files.h"
-#include "log.h"
+#include "../files.h"
 #include "io.h"
-#include "options.h"
-#include "common.h"
-#include "input/inputs.h"
+#include "inputs.h"
 
 static struct plugin {
 	const char *name;

@@ -7,8 +7,7 @@
  * 'common.h' which is itself included by all code.
  */
 
-#ifndef COMPAT_H
-#define COMPAT_H
+#pragma once
 
 #ifdef HAVE_BYTESWAP_H
 # include <byteswap.h>
@@ -46,4 +45,3 @@
 char *strcasestr (const char *haystack, const char *needle);
 #endif
 
-#endif

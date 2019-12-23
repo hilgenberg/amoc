@@ -30,17 +30,16 @@ typedef unsigned int u_int;
 typedef unsigned long int u_long;
 # endif
 # include <db.h>
+#undef STRERROR_FN
 # define STRERROR_FN bdb_strerror
 #endif
 
-#include "common.h"
 #include "server.h"
 #include "playlist.h"
 #include "rbtree.h"
 #include "files.h"
 #include "tags_cache.h"
-#include "log.h"
-#include "audio.h"
+#include "output/audio.h"
 
 #ifdef HAVE_DB_H
 # define DB_ONLY

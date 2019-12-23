@@ -22,9 +22,9 @@
 
 #include "common.h"
 #include "log.h"
-#include "decoder.h"
-#include "audio.h"
-#include "out_buf.h"
+#include "input/decoder.h"
+#include "output/audio.h"
+#include "output/out_buf.h"
 #include "server.h"
 #include "options.h"
 #include "player.h"

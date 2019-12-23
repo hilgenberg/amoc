@@ -22,10 +22,6 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-  #include "config.h"
-#endif
-
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
@@ -40,11 +36,8 @@
 #include <dirent.h>
 #include <locale.h>
 
-#include "common.h"
-#include "audio.h"
-#include "audio_conversion.h"
-#include "options.h"
-#include "log.h"
+#include "output/audio.h"
+#include "output/audio_conversion.h"
 #include "files.h"
 #include "equalizer.h"
 
@@ -170,7 +163,7 @@ int equalizer_is_active()
 
 int equalizer_set_active(int active)
 {
-  return equ_active = active?1:0;
+  return equ_active = (active?1:0);
 }
 
 char *equalizer_current_eqname()

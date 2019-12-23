@@ -1,5 +1,5 @@
 
-#define SYSTEM_THEMES_DIR "bla"
+#define SYSTEM_THEMES_DIR "/usr/share/moc/themes/"
 
 
 /* Define if building universal (internal helper macro) */
@@ -487,3 +487,7 @@
 #endif
 
 #include <ncurses.h>
+#include "common.h"
+#include "log.h"
+#include "options.h"
+

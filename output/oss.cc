@@ -30,11 +30,8 @@
 # include <soundcard.h>
 #endif
 
-#include "common.h"
-#include "server.h"
+#include "../server.h"
 #include "audio.h"
-#include "log.h"
-#include "options.h"
 
 #if OSS_VERSION >= 0x40000 || SOUND_VERSION >= 0x40000
 #define OSSv4_MIXER

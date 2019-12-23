@@ -1,7 +1,7 @@
 #ifndef BUF_H
 #define BUF_H
 
-#include "fifo_buf.h"
+#include "../fifo_buf.h"
 
 typedef void out_buf_free_callback ();
 

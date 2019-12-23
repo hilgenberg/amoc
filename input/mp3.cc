@@ -30,13 +30,10 @@
 # include <iconv.h>
 #endif
 
-#include "../common.h"
-#include "../log.h"
 #include "mp3_xing.h"
-#include "../audio.h"
-#include "../decoder.h"
-#include "../io.h"
-#include "../options.h"
+#include "../output/audio.h"
+#include "decoder.h"
+#include "io.h"
 #include "../files.h"
 #include "../utf8.h"
 #include "../rcc.h"

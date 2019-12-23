@@ -38,7 +38,7 @@
 #include "options.h"
 #include "protocol.h"
 #include "log.h"
-#include "decoder.h"
+#include "input/decoder.h"
 #include "lists.h"
 #include "files.h"
 #include "rcc.h"

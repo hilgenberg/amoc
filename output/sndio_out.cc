@@ -11,19 +11,15 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
 #ifdef HAVE_SNDIO_H
 # include <sndio.h>
 #endif
 
 #include <assert.h>
 
-#include "common.h"
+#include "../common.h"
 #include "audio.h"
-#include "log.h"
+#include "../log.h"
 
 #define PCT_TO_SIO(pct)	((127 * (pct) + 50) / 100)
 #define SIO_TO_PCT(vol)	((100 * (vol) + 64) / 127)

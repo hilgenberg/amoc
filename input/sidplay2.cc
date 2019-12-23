@@ -16,10 +16,7 @@
 #include <string.h>
 #include <strings.h>
 
-#include "../common.h"
-#include "../log.h"
-#include "../options.h"
-#include "../decoder.h"
+#include "decoder.h"
 
 // debug and error are used by this library too...
 #undef debug

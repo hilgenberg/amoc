@@ -12,10 +12,6 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
 #include <stdio.h>
 #include <pthread.h>
 #include <string.h>
@@ -23,12 +19,10 @@
 #include <errno.h>
 #include <assert.h>
 
-#include "common.h"
-#include "server.h"
-#include "decoder.h"
-#include "playlist.h"
-#include "log.h"
-#include "lists.h"
+#include "../server.h"
+#include "../input/decoder.h"
+#include "../playlist.h"
+#include "../lists.h"
 
 #ifdef HAVE_OSS
 # include "oss.h"
@@ -46,16 +40,15 @@
 # include "jack.h"
 #endif
 
-#include "softmixer.h"
-#include "equalizer.h"
+#include "../softmixer.h"
+#include "../equalizer.h"
 
 #include "out_buf.h"
-#include "protocol.h"
-#include "options.h"
-#include "player.h"
+#include "../protocol.h"
+#include "../player.h"
 #include "audio.h"
-#include "files.h"
-#include "io.h"
+#include "../files.h"
+#include "../input/io.h"
 #include "audio_conversion.h"
 
 static pthread_t playing_thread = 0;  /* tid of play thread */

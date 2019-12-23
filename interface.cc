@@ -37,7 +37,7 @@
 #include "keys.h"
 #include "options.h"
 #include "files.h"
-#include "decoder.h"
+#include "input/decoder.h"
 #include "themes.h"
 #include "softmixer.h"
 #include "utf8.h"

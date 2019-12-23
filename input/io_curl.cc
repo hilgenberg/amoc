@@ -24,12 +24,9 @@
 #include <assert.h>
 #include <stdint.h>
 
-#include "common.h"
-#include "log.h"
 #include "io.h"
 #include "io_curl.h"
-#include "options.h"
-#include "lists.h"
+#include "../lists.h"
 
 static char user_agent[] = PACKAGE_NAME "/" PACKAGE_VERSION;
 

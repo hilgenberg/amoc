@@ -8,7 +8,7 @@
 # include <curl/curl.h>
 #endif
 
-#include "fifo_buf.h"
+#include "../fifo_buf.h"
 
 enum io_source
 {

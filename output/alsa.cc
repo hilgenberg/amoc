@@ -23,13 +23,14 @@
 #include <errno.h>
 #include <unistd.h>
 
+#undef STRERROR_FN 
 #define STRERROR_FN alsa_strerror
 
-#include "common.h"
-#include "server.h"
+#include "../common.h"
+#include "../server.h"
 #include "audio.h"
-#include "options.h"
-#include "log.h"
+#include "../options.h"
+#include "../log.h"
 
 #define BUFFER_MAX_USEC	300000
 

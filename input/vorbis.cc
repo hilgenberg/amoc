@@ -24,11 +24,9 @@
 #include <tremor/ivorbiscodec.h>
 #endif
 
-#include "../common.h"
-#include "../log.h"
-#include "../decoder.h"
-#include "../io.h"
-#include "../audio.h"
+#include "decoder.h"
+#include "io.h"
+#include "../output/audio.h"
 
 /* These merely silence compiler warnings about unused definitions in
  * the Vorbis library header files. */

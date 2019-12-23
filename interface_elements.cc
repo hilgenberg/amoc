@@ -36,7 +36,7 @@
 #include "interface_elements.h"
 #include "log.h"
 #include "files.h"
-#include "decoder.h"
+#include "input/decoder.h"
 #include "keys.h"
 #include "playlist.h"
 #include "protocol.h"

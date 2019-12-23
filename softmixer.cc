@@ -27,8 +27,8 @@
 /* #define DEBUG */
 
 #include "common.h"
-#include "audio.h"
-#include "audio_conversion.h"
+#include "output/audio.h"
+#include "output/audio_conversion.h"
 #include "softmixer.h"
 #include "options.h"
 #include "files.h"

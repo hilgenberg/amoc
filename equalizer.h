@@ -1,5 +1,4 @@
-#ifndef EQUALIZER_H
-#define EQUALIZER_H
+#pragma once
 
 void equalizer_init();
 void equalizer_shutdown();
@@ -10,5 +9,3 @@ int equalizer_set_active(int active);
 char *equalizer_current_eqname();
 void equalizer_next();
 void equalizer_prev();
-
-#endif

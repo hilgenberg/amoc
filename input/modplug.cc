@@ -23,12 +23,9 @@
 #include <assert.h>
 #include <libmodplug/modplug.h>
 
-#include "../common.h"
-#include "../io.h"
-#include "../decoder.h"
-#include "../log.h"
+#include "io.h"
+#include "decoder.h"
 #include "../files.h"
-#include "../options.h"
 
 // Limiting maximum size for loading a module was suggested by Damian.
 // I've never seen such a large module so this should be a safe limit...

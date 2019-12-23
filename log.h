@@ -1,5 +1,4 @@
-#ifndef LOG_H
-#define LOG_H
+#pragma once
 
 #include <stdio.h>
 
@@ -59,4 +58,3 @@ void log_signal (int sig);
 # define log_signal(...) do {} while (0)
 #endif
 
-#endif

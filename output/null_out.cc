@@ -11,13 +11,8 @@
 
 /* Fake output device - only for testing. */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
 #include <unistd.h>
 
-#include "common.h"
 #include "audio.h"
 
 static struct sound_params params = { 0, 0, 0 };

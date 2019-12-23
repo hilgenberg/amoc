@@ -1,8 +1,8 @@
 #pragma once
 
-#include "common.h"
-#include "audio.h"
-#include "playlist.h"
+#include "../common.h"
+#include "../output/audio.h"
+#include "../playlist.h"
 #include "io.h"
 
 /** Type of the decoder error. */

@@ -27,11 +27,9 @@
 
 #include <taglib/tag_c.h>
 
-#include "../common.h"
-#include "../log.h"
-#include "../decoder.h"
-#include "../io.h"
-#include "../audio.h"
+#include "decoder.h"
+#include "io.h"
+#include "../output/audio.h"
 
 struct musepack_data
 {

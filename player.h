@@ -1,8 +1,8 @@
 #ifndef PLAYER_H
 #define PLAYER_H
 
-#include "out_buf.h"
-#include "io.h"
+#include "output/out_buf.h"
+#include "input/io.h"
 #include "playlist.h"
 
 void player_cleanup ();

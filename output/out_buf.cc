@@ -13,10 +13,6 @@
  * to the file 'out_test' in the current directory for debugging. */
 /*#define OUT_TEST*/
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
 #include <assert.h>
 #include <pthread.h>
 #include <string.h>
@@ -29,14 +25,9 @@
 #include <fcntl.h>
 #endif
 
-/*#define DEBUG*/
-
-#include "common.h"
 #include "audio.h"
-#include "log.h"
-#include "fifo_buf.h"
+#include "../fifo_buf.h"
 #include "out_buf.h"
-#include "options.h"
 
 struct out_buf
 {

@@ -3,10 +3,6 @@
  * use at your own risk
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
 #include <unistd.h>
 #include <stdio.h>
 #include <jack/jack.h>
@@ -16,10 +12,10 @@
 #include <assert.h>
 #include <math.h>
 
-#include "common.h"
+#include "../common.h"
 #include "audio.h"
-#include "log.h"
-#include "options.h"
+#include "../log.h"
+#include "../options.h"
 
 #define RINGBUF_SZ 32768
 

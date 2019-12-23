@@ -13,10 +13,6 @@
  * - handle SIGBUS (mmap() read error)
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -35,11 +31,8 @@
 
 /*#define DEBUG*/
 
-#include "common.h"
-#include "log.h"
 #include "io.h"
-#include "options.h"
-#include "files.h"
+#include "../files.h"
 #ifdef HAVE_CURL
 # include "io_curl.h"
 #endif

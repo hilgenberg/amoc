@@ -42,12 +42,11 @@ extern "C" {
 #undef COMMON_H
 #undef LOG_H
 
+#undef STRERROR_FN
 #define STRERROR_FN ffmpeg_strerror
 
-#include "../common.h"
-#include "../audio.h"
-#include "../decoder.h"
-#include "../log.h"
+#include "../output/audio.h"
+#include "decoder.h"
 #include "../files.h"
 #include "../lists.h"
 

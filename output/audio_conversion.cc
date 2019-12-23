@@ -16,7 +16,6 @@
  * channels -> rate -> format
  */
 
-#include "config.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <math.h>
@@ -27,10 +26,10 @@
 # include <samplerate.h>
 #endif
 
-#include "common.h"
+#include "../common.h"
 #include "audio_conversion.h"
-#include "log.h"
-#include "options.h"
+#include "../log.h"
+#include "../options.h"
 
 static void float_to_u8 (const float *in, unsigned char *out,
 		const size_t samples)

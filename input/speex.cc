@@ -22,11 +22,9 @@
 #include <speex/speex_callbacks.h>
 #include <ogg/ogg.h>
 
-#include "../common.h"
-#include "../decoder.h"
-#include "../io.h"
-#include "../audio.h"
-#include "../log.h"
+#include "decoder.h"
+#include "io.h"
+#include "../output/audio.h"
 
 /* Use speex's audio enhancement feature */
 #define ENHANCE_AUDIO 1

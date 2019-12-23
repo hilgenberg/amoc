@@ -16,12 +16,10 @@
 #include <stdlib.h>
 #include <strings.h>
 
-#include "../common.h"
-#include "../audio.h"
-#include "../decoder.h"
+#include "../output/audio.h"
+#include "decoder.h"
 #include "../server.h"
-#include "../log.h"
-#include "../io.h"
+#include "io.h"
 
 #define MAX_SUPPORTED_CHANNELS		2
 

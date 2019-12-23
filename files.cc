@@ -30,7 +30,7 @@
 #include "playlist.h"
 #include "lists.h"
 #include "interface.h"
-#include "decoder.h"
+#include "input/decoder.h"
 #include "options.h"
 #include "files.h"
 #include "playlist_file.h"

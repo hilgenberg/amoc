@@ -20,10 +20,8 @@
 #include <assert.h>
 #include <sndfile.h>
 
-#include "../common.h"
-#include "../decoder.h"
+#include "decoder.h"
 #include "../server.h"
-#include "../log.h"
 #include "../files.h"
 #include "../lists.h"
 

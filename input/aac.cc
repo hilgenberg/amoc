@@ -20,10 +20,8 @@
 #include <neaacdec.h>
 #include <id3tag.h>
 
-#include "../common.h"
-#include "../decoder.h"
-#include "../io.h"
-#include "../log.h"
+#include "decoder.h"
+#include "io.h"
 #include "../files.h"
 
 /* FAAD_MIN_STREAMSIZE == 768, 6 == # of channels */
