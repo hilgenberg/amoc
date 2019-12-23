@@ -9,10 +9,6 @@
 #include "files.h"
 #include "keys.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /* Interface's menus */
 enum iface_menu
 {
@@ -33,14 +29,16 @@ enum entry_type
 	ENTRY_USER_QUERY
 };
 
+enum iface_key_type
+{
+	IFACE_KEY_CHAR,	    /* Regular char */
+	IFACE_KEY_FUNCTION  /* Function key (arrow, F12, etc.) */
+};
+
 struct iface_key
 {
 	/* Type of the key */
-	enum
-	{
-		IFACE_KEY_CHAR,	    /* Regular char */
-		IFACE_KEY_FUNCTION  /* Function key (arrow, F12, etc.) */
-	} type;
+	iface_key_type type;
 
 	union {
 		wchar_t ucs;        /* IFACE_KEY_CHAR */
@@ -138,9 +136,5 @@ void iface_update_queue_position_last (const struct plist *queue,
 		struct plist *playlist, struct plist *dir_list);
 void iface_update_attrs ();
 void iface_update_theme_selection (const char *file);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

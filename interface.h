@@ -4,10 +4,6 @@
 
 #include "lists.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /* The desired state of the client (and server). */
 enum want_quit {
 	NO_QUIT,	/* don't want to quit */
@@ -52,9 +48,5 @@ void interface_cmdline_adj_volume (int server_sock, const char *arg);
 void interface_cmdline_set (int server_sock, char *arg, const int val);
 void interface_cmdline_formatted_info (const int server_sock, const char *format_str);
 void interface_cmdline_enqueue (int server_sock, lists_t_strs *args);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

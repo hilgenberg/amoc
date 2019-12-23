@@ -5,10 +5,6 @@
 #include "lists.h"
 #include "playlist.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #define FILES_LIST_INIT_SIZE	64
 
 void files_init ();
@@ -17,7 +13,8 @@ int read_directory (const char *directory, lists_t_strs *dirs,
 		lists_t_strs *playlists, struct plist *plist);
 int read_directory_recurr (const char *directory, struct plist *plist);
 void resolve_path (char *buf, const int size, const char *file);
-char *ext_pos (const char *file);
+const char *ext_pos (const char *file);
+char *ext_pos (char *file);
 enum file_type file_type (const char *file);
 char *file_mime_type (const char *file);
 int is_url (const char *str);
@@ -36,9 +33,5 @@ int is_dir (const char *file);
 int can_read_file (const char *file);
 char *absolute_path (const char *path, const char *cwd);
 bool is_secure (const char *file);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

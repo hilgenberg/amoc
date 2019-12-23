@@ -20,7 +20,69 @@
 #include "../log.h"
 #include "../options.h"
 #include "../decoder.h"
-#include "sidplay2.h"
+
+// debug and error are used by this library too...
+#undef debug
+#undef error
+
+#include <sidplay/sidplay2.h>
+#include <sidplay/SidTune.h>
+#include <sidplay/builders/resid.h>
+#include <sidplay/utils/SidDatabase.h>
+
+#define RESID_ID      "ReSID"
+#define OPT_DEFLEN    "SidPlay2_DefaultSongLength"
+#define OPT_MINLEN    "SidPlay2_MinimumSongLength"
+#define OPT_DATABASE  "SidPlay2_Database"
+#define OPT_FREQ      "SidPlay2_Frequency"
+#define OPT_PREC      "SidPlay2_Bits"
+#define OPT_PMODE     "SidPlay2_PlayMode"
+#define OPT_OPTI      "SidPlay2_Optimisation"
+#define OPT_START     "SidPlay2_StartAtStart"
+#define OPT_SUBTUNES  "SidPlay2_PlaySubTunes"
+
+#define STITLE 0
+#define SAUTHOR 1
+#define SCOPY 2
+
+#define POOL_SIZE 2
+
+struct sidplay2_data
+{
+  SidTuneMod * tune;
+  SID_EXTERN::sidplay2 *player;
+  sid2_config_t cfg;
+  ReSIDBuilder *builder;
+  int length;
+  int *sublengths;
+  int songs;
+  int startSong;
+  int currentSong;
+  int timeStart;
+  int timeEnd;
+  struct decoder_error error;
+  int sample_format, frequency, channels;
+};
+
+void *sidplay2_open (const char *file);
+void sidplay2_close (void *void_data);
+void sidplay2_get_error (void *prv_data, struct decoder_error *error);
+void sidplay2_info (const char *file_name, struct file_tags *info,
+		const int tags_sel);
+int sidplay2_seek (void *void_data, int sec);
+int sidplay2_decode (void *void_data, char *buf, int buf_len,
+		struct sound_params *sound_params);
+int sidplay2_get_bitrate (void *void_data);
+int sidplay2_get_duration (void *void_data);
+void sidplay2_get_name (const char *file, char buf[4]);
+int sidplay2_our_format_ext (const char *ext);
+void destroy ();
+void init ();
+
+struct decoder *sid_plugin ();
+
+
+
 
 static SID_EXTERN::sidplay2 *players [POOL_SIZE];
 
@@ -222,7 +284,7 @@ static void init_database()
   }
 }
 
-extern "C" void *sidplay2_open(const char *file)
+void *sidplay2_open(const char *file)
 {
   if(init_db)
     init_database();
@@ -320,7 +382,7 @@ extern "C" void *sidplay2_open(const char *file)
   return ((void *)s2d);
 }
 
-extern "C" void sidplay2_close(void *void_data)
+void sidplay2_close(void *void_data)
 {
   struct sidplay2_data *data = (struct sidplay2_data *)void_data;
 
@@ -337,14 +399,14 @@ extern "C" void sidplay2_close(void *void_data)
   free(data);
 }
 
-extern "C" void sidplay2_get_error (void *prv_data, struct decoder_error *error)
+void sidplay2_get_error (void *prv_data, struct decoder_error *error)
 {
   struct sidplay2_data *data = (struct sidplay2_data *)prv_data;
 
   decoder_error_copy (error, &data->error);
 }
 
-extern "C" void sidplay2_info (const char *file_name, struct file_tags *info,
+void sidplay2_info (const char *file_name, struct file_tags *info,
 		const int)
 {
   if(init_db)
@@ -445,12 +507,12 @@ extern "C" void sidplay2_info (const char *file_name, struct file_tags *info,
  * Generic seeking can't be done because the whole audio would have to be
  * replayed until the position is reached (which would introduce a delay).
  * */
-extern "C" int sidplay2_seek (void *, int)
+int sidplay2_seek (void *, int)
 {
   return -1;
 }
 
-extern "C" int sidplay2_decode (void *void_data, char *buf, int buf_len,
+int sidplay2_decode (void *void_data, char *buf, int buf_len,
 		struct sound_params *sound_params)
 {
   struct sidplay2_data *data = (struct sidplay2_data *)void_data;
@@ -480,26 +542,26 @@ extern "C" int sidplay2_decode (void *void_data, char *buf, int buf_len,
   return data->player->play((void *)buf, buf_len);
 }
 
-extern "C" int sidplay2_get_bitrate (void *)
+int sidplay2_get_bitrate (void *)
 {
   return -1;
 }
 
-extern "C" int sidplay2_get_duration (void *void_data)
+int sidplay2_get_duration (void *void_data)
 {
   struct sidplay2_data *data = (struct sidplay2_data *)void_data;
 
   return data->length;
 }
 
-extern "C" int sidplay2_our_format_ext(const char *ext)
+int sidplay2_our_format_ext(const char *ext)
 {
   return
     !strcasecmp (ext, "SID") ||
     !strcasecmp (ext, "MUS");
 }
 
-extern "C" void init()
+void init()
 {
   defaultLength = options_get_int(OPT_DEFLEN);
 
@@ -515,7 +577,7 @@ extern "C" void init()
   playerIndex = POOL_SIZE-1; /* turns to 0 at first use */
 }
 
-extern "C" void destroy()
+void destroy()
 {
   pthread_mutex_destroy(&db_mtx);
 
@@ -555,7 +617,7 @@ static struct decoder sidplay2_decoder =
   NULL
 };
 
-extern "C" struct decoder *sid_plugin ()
+struct decoder *sid_plugin ()
 {
   pthread_mutex_init(&db_mtx, NULL);
   pthread_mutex_init(&player_select_mtx, NULL);

@@ -10,10 +10,6 @@
 
 #include "fifo_buf.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 enum io_source
 {
 	IO_SOURCE_FD,
@@ -121,9 +117,5 @@ void io_prebuffer (struct io_stream *s, const size_t to_fill);
 void io_set_buf_fill_callback (struct io_stream *s,
 		buf_fill_callback_t callback, void *data_ptr);
 int io_seekable (const struct io_stream *s);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

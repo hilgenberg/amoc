@@ -42,16 +42,8 @@
 # endif
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #if !HAVE_DECL_STRCASESTR && !defined(__cplusplus)
 char *strcasestr (const char *haystack, const char *needle);
-#endif
-
-#ifdef __cplusplus
-}
 #endif
 
 #endif

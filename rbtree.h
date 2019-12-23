@@ -1,10 +1,6 @@
 #ifndef RBTREE_H
 #define RBTREE_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef int rb_t_compare (const void *, const void *, const void *);
 typedef int rb_t_compare_key (const void *, const void *, const void *);
 
@@ -27,9 +23,5 @@ const void *rb_get_data (const struct rb_node *n);
 void rb_set_data (struct rb_node *n, const void *data);
 struct rb_node *rb_search (struct rb_tree *t, const void *key);
 void rb_insert (struct rb_tree *t, void *data);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

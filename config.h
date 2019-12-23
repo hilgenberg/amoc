@@ -1,5 +1,4 @@
 
-#define PLUGIN_DIR "/usr/local/lib/moc/decoder_plugins"
 #define SYSTEM_THEMES_DIR "bla"
 
 

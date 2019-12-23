@@ -3,10 +3,6 @@
 
 #include <stdio.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #ifdef DEBUG
 # define debug logit
 #else
@@ -61,10 +57,6 @@ void log_close ();
 void log_signal (int sig);
 #else
 # define log_signal(...) do {} while (0)
-#endif
-
-#ifdef __cplusplus
-}
 #endif
 
 #endif

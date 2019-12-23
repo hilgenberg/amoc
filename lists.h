@@ -3,10 +3,6 @@
 
 #include "common.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct lists_strs lists_t_strs;
 typedef int lists_t_compare (const void *, const void *);
 
@@ -33,7 +29,7 @@ char *lists_strs_swap (lists_t_strs *list, int index, char *s);
 /* Ownership preserving functions. */
 void lists_strs_append (lists_t_strs *list, const char *s);
 void lists_strs_remove (lists_t_strs *list);
-void lists_strs_replace (lists_t_strs *list, int index, char *s);
+void lists_strs_replace (lists_t_strs *list, int index, const char *s);
 
 /* Helper functions. */
 int lists_strs_split (lists_t_strs *list, const char *s, const char *delim);
@@ -44,9 +40,5 @@ char **lists_strs_save (const lists_t_strs *list);
 int lists_strs_load (lists_t_strs *list, const char **saved);
 int lists_strs_find (lists_t_strs *list, const char *sought);
 bool lists_strs_exists (lists_t_strs *list, const char *sought);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

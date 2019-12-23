@@ -1,13 +1,9 @@
-#ifndef DECODER_H
-#define DECODER_H
+#pragma once
 
+#include "common.h"
 #include "audio.h"
 #include "playlist.h"
 #include "io.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /** Type of the decoder error. */
 enum decoder_error_type
@@ -321,8 +317,3 @@ void decoder_error_init (struct decoder_error *error);
 
 /*@}*/
 
-#ifdef __cplusplus
-}
-#endif
-
-#endif

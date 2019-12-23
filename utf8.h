@@ -8,10 +8,6 @@
 # include <iconv.h>
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /* parameter passed to wcswidth() as a maximum width */
 #define WIDTH_MAX	2048
 
@@ -28,9 +24,5 @@ char *xstrtail (const char *str, const int len);
 char *iconv_str (const iconv_t desc, const char *str);
 char *files_iconv_str (const char *str);
 char *xterm_iconv_str (const char *str);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

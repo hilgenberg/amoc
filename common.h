@@ -5,8 +5,7 @@
  * checking and the like.
  */
 
-#ifndef COMMON_H
-#define COMMON_H
+#pragma once
 
 #include <stdlib.h>
 #include <stdarg.h>
@@ -119,10 +118,6 @@ struct timespec;
 		free (err##__LINE__); \
 	} while (0)
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void *xmalloc (size_t size);
 void *xcalloc (size_t nmemb, size_t size);
 void *xrealloc (void *ptr, const size_t size);
@@ -147,8 +142,3 @@ void sec_to_min (char *buff, const int seconds);
 const char *get_home ();
 void common_cleanup ();
 
-#ifdef __cplusplus
-}
-#endif
-
-#endif
