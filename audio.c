@@ -23,8 +23,6 @@
 #include <errno.h>
 #include <assert.h>
 
-#define DEBUG
-
 #include "common.h"
 #include "server.h"
 #include "decoder.h"

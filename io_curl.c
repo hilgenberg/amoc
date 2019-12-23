@@ -24,8 +24,6 @@
 #include <assert.h>
 #include <stdint.h>
 
-#define DEBUG
-
 #include "common.h"
 #include "log.h"
 #include "io.h"

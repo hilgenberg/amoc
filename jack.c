@@ -16,8 +16,6 @@
 #include <assert.h>
 #include <math.h>
 
-#define DEBUG
-
 #include "common.h"
 #include "audio.h"
 #include "log.h"

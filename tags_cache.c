@@ -9,10 +9,7 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
+#include "config.h"
 #include <pthread.h>
 #include <assert.h>
 #include <stdlib.h>
@@ -35,8 +32,6 @@ typedef unsigned long int u_long;
 # include <db.h>
 # define STRERROR_FN bdb_strerror
 #endif
-
-#define DEBUG
 
 #include "common.h"
 #include "server.h"

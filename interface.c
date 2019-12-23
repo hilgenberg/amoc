@@ -9,10 +9,6 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
 #include <stdarg.h>
 #include <locale.h>
 #include <assert.h>
@@ -29,8 +25,6 @@
 #include <sys/wait.h>
 #include <dirent.h>
 #include <sys/select.h>
-
-#define DEBUG
 
 #include "common.h"
 #include "log.h"

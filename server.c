@@ -9,9 +9,7 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "config.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -32,8 +30,6 @@
 #include <stdarg.h>
 #include <pthread.h>
 #include <assert.h>
-
-#define DEBUG
 
 #include "common.h"
 #include "log.h"

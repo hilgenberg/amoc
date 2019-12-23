@@ -20,8 +20,6 @@
 #include <errno.h>
 #include <ctype.h>
 
-#define DEBUG
-
 #include "common.h"
 #include "keys.h"
 #include "interface.h"

@@ -1,0 +1,7 @@
+*.o
+*.gch
+/mocp
+__pycache__/
+*.dblite
+*.swp
+*~

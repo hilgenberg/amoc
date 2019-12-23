@@ -23,8 +23,6 @@
 #include <errno.h>
 #include <assert.h>
 
-#define DEBUG
-
 #include "common.h"
 #include "playlist.h"
 #include "playlist_file.h"

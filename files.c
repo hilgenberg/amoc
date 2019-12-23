@@ -9,10 +9,7 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
+#include "config.h"
 #include <stdio.h>
 #include <assert.h>
 #include <sys/types.h>
@@ -28,8 +25,6 @@
 #include <magic.h>
 #include <pthread.h>
 #endif
-
-#define DEBUG
 
 #include "common.h"
 #include "playlist.h"

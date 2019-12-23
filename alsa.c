@@ -23,8 +23,6 @@
 #include <errno.h>
 #include <unistd.h>
 
-#define DEBUG
-
 #define STRERROR_FN alsa_strerror
 
 #include "common.h"

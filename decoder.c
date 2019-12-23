@@ -9,10 +9,6 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
@@ -29,9 +25,10 @@
 #include "io.h"
 #include "options.h"
 
+#include "input/inputs.h"
+
 static struct plugin {
-	char *name;
-	lt_dlhandle handle;
+	const char *name;
 	struct decoder *decoder;
 } plugins[16];
 
@@ -350,26 +347,6 @@ struct decoder *get_decoder_by_content (struct io_stream *stream)
 	return NULL;
 }
 
-/* Extract decoder name from file name. */
-static char *extract_decoder_name (const char *filename)
-{
-	int len;
-	const char *ptr;
-	char *result;
-
-	if (!strncmp (filename, "lib", 3))
-		filename += 3;
-	len = strlen (filename);
-	ptr = strpbrk (filename, "_.-");
-	if (ptr)
-		len = ptr - filename;
-	result = xmalloc (len + 1);
-	strncpy (result, filename, len);
-	result[len] = 0x00;
-
-	return result;
-}
-
 /* Return the index for a decoder of the given name, or plugins_num if
  * not found. */
 static int lookup_decoder_by_name (const char *name)
@@ -423,103 +400,6 @@ static char *list_decoder_names (int *decoder_list, int count)
 	lists_strs_free (names);
 
 	return result;
-}
-
-/* Check if this handle is already present in the plugins table.
- * Returns 1 if so. */
-static int present_handle (const lt_dlhandle h)
-{
-	int i;
-
-	for (i = 0; i < plugins_num; i++) {
-		if (plugins[i].handle == h)
-			return 1;
-	}
-
-	return 0;
-}
-
-static int lt_load_plugin (const char *file, lt_ptr debug_info_ptr)
-{
-	int debug_info;
-	const char *name;
-	union {
-		void *data;
-		plugin_init_func *func;
-	} init;
-
-	debug_info = *(int *)debug_info_ptr;
-	name = strrchr (file, '/');
-	name = name ? (name + 1) : file;
-	if (debug_info)
-		printf ("Loading plugin %s...\n", name);
-
-	if (plugins_num == PLUGINS_NUM) {
-		fprintf (stderr, "Can't load plugin, because maximum number "
-		                                    "of plugins reached!\n");
-		return 0;
-	}
-
-	plugins[plugins_num].handle = lt_dlopenext (file);
-	if (!plugins[plugins_num].handle) {
-		fprintf (stderr, "Can't load plugin %s: %s\n", name, lt_dlerror ());
-		return 0;
-	}
-
-	if (present_handle (plugins[plugins_num].handle)) {
-		if (debug_info)
-			printf ("Already loaded\n");
-		if (lt_dlclose (plugins[plugins_num].handle))
-			fprintf (stderr, "Error unloading plugin: %s\n", lt_dlerror ());
-		return 0;
-	}
-
-	init.data = lt_dlsym (plugins[plugins_num].handle, "plugin_init");
-	if (!init.data) {
-		fprintf (stderr, "No init function in the plugin!\n");
-		if (lt_dlclose (plugins[plugins_num].handle))
-			fprintf (stderr, "Error unloading plugin: %s\n", lt_dlerror ());
-		return 0;
-	}
-
-	/* If this call to init.func() fails with memory access or illegal
-	 * instruction errors then read the commit log message for r2831. */
-	plugins[plugins_num].decoder = init.func ();
-	if (!plugins[plugins_num].decoder) {
-		fprintf (stderr, "NULL decoder!\n");
-		if (lt_dlclose (plugins[plugins_num].handle))
-			fprintf (stderr, "Error unloading plugin: %s\n", lt_dlerror ());
-		return 0;
-	}
-
-	if (plugins[plugins_num].decoder->api_version != DECODER_API_VERSION) {
-		fprintf (stderr, "Plugin uses different API version\n");
-		if (lt_dlclose (plugins[plugins_num].handle))
-			fprintf (stderr, "Error unloading plugin: %s\n", lt_dlerror ());
-		return 0;
-	}
-
-	plugins[plugins_num].name = extract_decoder_name (name);
-
-	/* Is the Vorbis decoder using Tremor? */
-	if (!strcmp (plugins[plugins_num].name, "vorbis")) {
-		void *vorbis_has_tremor;
-
-		vorbis_has_tremor = lt_dlsym (plugins[plugins_num].handle,
-		                              "vorbis_has_tremor");
-		have_tremor = vorbis_has_tremor != NULL;
-	}
-
-	debug ("Loaded %s decoder", plugins[plugins_num].name);
-
-	if (plugins[plugins_num].decoder->init)
-		plugins[plugins_num].decoder->init ();
-	plugins_num += 1;
-
-	if (debug_info)
-		printf ("OK\n");
-
-	return 0;
 }
 
 /* Create a new preferences entry and initialise it. */
@@ -685,16 +565,19 @@ static void load_plugins (int debug_info)
 	int ix;
 	char *names;
 
-	if (debug_info)
-		printf ("Loading plugins from %s...\n", PLUGIN_DIR);
-	if (lt_dlinit ())
-		fatal ("lt_dlinit() failed: %s", lt_dlerror ());
+#define H(X) \
+	assert(plugins_num < PLUGINS_NUM);\
+	plugins[plugins_num].decoder = X ## _plugin();\
+	plugins[plugins_num].name = #X;\
+	if (plugins[plugins_num].decoder->init) plugins[plugins_num].decoder->init();\
+	debug("Loaded %s decoder", plugins[plugins_num].name);\
+	++plugins_num
 
-	if (lt_dlforeachfile (PLUGIN_DIR, &lt_load_plugin, &debug_info))
-		fatal ("Can't load plugins: %s", lt_dlerror ());
+	ALL_INPUTS
+#undef H
 
-	if (plugins_num == 0)
-		fatal ("No decoder plugins have been loaded!");
+	/* Is the Vorbis decoder using Tremor? */
+	have_tremor = vorbis_has_tremor;
 
 	for (ix = 0; ix < plugins_num; ix += 1)
 		default_decoder_list[ix] = ix;
@@ -717,9 +600,6 @@ static void cleanup_decoders ()
 	for (ix = 0; ix < plugins_num; ix++) {
 		if (plugins[ix].decoder->destroy)
 			plugins[ix].decoder->destroy ();
-		free (plugins[ix].name);
-		if (plugins[ix].handle)
-			lt_dlclose (plugins[ix].handle);
 	}
 
 	if (lt_dlexit ())

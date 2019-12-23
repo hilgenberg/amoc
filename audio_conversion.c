@@ -16,10 +16,7 @@
  * channels -> rate -> format
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
+#include "config.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <math.h>
@@ -29,8 +26,6 @@
 #ifdef HAVE_SAMPLERATE
 # include <samplerate.h>
 #endif
-
-#define DEBUG
 
 #include "common.h"
 #include "audio_conversion.h"

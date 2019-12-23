@@ -9,12 +9,6 @@
 extern "C" {
 #endif
 
-/** Version of the decoder API.
- *
- * On every change in the decoder API this number will be changed, so
- * MOC will not load plugins compiled with older/newer decoder.h. */
-#define DECODER_API_VERSION	7
-
 /** Type of the decoder error. */
 enum decoder_error_type
 {
@@ -41,14 +35,6 @@ struct decoder_error
  * field is optional, it may have NULL value. */
 struct decoder
 {
-	/** API version used by the plugin.
-	 *
-	 * Set it to DECODER_API_VERSION to recognize if MOC and the plugin can
-	 * communicate. This is the first field in the structure, so even after
-	 * changing other fields it will hopefully be always read properly.
-	 */
-	int api_version;
-
 	/** Initialize the plugin.
 	 *
 	 * This function is called once at MOC startup (once for the client and
