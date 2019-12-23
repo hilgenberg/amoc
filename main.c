@@ -1176,20 +1176,6 @@ static void log_command_line ()
 #endif
 }
 
-/* Log the command line as interpreted by POPT. */
-static void log_popt_command_line ()
-{
-#if !defined(NDEBUG) && !defined(OPENWRT)
-	if (mocp_argc > 0) {
-		char *str;
-
-		str = render_popt_command_line ();
-		logit ("%s", str);
-		free (str);
-	}
-#endif
-}
-
 int main (int argc, const char *argv[])
 {
 	lists_t_strs *deferred_overrides, *args;
@@ -1239,7 +1225,6 @@ int main (int argc, const char *argv[])
 	log_environment_variables ();
 	log_command_line ();
 	args = process_command_line (deferred_overrides);
-	log_popt_command_line ();
 
 	if (!params.allow_iface && params.only_server)
 		fatal ("Server command options can't be used with --server!");
