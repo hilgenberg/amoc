@@ -439,3 +439,38 @@ void common_cleanup ()
 		logit ("Can't destroy xstrerror_mtx: %s", strerror (rc));
 #endif
 }
+
+
+#ifndef HAVE_STRCASESTR
+#include <string.h>
+#include <ctype.h>
+
+/* Case insensitive version of strstr(). */
+char *strcasestr (const char *haystack, const char *needle)
+{
+	char *haystack_i, *needle_i;
+	char *c;
+	char *res;
+
+	haystack_i = xstrdup (haystack);
+	needle_i = xstrdup (needle);
+
+	c = haystack_i;
+	while (*c) {
+		*c = tolower (*c);
+		c++;
+	}
+
+	c = needle_i;
+	while (*c) {
+		*c = tolower (*c);
+		c++;
+	}
+
+	res = strstr (haystack_i, needle_i);
+	free (haystack_i);
+	free (needle_i);
+	return res ? res - haystack_i + (char *)haystack : NULL;
+}
+#endif
+

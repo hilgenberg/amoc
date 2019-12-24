@@ -1029,13 +1029,8 @@ static const char *create_version_tag (char *buf)
 
 	db_version (&db_major, &db_minor, NULL);
 
-#ifdef PACKAGE_REVISION
-	snprintf (buf, VERSION_TAG_MAX, "%d %d %d r%s",
-	          CACHE_DB_FORMAT_VERSION, db_major, db_minor, PACKAGE_REVISION);
-#else
 	snprintf (buf, VERSION_TAG_MAX, "%d %d %d",
 	          CACHE_DB_FORMAT_VERSION, db_major, db_minor);
-#endif
 
 	return buf;
 }

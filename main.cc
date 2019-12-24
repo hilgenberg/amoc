@@ -328,10 +328,6 @@ static void show_version ()
 	printf ("          This is : %s\n", PACKAGE_NAME);
 	printf ("          Version : %s\n", PACKAGE_VERSION);
 
-#ifdef PACKAGE_REVISION
-	printf ("         Revision : %s\n", PACKAGE_REVISION);
-#endif
-
 	/* Show build time */
 #ifdef __DATE__
 	printf ("            Built : %s", __DATE__);
@@ -382,11 +378,7 @@ static void show_version ()
 /* Show program banner. */
 static void show_banner ()
 {
-	printf ("%s (version %s", PACKAGE_NAME, PACKAGE_VERSION);
-#ifdef PACKAGE_REVISION
-	printf (", revision %s", PACKAGE_REVISION);
-#endif
-	printf (")\n");
+	printf ("%s (version %s)\n", PACKAGE_NAME, PACKAGE_VERSION);
 }
 
 static const char mocp_summary[] = "[OPTIONS] [FILE|DIR ...]";
@@ -1182,15 +1174,7 @@ int main (int argc, const char *argv[])
 	mocp_argc = argc;
 	mocp_argv = argv;
 
-#ifdef PACKAGE_REVISION
-	logit ("This is Music On Console (revision %s)", PACKAGE_REVISION);
-#else
 	logit ("This is Music On Console (version %s)", PACKAGE_VERSION);
-#endif
-
-#ifdef CONFIGURATION
-	logit ("Configured:%s", CONFIGURATION);
-#endif
 
 #if !defined(NDEBUG)
 	{

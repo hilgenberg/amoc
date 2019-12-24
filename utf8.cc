@@ -26,26 +26,12 @@
 # include <langinfo.h>
 #endif
 
-#if defined HAVE_NCURSESW_CURSES_H
-# include <ncursesw/curses.h>
-#elif defined HAVE_NCURSESW_H
-# include <ncursesw.h>
-#elif defined HAVE_NCURSES_CURSES_H
-# include <ncurses/curses.h>
-#elif defined HAVE_NCURSES_H
-# include <ncurses.h>
-#elif defined HAVE_CURSES_H
-# include <curses.h>
-#endif
-
+#include <ncurses.h>
 #include <assert.h>
 #include <string.h>
 #include <errno.h>
 #include <wchar.h>
 
-#include "common.h"
-#include "log.h"
-#include "options.h"
 #include "utf8.h"
 #include "rcc.h"
 
@@ -324,13 +310,8 @@ void utf8_init ()
 	assert (terminal_charset != NULL);
 
 	if (!strcmp(terminal_charset, "UTF-8")) {
-#ifdef HAVE_NCURSESW
 		logit ("Using UTF8 output");
 		using_utf8 = 1;
-#else /* HAVE_NCURSESW */
-		terminal_charset = xstrdup ("US-ASCII");
-		logit ("Using US-ASCII conversion - compiled without libncursesw");
-#endif /* HAVE_NCURSESW */
 	}
 	else
 		logit ("Terminal character set: %s", terminal_charset);

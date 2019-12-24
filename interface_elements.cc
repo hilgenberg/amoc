@@ -11,10 +11,6 @@
  *  - Kamil Tarkowski <kamilt@interia.pl> - sec_to_min_plist()
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -28,13 +24,10 @@
 #include <wctype.h>
 #include <wchar.h>
 
-#include "common.h"
 #include "menu.h"
 #include "themes.h"
 #include "lists.h"
-#include "options.h"
 #include "interface_elements.h"
-#include "log.h"
 #include "files.h"
 #include "input/decoder.h"
 #include "keys.h"
@@ -45,14 +38,8 @@
 #include "rcc.h"
 #include "lyrics.h"
 
-#ifndef PACKAGE_REVISION
 #define STARTUP_MESSAGE "Welcome to " PACKAGE_NAME \
                         " (version " PACKAGE_VERSION ")!"
-#else
-#define STARTUP_MESSAGE "Welcome to " PACKAGE_NAME \
-                        " (version " PACKAGE_VERSION \
-                        ", revision " PACKAGE_REVISION ")!"
-#endif
 #define HISTORY_SIZE	50
 
 
@@ -63,8 +50,7 @@
 enum side_menu_type
 {
 	MENU_DIR,	/* list of files in a directory */
-	MENU_PLAYLIST,	/* a playlist of files */
-	MENU_TREE	/* tree of directories */
+	MENU_PLAYLIST 	/* a playlist of files */
 };
 
 struct side_menu
@@ -3897,11 +3883,9 @@ void iface_get_key (struct iface_key *k)
 		/* Regular char */
 		int meta;
 
-#ifdef HAVE_NCURSESW
 		ungetch (ch);
 		if (wget_wch(main_win.win, &ch) == ERR)
 			interface_fatal ("wget_wch() failed!");
-#endif
 
 		/* Recognize meta sequences */
 		if (ch == KEY_ESCAPE) {
