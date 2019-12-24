@@ -1,7 +1,4 @@
-#ifndef BUF_H
-#define BUF_H
-
-#include "../fifo_buf.h"
+#pragma once
 
 typedef void out_buf_free_callback ();
 
@@ -22,4 +19,3 @@ int out_buf_get_free (struct out_buf *buf);
 int out_buf_get_fill (struct out_buf *buf);
 void out_buf_wait (struct out_buf *buf);
 
-#endif

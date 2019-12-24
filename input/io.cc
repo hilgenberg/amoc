@@ -197,7 +197,7 @@ static off_t io_seek_buffered (struct io_stream *s, const off_t where)
 	}
 
 	LOCK (s->buf_mtx);
-	fifo_buf_clear (s->buf);
+	s->buf->clear();
 	pthread_cond_signal (&s->buf_free_cond);
 	s->after_seek = 1;
 	s->eof = 0;
@@ -339,7 +339,7 @@ void io_close (struct io_stream *s)
 		s->opened = 0;
 
 		if (s->buffered) {
-			fifo_buf_free (s->buf);
+			delete s->buf;
 			s->buf = NULL;
 			rc = pthread_cond_destroy (&s->buf_free_cond);
 			if (rc != 0)
@@ -426,9 +426,9 @@ static void *io_read_thread (void *data)
 		while (read_buf_pos < read_buf_fill && !s->after_seek) {
 			size_t put;
 
-			debug ("Buffer fill: %zu", fifo_buf_get_fill (s->buf));
+			debug ("Buffer fill: %zu", s->buf->get_fill());
 
-			put = fifo_buf_put (s->buf,
+			put = s->buf->put(
 					read_buf + read_buf_pos,
 					read_buf_fill - read_buf_pos);
 
@@ -440,8 +440,8 @@ static void *io_read_thread (void *data)
 				if (s->buf_fill_callback) {
 					UNLOCK (s->buf_mtx);
 					s->buf_fill_callback (s,
-						fifo_buf_get_fill (s->buf),
-						fifo_buf_get_size (s->buf),
+						s->buf->get_fill(),
+						s->buf->get_size(),
 						s->buf_fill_callback_data);
 					LOCK (s->buf_mtx);
 				}
@@ -520,6 +520,7 @@ struct io_stream *io_open (const char *file, const int buffered)
 	s->opened = 0;
 	s->size = -1;
 	s->buf_fill_callback = NULL;
+	s->buf = NULL;
 	memset (&s->metadata, 0, sizeof(s->metadata));
 
 #ifdef HAVE_CURL
@@ -544,7 +545,7 @@ struct io_stream *io_open (const char *file, const int buffered)
 	s->pos = 0;
 
 	if (buffered) {
-		s->buf = fifo_buf_new (options_get_int("InputBuffer") * 1024);
+		s->buf = new fifo_buf (options_get_int("InputBuffer") * 1024);
 		s->prebuffer = options_get_int("Prebuffering") * 1024;
 
 		pthread_cond_init (&s->buf_free_cond, NULL);
@@ -588,14 +589,14 @@ static ssize_t io_peek_internal (struct io_stream *s, void *buf, size_t count)
 
 	/* Wait until enough data will be available */
 	while (io_ok_nolock(s) && !s->stop_read_thread
-			&& count > fifo_buf_get_fill (s->buf)
-			&& fifo_buf_get_space (s->buf)
+			&& count > s->buf->get_fill()
+			&& s->buf->get_space()
 			&& !s->eof) {
 		debug ("waiting...");
 		pthread_cond_wait (&s->buf_fill_cond, &s->buf_mtx);
 	}
 
-	received = fifo_buf_peek (s->buf, (char*) buf, count);
+	received = s->buf->peek((char*) buf, count);
 	debug ("Read %zd bytes", received);
 
 	UNLOCK (s->buf_mtx);
@@ -611,8 +612,8 @@ void io_prebuffer (struct io_stream *s, const size_t to_fill)
 
 	LOCK (s->buf_mtx);
 	while (io_ok_nolock(s) && !s->stop_read_thread && !s->eof
-	                       && to_fill > fifo_buf_get_fill(s->buf)) {
-		debug ("waiting (buffer %zu bytes full)", fifo_buf_get_fill (s->buf));
+	                       && to_fill > s->buf->get_fill()) {
+		debug ("waiting (buffer %zu bytes full)", s->buf->get_fill());
 		pthread_cond_wait (&s->buf_fill_cond, &s->buf_mtx);
 	}
 	UNLOCK (s->buf_mtx);
@@ -628,9 +629,9 @@ static ssize_t io_read_buffered (struct io_stream *s, void *buf, size_t count)
 
 	while (received < (ssize_t)count && !s->stop_read_thread
 			&& ((!s->eof && !s->read_error)
-				|| fifo_buf_get_fill(s->buf))) {
-		if (fifo_buf_get_fill(s->buf)) {
-			received += fifo_buf_get (s->buf, (char *)buf + received,
+				|| s->buf->get_fill())) {
+		if (s->buf->get_fill()) {
+			received += s->buf->get((char *)buf + received,
 					count - received);
 			debug ("Read %zd bytes so far", received);
 			pthread_cond_signal (&s->buf_free_cond);
@@ -766,7 +767,7 @@ int io_eof (struct io_stream *s)
 	assert (s != NULL);
 
 	LOCK (s->buf_mtx);
-	eof = (s->eof && (!s->buffered || !fifo_buf_get_fill(s->buf))) ||
+	eof = (s->eof && (!s->buffered || !s->buf->get_fill())) ||
 		s->stop_read_thread;
 	UNLOCK (s->buf_mtx);
 

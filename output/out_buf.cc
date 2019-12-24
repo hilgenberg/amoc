@@ -1,37 +1,18 @@
-/*
- * MOC - music on console
- * Copyright (C) 2004,2005 Damian Pietras <daper@daper.net>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- */
-
-/* Defining OUT_TEST causes the raw audio samples to be written
- * to the file 'out_test' in the current directory for debugging. */
-/*#define OUT_TEST*/
-
 #include <assert.h>
 #include <pthread.h>
 #include <string.h>
 #include <errno.h>
-
-#ifdef OUT_TEST
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#endif
-
 #include "audio.h"
 #include "../fifo_buf.h"
 #include "out_buf.h"
 
 struct out_buf
 {
-	struct fifo_buf *buf;
+public:
+	out_buf(size_t size);
+	~out_buf();
+
+	fifo_buf buf;
 	pthread_mutex_t	mutex;
 	pthread_t tid;	/* Thread id of the reading thread. */
 
@@ -57,14 +38,65 @@ struct out_buf
 	int read_thread_waiting; /* Is the read thread waiting for data? */
 };
 
+static void *read_thread (void *arg);
+
+out_buf::out_buf(size_t size)
+	: buf(size)
+	, exit(0), pause(0), stop(0), time(0.0)
+	, reset_dev(0), hardware_buf_fill(0), read_thread_waiting(0)
+	, free_callback(NULL)
+{
+	pthread_mutex_init (&mutex, NULL);
+	pthread_cond_init (&play_cond, NULL);
+	pthread_cond_init (&ready_cond, NULL);
+
+	int rc = pthread_create (&tid, NULL, read_thread, this);
+	if (rc) fatal ("Can't create buffer thread: %s", xstrerror (rc));
+}
+
+out_buf::~out_buf()
+{
+	LOCK(mutex);
+	exit = 1;
+	pthread_cond_signal (&play_cond);
+	UNLOCK (mutex);
+
+	pthread_join(tid, NULL);
+
+	/* Let other threads using this buffer know that the state of the
+	 * buffer has changed. */
+	LOCK (mutex);
+	buf.clear();
+	pthread_cond_broadcast (&ready_cond);
+	UNLOCK (mutex);
+
+	int rc = pthread_mutex_destroy (&mutex);
+	if (rc) log_errno ("Destroying buffer mutex failed", rc);
+	rc = pthread_cond_destroy (&play_cond);
+	if (rc) log_errno ("Destroying buffer play condition failed", rc);
+	rc = pthread_cond_destroy (&ready_cond);
+	if (rc) log_errno ("Destroying buffer ready condition failed", rc);
+}
+
+/* Allocate and initialize the buf structure, size is the buffer size. */
+struct out_buf *out_buf_new (int size)
+{
+	return new out_buf(size);
+}
+
+/* Wait for empty buffer, end playing, free resources allocated for the buf
+ * structure.  Can be used only if nothing is played. */
+void out_buf_free (struct out_buf *buf)
+{
+	delete buf;
+	logit ("buffer destroyed");
+}
+
+
 /* Don't play more than this value (in seconds) in one audio_play().
  * This prevents locking. */
 #define AUDIO_MAX_PLAY		0.1
 #define AUDIO_MAX_PLAY_BYTES	32768
-
-#ifdef OUT_TEST
-static int fd;
-#endif
 
 static void set_realtime_prio ()
 {
@@ -109,7 +141,7 @@ static void *read_thread (void *arg)
 		}
 
 		if (buf->stop)
-			fifo_buf_clear (buf->buf);
+			buf->buf.clear();
 
 		if (buf->free_callback) {
 			/* unlock the mutex to make calls to out_buf functions
@@ -122,7 +154,7 @@ static void *read_thread (void *arg)
 		debug ("sending the signal");
 		pthread_cond_broadcast (&buf->ready_cond);
 
-		if ((fifo_buf_get_fill(buf->buf) == 0 || buf->pause || buf->stop)
+		if ((buf->buf.get_fill() == 0 || buf->pause || buf->stop)
 				&& !buf->exit) {
 			if (buf->pause && !audio_dev_closed) {
 				logit ("Closing the device due to pause");
@@ -148,7 +180,7 @@ static void *read_thread (void *arg)
 				audio_dev_closed = 0;
 		}
 
-		if (fifo_buf_get_fill(buf->buf) == 0) {
+		if (buf->buf.get_fill() == 0) {
 			if (buf->exit) {
 				logit ("exit");
 				break;
@@ -175,8 +207,7 @@ static void *read_thread (void *arg)
 			audio_bpf = audio_get_bpf();
 			play_buf_frames = MIN(audio_get_bps() * AUDIO_MAX_PLAY,
 			                      AUDIO_MAX_PLAY_BYTES) / audio_bpf;
-			play_buf_fill = fifo_buf_get(buf->buf, play_buf,
-			                             play_buf_frames * audio_bpf);
+			play_buf_fill = buf->buf.get(play_buf, play_buf_frames * audio_bpf);
 			UNLOCK (buf->mutex);
 
 			debug ("playing %d bytes", play_buf_fill);
@@ -185,10 +216,6 @@ static void *read_thread (void *arg)
 				played = audio_send_pcm (
 						play_buf + play_buf_pos,
 						play_buf_fill - play_buf_pos);
-
-#ifdef OUT_TEST
-				write (fd, play_buf + play_buf_pos, played);
-#endif
 
 				play_buf_pos += played;
 			}
@@ -211,84 +238,6 @@ static void *read_thread (void *arg)
 	return NULL;
 }
 
-/* Allocate and initialize the buf structure, size is the buffer size. */
-struct out_buf *out_buf_new (int size)
-{
-	int rc;
-	struct out_buf *buf;
-
-	assert (size > 0);
-
-	buf = (out_buf*) xmalloc (sizeof (struct out_buf));
-
-	buf->buf = fifo_buf_new (size);
-	buf->exit = 0;
-	buf->pause = 0;
-	buf->stop = 0;
-	buf->time = 0.0;
-	buf->reset_dev = 0;
-	buf->hardware_buf_fill = 0;
-	buf->read_thread_waiting = 0;
-	buf->free_callback = NULL;
-
-	pthread_mutex_init (&buf->mutex, NULL);
-	pthread_cond_init (&buf->play_cond, NULL);
-	pthread_cond_init (&buf->ready_cond, NULL);
-
-#ifdef OUT_TEST
-	fd = open ("out_test", O_CREAT | O_TRUNC | O_WRONLY, 0600);
-#endif
-
-	rc = pthread_create (&buf->tid, NULL, read_thread, buf);
-	if (rc != 0)
-		fatal ("Can't create buffer thread: %s", xstrerror (rc));
-
-	return buf;
-}
-
-/* Wait for empty buffer, end playing, free resources allocated for the buf
- * structure.  Can be used only if nothing is played. */
-void out_buf_free (struct out_buf *buf)
-{
-	int rc;
-
-	assert (buf != NULL);
-
-	LOCK (buf->mutex);
-	buf->exit = 1;
-	pthread_cond_signal (&buf->play_cond);
-	UNLOCK (buf->mutex);
-
-	pthread_join (buf->tid, NULL);
-
-	/* Let other threads using this buffer know that the state of the
-	 * buffer has changed. */
-	LOCK (buf->mutex);
-	fifo_buf_clear (buf->buf);
-	pthread_cond_broadcast (&buf->ready_cond);
-	UNLOCK (buf->mutex);
-
-	fifo_buf_free (buf->buf);
-	buf->buf = NULL;
-	rc = pthread_mutex_destroy (&buf->mutex);
-	if (rc != 0)
-		log_errno ("Destroying buffer mutex failed", rc);
-	rc = pthread_cond_destroy (&buf->play_cond);
-	if (rc != 0)
-		log_errno ("Destroying buffer play condition failed", rc);
-	rc = pthread_cond_destroy (&buf->ready_cond);
-	if (rc != 0)
-		log_errno ("Destroying buffer ready condition failed", rc);
-
-	free (buf);
-
-	logit ("buffer destroyed");
-
-#ifdef OUT_TEST
-	close (fd);
-#endif
-}
-
 /* Put data at the end of the buffer, return 0 if nothing was put. */
 int out_buf_put (struct out_buf *buf, const char *data, int size)
 {
@@ -301,7 +250,7 @@ int out_buf_put (struct out_buf *buf, const char *data, int size)
 
 		LOCK (buf->mutex);
 
-		if (fifo_buf_get_space(buf->buf) == 0 && !buf->stop) {
+		if (buf->buf.get_space() == 0 && !buf->stop) {
 			/*logit ("buffer full, waiting for the signal");*/
 			pthread_cond_wait (&buf->ready_cond, &buf->mutex);
 			/*logit ("buffer ready");*/
@@ -313,7 +262,7 @@ int out_buf_put (struct out_buf *buf, const char *data, int size)
 			return 0;
 		}
 
-		written = fifo_buf_put (buf->buf, data + pos, size);
+		written = buf->buf.put(data + pos, size);
 
 		if (written) {
 			pthread_cond_signal (&buf->play_cond);
@@ -367,7 +316,7 @@ void out_buf_reset (struct out_buf *buf)
 	logit ("resetting the buffer");
 
 	LOCK (buf->mutex);
-	fifo_buf_clear (buf->buf);
+	buf->buf.clear();
 	buf->stop = 0;
 	buf->pause = 0;
 	buf->reset_dev = 0;
@@ -416,7 +365,7 @@ int out_buf_get_free (struct out_buf *buf)
 	assert (buf != NULL);
 
 	LOCK (buf->mutex);
-	space = fifo_buf_get_space (buf->buf);
+	space = buf->buf.get_space();
 	UNLOCK (buf->mutex);
 
 	return space;
@@ -429,7 +378,7 @@ int out_buf_get_fill (struct out_buf *buf)
 	assert (buf != NULL);
 
 	LOCK (buf->mutex);
-	fill = fifo_buf_get_fill (buf->buf);
+	fill = buf->buf.get_fill();
 	UNLOCK (buf->mutex);
 
 	return fill;

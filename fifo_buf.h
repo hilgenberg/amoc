@@ -1,16 +1,25 @@
-#ifndef FIFO_BUF_H
-#define FIFO_BUF_H
+#pragma once
 
-struct fifo_buf;
+class fifo_buf
+{
+public:
+	fifo_buf(size_t size);
+	fifo_buf(const fifo_buf &) = delete;	
+	~fifo_buf();
 
-struct fifo_buf *fifo_buf_new (const size_t size);
-void fifo_buf_free (struct fifo_buf *b);
-size_t fifo_buf_put (struct fifo_buf *b, const char *data, size_t size);
-size_t fifo_buf_get (struct fifo_buf *b, char *user_buf, size_t user_buf_size);
-size_t fifo_buf_peek (struct fifo_buf *b, char *user_buf, size_t user_buf_size);
-size_t fifo_buf_get_space (const struct fifo_buf *b);
-void fifo_buf_clear (struct fifo_buf *b);
-size_t fifo_buf_get_fill (const struct fifo_buf *b);
-size_t fifo_buf_get_size (const struct fifo_buf *b);
+	void clear() { fill = pos = 0; }
 
-#endif
+	// these return number of bytes actually put/got
+	size_t put (const char *data, size_t size);
+	size_t peek(char *data, size_t size);
+	size_t get (char *data, size_t size);
+
+	size_t get_space() const { return size - fill; }
+	size_t get_fill()  const { return fill; }
+	size_t get_size()  const { return size; }
+
+private:
+	size_t size, fill, pos;
+	char  *buf;
+};
+
