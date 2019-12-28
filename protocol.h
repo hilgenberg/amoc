@@ -86,8 +86,6 @@ enum noblock_io_status
 #define CMD_STOP	0x04 /* stop playing */
 #define CMD_PAUSE	0x05 /* pause */
 #define CMD_UNPAUSE	0x06 /* unpause */
-#define CMD_SET_OPTION	0x07 /* set an option */
-#define CMD_GET_OPTION	0x08 /* get an option */
 #define CMD_GET_CTIME	0x0d /* get the current song time */
 #define CMD_GET_SNAME	0x0f /* get the stream file name */
 #define CMD_NEXT	0x10 /* start playing next song if available */
@@ -143,6 +141,13 @@ enum noblock_io_status
 #define CMD_QUEUE_CLEAR	0x3e /* clear the queue */
 #define CMD_GET_QUEUE	0x3f /* request the queue from the server */
 #define CMD_SET_RATING	0x40 /* change rating for a file */
+
+#define CMD_GET_OPTION_SHUFFLE	0x50
+#define CMD_SET_OPTION_SHUFFLE	0x51
+#define CMD_GET_OPTION_REPEAT	0x52
+#define CMD_SET_OPTION_REPEAT	0x53
+#define CMD_GET_OPTION_AUTONEXT	0x54
+#define CMD_SET_OPTION_AUTONEXT	0x55
 
 char *socket_name ();
 int get_int (int sock, int *i);

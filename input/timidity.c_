@@ -26,6 +26,17 @@
 #include "../files.h"
 #include "../options.h"
 
+
+// former options:
+	int  TiMidity_Rate = 44100, CHECK_RANGE(1), 8000, 48000;
+		// not sure about the limits... I like 44100
+	int  TiMidity_Bits = 16, CHECK_DISCRETE(2), 8, 16;
+	int  TiMidity_Channels = 2, CHECK_DISCRETE(2), 1, 2;
+	int  TiMidity_Volume = 100, CHECK_RANGE(1), 0, 800;
+	str  TiMidity_Config = NULL;
+
+
+
 MidSongOptions midioptions;
 
 struct timidity_data

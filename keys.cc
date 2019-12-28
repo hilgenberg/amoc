@@ -9,10 +9,6 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
 #include <string.h>
 #include <strings.h>
 #include <assert.h>
@@ -286,14 +282,6 @@ static struct command commands[] = {
 		1
 	},
 	{
-		KEY_CMD_HELP,
-		"help",
-		"Show the help screen",
-		CON_MENU,
-		{ 'h', '?', -1 },
-		2
-	},
-	{
 		KEY_CMD_HIDE_MESSAGE,
 		"hide_message",
 		"Hide error/informative message",
@@ -355,22 +343,6 @@ static struct command commands[] = {
 		"Save the playlist",
 		CON_MENU,
 		{ 'V', -1 },
-		1
-	},
-	{
-		KEY_CMD_TOGGLE_SHOW_TIME,
-		"toggle_show_time",
-		"Toggle ShowTime option",
-		CON_MENU,
-		{ CTRL('t'), -1},
-		1
-	},
-	{
-		KEY_CMD_TOGGLE_SHOW_FORMAT,
-		"toggle_show_format",
-		"Toggle ShowFormat option",
-		CON_MENU,
-		{ CTRL('f'), -1 },
 		1
 	},
 	{
@@ -457,35 +429,7 @@ static struct command commands[] = {
 	{ KEY_CMD_SEEK_8, "seek_8", "Seek to 80% of song", CON_MENU, { -1 }, 0 },
 	{ KEY_CMD_SEEK_9, "seek_9", "Seek to 90% of song", CON_MENU, { -1 }, 0 },
 
- 	{
- 		KEY_CMD_MARK_START,
- 		"mark_start",
- 		"Mark the start of a block",
- 		CON_MENU,
- 		{ '\'', -1 },
- 		1
- 	},
- 	{
- 		KEY_CMD_MARK_END,
- 		"mark_end",
- 		"Mark the end of a block",
- 		CON_MENU,
- 		{ '\"', -1 },
- 		1
- 	},
-
- 	{ KEY_CMD_FAST_DIR_1, "go_to_fast_dir1", "Go to a fast dir 1", CON_MENU, { '!', -1 }, 1 },
- 	{ KEY_CMD_FAST_DIR_2, "go_to_fast_dir2", "Go to a fast dir 2", CON_MENU, { '@', -1 }, 1 },
- 	{ KEY_CMD_FAST_DIR_3, "go_to_fast_dir3", "Go to a fast dir 3", CON_MENU, { '#', -1 }, 1 },
- 	{ KEY_CMD_FAST_DIR_4, "go_to_fast_dir4", "Go to a fast dir 4", CON_MENU, { '$', -1 }, 1 },
- 	{ KEY_CMD_FAST_DIR_5, "go_to_fast_dir5", "Go to a fast dir 5", CON_MENU, { '%', -1 }, 1 },
- 	{ KEY_CMD_FAST_DIR_6, "go_to_fast_dir6", "Go to a fast dir 6", CON_MENU, { '^', -1 }, 1 },
- 	{ KEY_CMD_FAST_DIR_7, "go_to_fast_dir7", "Go to a fast dir 7", CON_MENU, { '&', -1 }, 1 },
- 	{ KEY_CMD_FAST_DIR_8, "go_to_fast_dir8", "Go to a fast dir 8", CON_MENU, { '*', -1 }, 1 },
- 	{ KEY_CMD_FAST_DIR_9, "go_to_fast_dir9", "Go to a fast dir 9", CON_MENU, { '(', -1 }, 1 },
- 	{ KEY_CMD_FAST_DIR_10, "go_to_fast_dir10", "Go to a fast dir 10", CON_MENU, { ')', -1 }, 1 },
-
- 	{
+  	{
  		KEY_CMD_HISTORY_UP,
  		"history_up",
  		"Go to the previous entry in the history (entry)",
@@ -598,25 +542,6 @@ static struct command commands[] = {
  		1
   	},
 
- 	{ KEY_CMD_EXEC1, "exec_command1", "Execute ExecCommand1", CON_MENU, { KEY_F(1), -1 }, 1 },
- 	{ KEY_CMD_EXEC2, "exec_command2", "Execute ExecCommand2", CON_MENU, { KEY_F(2), -1 }, 1 },
- 	{ KEY_CMD_EXEC3, "exec_command3", "Execute ExecCommand3", CON_MENU, { KEY_F(3), -1 }, 1 },
- 	{ KEY_CMD_EXEC4, "exec_command4", "Execute ExecCommand4", CON_MENU, { KEY_F(4), -1 }, 1 },
- 	{ KEY_CMD_EXEC5, "exec_command5", "Execute ExecCommand5", CON_MENU, { KEY_F(5), -1 }, 1 },
- 	{ KEY_CMD_EXEC6, "exec_command6", "Execute ExecCommand6", CON_MENU, { KEY_F(6), -1 }, 1 },
- 	{ KEY_CMD_EXEC7, "exec_command7", "Execute ExecCommand7", CON_MENU, { KEY_F(7), -1 }, 1 },
- 	{ KEY_CMD_EXEC8, "exec_command8", "Execute ExecCommand8", CON_MENU, { KEY_F(8), -1 }, 1 },
- 	{ KEY_CMD_EXEC9, "exec_command9", "Execute ExecCommand9", CON_MENU, { KEY_F(9), -1 }, 1 },
- 	{ KEY_CMD_EXEC10, "exec_command10", "Execute ExecCommand10", CON_MENU, { KEY_F(10), -1 }, 1 },
-
-	{
-		KEY_CMD_LYRICS,
-		"show_lyrics",
-		"Display lyrics of the current song (if available)",
-		CON_MENU,
-		{ 'L',	-1 },
-		1
-	},
  	{
  		KEY_CMD_TOGGLE_PLAYLIST_FULL_PATHS,
  		"playlist_full_paths",
@@ -681,12 +606,6 @@ static struct special_keys
 #define COMMANDS_NUM		(ARRAY_SIZE(commands))
 #define SPECIAL_KEYS_NUM	(ARRAY_SIZE(special_keys))
 
-/* Number of chars from the left where the help message starts
- * (skipping the key list). */
-#define HELP_INDENT	15
-
-static char *help[COMMANDS_NUM];
-
 enum key_cmd get_key_cmd (const enum key_context context,
                           const struct iface_key *key)
 {
@@ -710,34 +629,16 @@ enum key_cmd get_key_cmd (const enum key_context context,
 }
 
 /* Return the path to the keymap file or NULL if none was specified. */
-static char *find_keymap_file ()
+static const char *find_keymap_file ()
 {
-	char *file;
-	static char path[PATH_MAX];
-
-	if ((file = options_get_str("Keymap"))) {
-		if (file[0] == '/') {
-
-			/* Absolute path */
-			strncpy (path, file, sizeof(path));
-			if (path[sizeof(path)-1])
-				fatal ("Keymap path too long!");
-			return path;
-		}
-
-		strncpy (path, create_file_name(file), sizeof(path));
-		if (path[sizeof(path)-1])
-			fatal ("Keymap path too long!");
-
-		return path;
-	}
-
-	return NULL;
+	static std::string path;
+	path = create_file_name("keymap");
+	return path.c_str();
 }
 
 static void keymap_parse_error (const int line, const char *msg)
 {
-	fatal ("Parse error in the keymap file line %d: %s", line, msg);
+	error ("Parse error in the keymap file line %d: %s\n", line, msg);
 }
 
 /* Return a key for the symbolic key name (^c, M-F, etc.).
@@ -824,7 +725,10 @@ static void add_key (const int line_num, size_t cmd_ix, const char *key_symbol)
 
 	key = parse_key (key_symbol);
 	if (key == -1)
+	{
 		keymap_parse_error (line_num, "bad key sequence");
+		return;
+	}
 
 	clear_default_key (key);
 
@@ -836,7 +740,10 @@ static void add_key (const int line_num, size_t cmd_ix, const char *key_symbol)
 	}
 
 	if (i == ARRAY_SIZE(commands[cmd_ix].keys) - 1)
+	{
 		keymap_parse_error (line_num, "too many keys defined");
+		return;
+	}
 
 	commands[cmd_ix].keys[i] = key;
 	commands[cmd_ix].keys[i + 1] = -1;
@@ -882,15 +789,23 @@ static void load_key_map (const char *file_name)
 
 		cmd_ix = find_command_name (command);
 		if (cmd_ix == COMMANDS_NUM)
+		{
 			keymap_parse_error (line_num, "unknown command");
+			continue;
+		}
 
 		tmp = strtok(NULL, " \t");
 		if (!tmp || (strcmp(tmp, "=") && strcmp(tmp, "+=")))
+		{
 			keymap_parse_error (line_num, "expected '=' or '+='");
-
+			continue;
+		}
 		if (strcmp(tmp, "+=")) {
 			if (commands[cmd_ix].keys[commands[cmd_ix].default_keys] != -1)
+			{
 				keymap_parse_error (line_num, "command previously bound");
+				continue;
+			}
 			clear_default_keys (cmd_ix);
 		}
 
@@ -995,57 +910,15 @@ static char *get_command_keys (const int idx)
 	return keys;
 }
 
-/* Make the help message for keys. */
-static void make_help ()
-{
-	size_t i;
-	const char unassigned[] = " [unassigned]";
-
-	for (i = 0; i < COMMANDS_NUM; i += 1) {
-		size_t len;
-
-		len = HELP_INDENT + strlen (commands[i].help) + 1;
-		if (commands[i].keys[0] == -1)
-			len += strlen (unassigned);
-		help[i] = (char*) xcalloc (sizeof(char), len);
-		strncpy (help[i], get_command_keys(i), HELP_INDENT);
-		if (strlen(help[i]) < HELP_INDENT)
-			memset (help[i] + strlen(help[i]), ' ',
-					HELP_INDENT - strlen(help[i]));
-		strcpy (help[i] + HELP_INDENT, commands[i].help);
-		if (commands[i].keys[0] == -1)
-			strcat (help[i], unassigned);
-	}
-}
-
 /* Load key map. Set default keys if necessary. */
 void keys_init ()
 {
-	char *file = find_keymap_file ();
+	const char *file = find_keymap_file ();
 
 	if (file) {
 		load_key_map (file);
 		check_keys ();
 	}
-
-	make_help ();
-}
-
-/* Free the help message. */
-void keys_cleanup ()
-{
-	size_t i;
-
-	for (i = 0; i < COMMANDS_NUM; i += 1)
-		free (help[i]);
-}
-
-/* Return an array of strings with the keys help. The number of lines is put
- * in num. */
-char **get_keys_help (int *num)
-{
-	*num = (int) COMMANDS_NUM;
-	return help;
 }
 
 /* Find command entry by key command; return COMMANDS_NUM if not found. */
@@ -1059,16 +932,4 @@ static size_t find_command_cmd (const enum key_cmd cmd)
 	}
 
 	return result;
-}
-
-/* Return true iff the help key is still 'h'. */
-bool is_help_still_h ()
-{
-	size_t cmd_ix;
-
-	cmd_ix = find_command_cmd (KEY_CMD_HELP);
-
-	assert (cmd_ix < COMMANDS_NUM);
-
-	return commands[cmd_ix].keys[0] == 'h';
 }

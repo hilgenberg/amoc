@@ -36,7 +36,6 @@
 #include "interface.h"
 #include "utf8.h"
 #include "rcc.h"
-#include "lyrics.h"
 
 #define STARTUP_MESSAGE "Welcome to " PACKAGE_NAME \
                         " (version " PACKAGE_VERSION ")!"
@@ -107,14 +106,10 @@ static struct main_win
 	WINDOW *win;
 	char *curr_file; /* currently played file. */
 
-	int in_help; /* are we displaying help screen? */
 	int too_small; /* is the terminal window too small to display mocp? */
-	int help_screen_top; /* first visible line of the help screen. */
-	int in_lyrics; /* are we displaying lyrics screen? */
-	int lyrics_screen_top; /* first visible line of the lyrics screen. */
 
 	struct side_menu menus[3];
-	lists_t_strs *layout_fmt;
+	int layout_num;
 	int selected_menu; /* which menu is currently selected by the user */
 } main_win;
 
@@ -220,8 +215,6 @@ static struct info_win
 	/* time in seconds */
 	int curr_time;
 	int total_time;
-	int block_start;
-	int block_end;
 
 	int plist_time;		/* total time of files displayed in the menu */
 	int plist_time_for_all;	/* is the above time for all files? */
@@ -237,12 +230,6 @@ static struct info_win
 	struct bar mixer_bar;
 	struct bar time_bar;
 } info_win;
-
-/* Are we running on xterm? */
-static bool has_xterm = false;
-
-/* Are we running inside screen? */
-static bool has_screen = false;
 
 /* Was the interface initialized? */
 static int iface_initialized = 0;
@@ -767,14 +754,10 @@ static void side_menu_init (struct side_menu *m, const enum side_menu_type type,
 		m->menu.list.copy = NULL;
 
 		menu_set_items_numbering (m->menu.list.main,
-				type == MENU_PLAYLIST
-				&& options_get_bool("PlaylistNumbering"));
-		menu_set_show_format (m->menu.list.main,
-				options_get_bool("ShowFormat"));
-		menu_set_show_time (m->menu.list.main,
-				strcasecmp(options_get_symb("ShowTime"), "no"));
-		menu_set_show_rating (m->menu.list.main,
-				options_get_bool("RatingShow"));
+				type == MENU_PLAYLIST && options::PlaylistNumbering);
+		menu_set_show_format (m->menu.list.main, false);
+		menu_set_show_time (m->menu.list.main, true);
+		menu_set_show_rating (m->menu.list.main, true);
 		menu_set_info_attr_normal (m->menu.list.main,
 				get_color(CLR_MENU_ITEM_INFO));
 		menu_set_info_attr_sel (m->menu.list.main,
@@ -819,123 +802,36 @@ static void side_menu_set_title (struct side_menu *m, const char *title)
 	m->title = xstrdup (title);
 }
 
-/* Parse one layout coordinate from "0,2,54%,1" and put it in val.
- * Max is the maximum value of the field.  It's also used when processing
- * percent values.
- * Return false on error. */
-static bool parse_layout_coordinate (const char *fmt, int *val, const int max)
+/* Parse the layout string. Return false on error. */
+static bool parse_layout (struct main_win_layout &l, int which)
 {
-	long v;
-	const char *e = fmt;
-
-	if (!strcasecmp (fmt, "FILL")) {
-		*val = LAYOUT_SIZE_FILL;
-		return true;
+	const int W = COLS, H = LINES-4;
+	auto &p = l.menus[MENU_DIR], &q = l.menus[MENU_PLAYLIST];
+	p.x = 0; p.y = 0; p.width = W; p.height = H; q = p; l.menus[2] = p;
+	switch(which)
+	{
+		case 0:
+		{
+			p.width = W/2;
+			q.x = p.width; q.width = W - q.x;
+			break;
+		}
+		case 1:
+		{
+			p.height = H/2;
+			q.y = p.height; q.height = H - q.y;
+			break;
+		}
+		case 2:
+		{
+			break;
+		}
+		default: return false;
 	}
-
-	v = strtol (fmt, (char **)&e, 10);
-	if (e == fmt)
-		return false;
-
-	if (*e == '%')
-		v = lroundf (max * v / 100.0 - 0.1);
-	*val = v;
-
-	if (!RANGE(0, *val, max)) {
-		logit ("Coordinate out of range - %d is not in (0, %d)", *val, max);
-		return false;
-	}
-
 	return true;
 }
 
-/* Parse the layout string. Return false on error. */
-static bool parse_layout (struct main_win_layout *l, lists_t_strs *fmt)
-{
-	int ix;
-	bool result = false;
-	lists_t_strs *format;
-
-	assert (l != NULL);
-	assert (fmt != NULL);
-
-	/* default values */
-	l->menus[0].x = 0;
-	l->menus[0].y = 0;
-	l->menus[0].width = COLS;
-	l->menus[0].height = LINES - 4;
-	l->menus[1] = l->menus[0];
-	l->menus[2] = l->menus[0];
-
-	format = lists_strs_new (6);
-	for (ix = 0; ix < lists_strs_size (fmt); ix += 1) {
-		const char *menu, *name;
-		struct window_params p;
-
-		lists_strs_clear (format);
-		menu = lists_strs_at (fmt, ix);
-		if (lists_strs_split (format, menu, "(,)") != 5)
-			goto err;
-
-		name = lists_strs_at (format, 0);
-
-		if (!parse_layout_coordinate (lists_strs_at (format, 1), &p.x, COLS)) {
-			logit ("Coordinate parse error when parsing X");
-			goto err;
-		}
-		if (!parse_layout_coordinate (lists_strs_at (format, 2), &p.y, LINES - 4)) {
-			logit ("Coordinate parse error when parsing Y");
-			goto err;
-		}
-		if (!parse_layout_coordinate (lists_strs_at (format, 3), &p.width, COLS)) {
-			logit ("Coordinate parse error when parsing width");
-			goto err;
-		}
-		if (!parse_layout_coordinate (lists_strs_at (format, 4), &p.height, LINES - 4)) {
-			logit ("Coordinate parse error when parsing height");
-			goto err;
-		}
-
-		if (p.width == LAYOUT_SIZE_FILL)
-			p.width = COLS - p.x;
-		if (p.height == LAYOUT_SIZE_FILL)
-			p.height = LINES - 4 - p.y;
-
-		if (p.width < 15) {
-			logit ("Width is less than 15");
-			goto err;
-		}
-		if (p.height < 2) {
-			logit ("Height is less than 2");
-			goto err;
-		}
-		if (p.x + p.width > COLS) {
-			logit ("X + width is more than COLS (%d)", COLS);
-			goto err;
-		}
-		if (p.y + p.height > LINES - 4) {
-			logit ("Y + height is more than LINES - 4 (%d)", LINES - 4);
-			goto err;
-		}
-
-		if (!strcmp(name, "directory"))
-			l->menus[MENU_DIR] = p;
-		else if (!strcmp(name, "playlist"))
-			l->menus[MENU_PLAYLIST] = p;
-		else {
-			logit ("Bad subwindow name '%s'", name);
-			goto err;
-		}
-	}
-
-	result = true;
-
-err:
-	lists_strs_free (format);
-	return result;
-}
-
-static void main_win_init (struct main_win *w, lists_t_strs *layout_fmt)
+static void main_win_init (struct main_win *w, int layout_num)
 {
 	struct main_win_layout l;
 	bool rc ASSERT_ONLY;
@@ -948,14 +844,10 @@ static void main_win_init (struct main_win *w, lists_t_strs *layout_fmt)
 	keypad (w->win, TRUE);
 
 	w->curr_file = NULL;
-	w->in_help = 0;
-	w->in_lyrics = 0;
 	w->too_small = 0;
-	w->help_screen_top = 0;
-	w->lyrics_screen_top = 0;
-	w->layout_fmt = layout_fmt;
+	w->layout_num = layout_num;
 
-	rc = parse_layout (&l, layout_fmt);
+	rc = parse_layout (l, layout_num);
 	assert (rc);
 
 	side_menu_init (&w->menus[0], MENU_DIR, w->win, &l.menus[0]);
@@ -1021,7 +913,7 @@ static int add_to_menu (struct menu *menu, const struct plist *plist,
 	char *title;
 	const char *type_name;
 
-	made_from_tags = (options_get_bool ("ReadTags") && item->title_tags);
+	made_from_tags = (options::ReadTags && item->title_tags);
 
 	if (made_from_tags)
 		title = make_menu_title (item->title_tags, 1, 0);
@@ -1064,13 +956,11 @@ static void side_menu_clear (struct side_menu *m)
 
 	menu_free (m->menu.list.main);
 	side_menu_init_menu (m);
-	menu_set_items_numbering (m->menu.list.main, m->type == MENU_PLAYLIST
-			&& options_get_bool("PlaylistNumbering"));
+	menu_set_items_numbering (m->menu.list.main, m->type == MENU_PLAYLIST);
 
-	menu_set_show_format (m->menu.list.main, options_get_bool("ShowFormat"));
-	menu_set_show_time (m->menu.list.main,
-			strcasecmp(options_get_symb("ShowTime"), "no"));
-	menu_set_show_rating (m->menu.list.main, options_get_bool("RatingShow"));
+	menu_set_show_format (m->menu.list.main, true);
+	menu_set_show_time (m->menu.list.main, true);
+	menu_set_show_rating (m->menu.list.main, true);
 	menu_set_info_attr_normal (m->menu.list.main, get_color(CLR_MENU_ITEM_INFO));
 	menu_set_info_attr_sel (m->menu.list.main, get_color(CLR_MENU_ITEM_INFO_SELECTED));
 	menu_set_info_attr_marked (m->menu.list.main, get_color(CLR_MENU_ITEM_INFO_MARKED));
@@ -1079,8 +969,8 @@ static void side_menu_clear (struct side_menu *m)
 
 /* Fill the directory or playlist side menu with this content. */
 static void side_menu_make_list_content (struct side_menu *m,
-		const struct plist *files, const lists_t_strs *dirs,
-		const lists_t_strs *playlists, const int add_up_dir)
+		const struct plist *files, const stringlist *dirs,
+		const stringlist *playlists, const int add_up_dir)
 {
 	struct menu_item *added;
 	int i;
@@ -1100,13 +990,13 @@ static void side_menu_make_list_content (struct side_menu *m,
 	}
 
 	if (dirs)
-		for (i = 0; i < lists_strs_size (dirs) ; i++) {
+		for (i = 0; i < dirs->size() ; i++) {
 			char title[PATH_MAX];
-
+			const char *s = (*dirs)[i].c_str();
 #ifdef HAVE_RCC
 			char *t_str = NULL;
-			if (options_get_bool("UseRCCForFilesystem")) {
-				strcpy (title, strrchr (lists_strs_at (dirs, i), '/') + 1);
+			if (options::UseRCCForFilesystem) {
+				strcpy (title, strrchr (s, '/') + 1);
 				strcat (title, "/");
 				t_str = xstrdup (title);
 				t_str = rcc_reencode (t_str);
@@ -1115,10 +1005,10 @@ static void side_menu_make_list_content (struct side_menu *m,
 			}
 			else
 #endif
-			if (options_get_bool ("FileNamesIconv"))
+			if (options::FileNamesIconv)
 			{
 				char *conv_title = files_iconv_str (
-						strrchr (lists_strs_at (dirs, i), '/') + 1);
+						strrchr (s, '/') + 1);
 
 				strcpy (title, conv_title);
 				strcat (title, "/");
@@ -1127,12 +1017,11 @@ static void side_menu_make_list_content (struct side_menu *m,
 			}
 			else
 			{
-				strcpy (title, strrchr (lists_strs_at (dirs, i), '/') + 1);
+				strcpy (title, strrchr (s, '/') + 1);
 				strcat (title, "/");
 			}
 
-			added = menu_add (m->menu.list.main, title, F_DIR,
-					lists_strs_at (dirs, i));
+			added = menu_add (m->menu.list.main, title, F_DIR, s);
 			menu_item_set_attr_normal (added,
 					get_color(CLR_MENU_ITEM_DIR));
 			menu_item_set_attr_sel (added,
@@ -1140,15 +1029,11 @@ static void side_menu_make_list_content (struct side_menu *m,
 		}
 
 	if (playlists)
-		for (i = 0; i < lists_strs_size (playlists); i++){
-			added = menu_add (m->menu.list.main,
-					strrchr (lists_strs_at (playlists, i), '/') + 1,
-					F_PLAYLIST, lists_strs_at (playlists, i));
-			menu_item_set_attr_normal (added,
-					get_color(CLR_MENU_ITEM_PLAYLIST));
-			menu_item_set_attr_sel (added,
-					get_color(
-					CLR_MENU_ITEM_PLAYLIST_SELECTED));
+		for (i = 0; i < playlists->size(); i++){
+			const char *s = (*playlists)[i].c_str();
+			added = menu_add (m->menu.list.main, strrchr (s, '/') + 1, F_PLAYLIST, s);
+			menu_item_set_attr_normal (added, get_color(CLR_MENU_ITEM_PLAYLIST));
+			menu_item_set_attr_sel (added, get_color(CLR_MENU_ITEM_PLAYLIST_SELECTED));
 		}
 
 	/* playlist items */
@@ -1156,7 +1041,7 @@ static void side_menu_make_list_content (struct side_menu *m,
 		if (!plist_deleted(files, i))
 			add_to_menu (m->menu.list.main, files, i,
 					m->type == MENU_PLAYLIST
-					&& options_get_bool("PlaylistFullPaths"));
+					&& options::PlaylistFullPaths);
 	}
 
 	m->total_time = plist_total_time (files, &m->total_time_for_all);
@@ -1266,8 +1151,6 @@ static void side_menu_draw (const struct side_menu *m, const int active)
 
 	if (m->type == MENU_DIR || m->type == MENU_PLAYLIST) {
 		menu_draw (m->menu.list.main, active);
-		if (options_get_bool("UseCursorSelection"))
-			menu_set_cursor (m->menu.list.main);
 	}
 	else
 		abort ();
@@ -1392,9 +1275,9 @@ static void update_menu_item (struct menu_item *mi,
 	int r = (item->tags && item->tags->filled & TAGS_RATING) ? item->tags->rating : 0;
 	if (r < 0) r = 0;
 	if (r > 5) r = 5;
-	menu_item_set_rating (mi, options_rating_strings[r]);
+	menu_item_set_rating (mi, options::rating_strings[r]);
 
-	made_from_tags = (options_get_bool ("ReadTags") && item->title_tags);
+	made_from_tags = (options::ReadTags && item->title_tags);
 
 	if (made_from_tags)
 		title = make_menu_title (item->title_tags, 1, 0);
@@ -1434,13 +1317,13 @@ static int side_menu_update_item (struct side_menu *m,
 
 	if ((mi = menu_find(m->menu.list.main, file))) {
 		update_menu_item (mi, plist, n, m->type == MENU_PLAYLIST
-				&& options_get_bool("PlaylistFullpaths"));
+				&& options::PlaylistFullPaths);
 		visible = menu_is_visible (m->menu.list.main, mi);
 	}
 	if (m->menu.list.copy
 			&& (mi = menu_find(m->menu.list.copy, file))) {
 		update_menu_item (mi, plist, n, m->type == MENU_PLAYLIST
-				&& options_get_bool("PlaylistFullpaths"));
+				&& options::PlaylistFullPaths);
 		visible = visible || menu_is_visible (m->menu.list.main, mi);
 	}
 
@@ -1501,7 +1384,7 @@ static int side_menu_add_plist_item (struct side_menu *m,
 			: m->menu.list.main,
 			plist, num,
 			m->type == MENU_PLAYLIST
-			&& options_get_bool("PlaylistFullPaths"));
+			&& options::PlaylistFullPaths);
 	m->total_time = plist_total_time (plist, &m->total_time_for_all);
 
 	return visible;
@@ -1529,8 +1412,7 @@ static void side_menu_update_show_time (struct side_menu *m)
 	assert (m->visible);
 	assert (m->type == MENU_DIR || m->type == MENU_PLAYLIST);
 
-	menu_set_show_time (m->menu.list.main,
-				strcasecmp(options_get_symb("ShowTime"), "no"));
+	menu_set_show_time (m->menu.list.main, true);
 }
 
 static void side_menu_update_show_format (struct side_menu *m)
@@ -1539,7 +1421,7 @@ static void side_menu_update_show_format (struct side_menu *m)
 	assert (m->visible);
 	assert (m->type == MENU_DIR || m->type == MENU_PLAYLIST);
 
-	menu_set_show_format (m->menu.list.main, options_get_bool("ShowFormat"));
+	menu_set_show_format (m->menu.list.main, false);
 }
 
 static void side_menu_get_state (const struct side_menu *m,
@@ -1699,88 +1581,11 @@ static void main_win_draw_too_small_screen (const struct main_win *w)
 			"...TERMINAL TOO SMALL...");
 }
 
-static void main_win_draw_help_screen (const struct main_win *w)
-{
-	int i;
-	int max_lines;
-	int help_lines;
-	char **help;
-
-	assert (w != NULL);
-	assert (w->in_help);
-
-	max_lines = w->help_screen_top + LINES - 6;
-
-	help = get_keys_help (&help_lines);
-
-	werase (w->win);
-	wbkgd (w->win, get_color(CLR_BACKGROUND));
-
-	wmove (w->win, 0, 0);
-	if (w->help_screen_top != 0) {
-		wattrset (w->win, get_color(CLR_MESSAGE));
-		xmvwaddstr (w->win, 0, COLS/2 - (sizeof("...MORE...")-1)/2,
-				"...MORE...");
-	}
-	wmove (w->win, 1, 0);
-	wattrset (w->win, get_color(CLR_LEGEND));
-	for (i = w->help_screen_top; i < max_lines && i < help_lines; i++) {
-		xwaddstr (w->win, help[i]);
-		waddch (w->win, '\n');
-	}
-	if (i != help_lines) {
-		wattrset (w->win, get_color(CLR_MESSAGE));
-		xmvwaddstr (w->win, LINES-5,
-				COLS/2 - (sizeof("...MORE...")-1)/2,
-				"...MORE...");
-	}
-}
-
-static void main_win_draw_lyrics_screen (const struct main_win *w)
-{
-	int i;
-	int max_lines;
-	int height, width;
-	lists_t_strs *lyrics_array;
-
-	assert (w != NULL);
-	assert (w->in_lyrics);
-
-	max_lines = w->lyrics_screen_top + LINES - 6;
-
-	werase (w->win);
-	wbkgd (w->win, get_color(CLR_BACKGROUND));
-
-	wmove (w->win, 0, 0);
-	if (w->lyrics_screen_top != 0) {
-		wattrset (w->win, get_color(CLR_MESSAGE));
-		xmvwaddstr (w->win, 0, COLS/2 - (sizeof("...MORE...")-1)/2,
-				"...MORE...");
-	}
-	wmove (w->win, 1, 0);
-	wattrset (w->win, get_color(CLR_LEGEND));
-	getmaxyx (w->win, height, width);
-	lyrics_array = lyrics_format (height, width);
-	for (i = w->lyrics_screen_top; i < max_lines && i < lists_strs_size (lyrics_array); i++)
-		xwaddstr (w->win, lists_strs_at (lyrics_array, i));
-	if (i != lists_strs_size (lyrics_array)) {
-		wattrset (w->win, get_color(CLR_MESSAGE));
-		xmvwaddstr (w->win, LINES-5,
-				COLS/2 - (sizeof("...MORE...")-1)/2,
-				"...MORE...");
-	}
-	lists_strs_free (lyrics_array);
-}
-
 static void main_win_draw (struct main_win *w)
 {
 	size_t ix;
 
-	if (w->in_help)
-		main_win_draw_help_screen (w);
-	else if (w->in_lyrics)
-		main_win_draw_lyrics_screen (w);
-	else if (w->too_small)
+	if (w->too_small)
 		main_win_draw_too_small_screen (w);
 	else {
 		werase (w->win);
@@ -1808,7 +1613,7 @@ static enum side_menu_type iface_to_side_menu (const enum iface_menu iface_menu)
 
 static void main_win_set_dir_content (struct main_win *w,
 		const enum iface_menu iface_menu, const struct plist *files,
-		const lists_t_strs *dirs, const lists_t_strs *playlists)
+		const stringlist *dirs, const stringlist *playlists)
 {
 	struct side_menu *m;
 
@@ -1839,7 +1644,7 @@ static void main_win_set_title (struct main_win *w,
 
 static void main_win_update_dir_content (struct main_win *w,
 		const enum iface_menu iface_menu, const struct plist *files,
-		const lists_t_strs *dirs, const lists_t_strs *playlists)
+		const stringlist *dirs, const stringlist *playlists)
 {
 	struct side_menu *m;
 	struct side_menu_state ms;
@@ -1875,22 +1680,6 @@ static void main_win_switch_to (struct main_win *w,
 	main_win_draw (w);
 }
 
-static void main_win_switch_to_help (struct main_win *w)
-{
-	assert (w != NULL);
-
-	w->in_help = 1;
-	main_win_draw (w);
-}
-
-static void main_win_switch_to_lyrics (struct main_win *w)
-{
-	assert (w != NULL);
-
-	w->in_lyrics = 1;
-	main_win_draw (w);
-}
-
 static void main_win_menu_cmd (struct main_win *w, const enum key_cmd cmd)
 {
 	assert (w != NULL);
@@ -1918,20 +1707,6 @@ static int main_win_in_dir_menu (const struct main_win *w)
 	assert (w != NULL);
 
 	return w->menus[w->selected_menu].type == MENU_DIR;
-}
-
-static int main_win_in_help (const struct main_win *w)
-{
-	assert (w != NULL);
-
-	return w->in_help;
-}
-
-static int main_win_in_lyrics (const struct main_win *w)
-{
-	assert (w != NULL);
-
-	return w->in_lyrics;
 }
 
 static int main_win_in_plist_menu (const struct main_win *w)
@@ -2091,68 +1866,6 @@ static int main_win_is_curr_time_for_all (const struct main_win *w)
 	return side_menu_is_time_for_all (&w->menus[w->selected_menu]);
 }
 
-static void main_win_handle_help_key (struct main_win *w,
-		const struct iface_key *k)
-{
-	int help_lines;
-
-	assert (w != NULL);
-	assert (w->in_help);
-
-	get_keys_help (&help_lines);
-
-	if ((k->type == IFACE_KEY_FUNCTION && (
-					k->key.func == KEY_DOWN
-					|| k->key.func == KEY_NPAGE))
-			|| (k->key.ucs == '\n')) {
-		if (w->help_screen_top + LINES - 5 <= help_lines)
-			w->help_screen_top++;
-	}
-	else {
-		if (k->type == IFACE_KEY_FUNCTION && (k->key.func == KEY_UP
-					|| k->key.func == KEY_PPAGE)) {
-			if (w->help_screen_top > 0)
-				w->help_screen_top--;
-		}
-		else if (k->key.func != KEY_RESIZE)
-			w->in_help = 0;
-	}
-
-	main_win_draw (w);
-}
-
-static void main_win_handle_lyrics_key (struct main_win *w,
-		const struct iface_key *k)
-{
-	int height, width;
-	lists_t_strs *lyrics_array;
-
-	assert (w != NULL);
-	assert (w->in_lyrics);
-
-	if ((k->type == IFACE_KEY_FUNCTION && (
-					k->key.func == KEY_DOWN
-					|| k->key.func == KEY_NPAGE))
-			|| (k->key.ucs == '\n')) {
-		getmaxyx (w->win, height, width);
-		lyrics_array = lyrics_format (height, width);
-		if (w->lyrics_screen_top + LINES - 5 <= lists_strs_size (lyrics_array))
-			w->lyrics_screen_top++;
-		lists_strs_free (lyrics_array);
-	}
-	else {
-		if (k->type == IFACE_KEY_FUNCTION && (k->key.func == KEY_UP
-					|| k->key.func == KEY_PPAGE)) {
-			if (w->lyrics_screen_top > 0)
-				w->lyrics_screen_top--;
-		}
-		else if (k->key.func != KEY_RESIZE)
-			w->in_lyrics = 0;
-	}
-
-	main_win_draw (w);
-}
-
 static void main_win_swap_plist_items (struct main_win *w, const char *file1,
 		const char *file2)
 {
@@ -2167,41 +1880,22 @@ static void main_win_swap_plist_items (struct main_win *w, const char *file1,
 	main_win_draw (w);
 }
 
-static void main_win_use_layout (struct main_win *w, lists_t_strs *layout_fmt)
+static void main_win_use_layout (struct main_win *w, int layout_num)
 {
 	struct main_win_layout l;
 	bool rc ASSERT_ONLY;
 
 	assert (w != NULL);
-	assert (layout_fmt != NULL);
 
-	w->layout_fmt = layout_fmt;
+	w->layout_num = layout_num;
 
-	rc = parse_layout (&l, layout_fmt);
+	rc = parse_layout (l, layout_num);
 	assert (rc);
 
 	side_menu_resize (&w->menus[0], &l.menus[0]);
 	side_menu_resize (&w->menus[1], &l.menus[1]);
 
 	main_win_draw (w);
-}
-
-static void validate_layouts ()
-{
-	struct main_win_layout l;
-	lists_t_strs *layout_fmt;
-
-	layout_fmt = options_get_list ("Layout1");
-	if (lists_strs_empty (layout_fmt) || !parse_layout(&l, layout_fmt))
-		interface_fatal ("Layout1 is malformed!");
-
-	layout_fmt = options_get_list ("Layout2");
-	if (!lists_strs_empty (layout_fmt) && !parse_layout(&l, layout_fmt))
-		interface_fatal ("Layout2 is malformed!");
-
-	layout_fmt = options_get_list ("Layout3");
-	if (!lists_strs_empty (layout_fmt) && !parse_layout(&l, layout_fmt))
-		interface_fatal ("Layout3 is malformed!");
 }
 
 /* Handle terminal size change. */
@@ -2216,7 +1910,7 @@ static void main_win_resize (struct main_win *w)
 	wresize (w->win, LINES - 4, COLS);
 	werase (w->win);
 
-	rc = parse_layout (&l, w->layout_fmt);
+	rc = parse_layout (l, w->layout_num);
 	assert (rc);
 
 	side_menu_resize (&w->menus[0], &l.menus[0]);
@@ -2314,122 +2008,11 @@ static void soft_write (int fd, const void *buf, size_t count)
 		log_errno ("write() failed", errno);
 }
 
-/* Set the has_xterm variable. */
-static void detect_term ()
-{
-	char *term;
-
-	term = getenv ("TERM");
-	if (term) {
-		lists_t_strs *xterms;
-
-		xterms = options_get_list ("XTerms");
-		has_xterm = lists_strs_exists (xterms, term);
-	}
-}
-
-static void xterm_set_title (const int state, const char *title)
-{
-	if (has_xterm && options_get_bool("SetXtermTitle")) {
-		soft_write (1, "\033]0;", sizeof("\033]0;")-1);
-		soft_write (1, "MOC ", sizeof("MOC ")-1);
-
-		switch (state) {
-			case STATE_PLAY:
-				soft_write (1, "[play]", sizeof("[play]")-1);
-				break;
-			case STATE_STOP:
-				soft_write (1, "[stop]", sizeof("[stop]")-1);
-				break;
-			case STATE_PAUSE:
-				soft_write (1, "[pause]", sizeof("[pause]")-1);
-				break;
-		}
-
-        if (title)
-        {
-            soft_write (1, " - ", sizeof(" - ")-1);
-            if (options_get_bool ("NonUTFXterm"))
-            {
-                char *iconv_title = xterm_iconv_str (title);
-                soft_write (1, iconv_title, strlen(iconv_title));
-                free (iconv_title);
-            }
-            else
-            {
-                soft_write (1, title, strlen(title));
-            }
-        }
-
-        soft_write (1, "\007", 1);
-    }
-}
-
-
-static void xterm_clear_title ()
-{
-	if (has_xterm && options_get_bool("SetXtermTitle"))
-		soft_write (1, "\033]2;\007", sizeof("\033]2;\007")-1);
-}
-
-/* Set the has_screen variable. */
-static void detect_screen ()
-{
-	char *term, *window;
-
-	term = getenv ("TERM");
-	window = getenv ("WINDOW");
-	if (term && window && isdigit (*window)) {
-		lists_t_strs *screen_terms;
-
-		screen_terms = options_get_list ("ScreenTerms");
-		has_screen = lists_strs_exists (screen_terms, term);
-	}
-}
-
-#define SCREEN_TITLE_START "\033k"
-#define SCREEN_TITLE_END "\033\\"
-static void screen_set_title (const int state, const char *title)
-{
-	if (has_screen && options_get_bool("SetScreenTitle")) {
-		soft_write (1, SCREEN_TITLE_START, sizeof(SCREEN_TITLE_START)-1);
-		soft_write (1, "MOC ", sizeof("MOC ")-1);
-
-		switch (state) {
-			case STATE_PLAY:
-				soft_write (1, "[play]", sizeof("[play]")-1);
-				break;
-			case STATE_STOP:
-				soft_write (1, "[stop]", sizeof("[stop]")-1);
-				break;
-			case STATE_PAUSE:
-				soft_write (1, "[pause]", sizeof("[pause]")-1);
-				break;
-		}
-
-		if (title) {
-			soft_write (1, " - ", sizeof(" - ")-1);
-			soft_write (1, title, strlen(title));
-		}
-
-		soft_write (1, SCREEN_TITLE_END, sizeof(SCREEN_TITLE_END)-1);
-	}
-}
-
-static void screen_clear_title ()
-{
-	if (has_screen && options_get_bool("SetScreenTitle"))
-	{
-		soft_write (1, SCREEN_TITLE_START, sizeof(SCREEN_TITLE_START)-1);
-		soft_write (1, SCREEN_TITLE_END, sizeof(SCREEN_TITLE_END)-1);
-	}
-}
-
 /* Based on ASCIILines option initialize line characters with curses lines or
  * ASCII characters. */
 static void init_lines ()
 {
-	if (options_get_bool("ASCIILines")) {
+	if (0) {
 		lines.vert = '|';
 		lines.horiz = '-';
 		lines.ulcorn = '+';
@@ -2625,29 +2208,6 @@ static void queued_message_destroy (struct queued_message *msg)
 	free (msg);
 }
 
-static void set_startup_message (struct info_win *w)
-{
-	assert (w != NULL);
-#if 0
-	w->current_message = queued_message_create (NORMAL_MSG);
-	w->current_message->msg = xstrdup (STARTUP_MESSAGE);
-	w->current_message->timeout = time (NULL);
-	w->current_message->timeout += options_get_int ("MessageLingerTime");
-
-	if (is_help_still_h ()) {
-		struct queued_message *msg;
-
-		msg = queued_message_create (NORMAL_MSG);
-		msg->msg = xstrdup ("Press 'h' for the list of commands.");
-		msg->timeout = options_get_int ("MessageLingerTime");
-
-		w->queued_message_head = msg;
-		w->queued_message_tail = msg;
-		w->queued_message_total = 1;
-	}
-#endif
-}
-
 static void info_win_init (struct info_win *w)
 {
 	assert (w != NULL);
@@ -2676,8 +2236,6 @@ static void info_win_init (struct info_win *w)
 
 	w->curr_time = -1;
 	w->total_time = -1;
-	w->block_start = -1;
-	w->block_end = -1;
 
 	w->title = NULL;
 	w->status_msg[0] = 0;
@@ -2687,18 +2245,16 @@ static void info_win_init (struct info_win *w)
 	entry_history_init (&w->dirs_history);
 	entry_history_init (&w->user_history);
 
-	set_startup_message (w);
-
 	bar_init (&w->mixer_bar, 20, "", 1, 1,
 	          get_color(CLR_MIXER_BAR_FILL),
 	          get_color(CLR_MIXER_BAR_EMPTY),
 		  NULL, NULL);
 	bar_init (&w->time_bar, COLS - 4, "", 1,
-	          options_get_bool("ShowTimePercent") ? 1 : 0,
+	          false,
 	          get_color(CLR_TIME_BAR_FILL),
 	          get_color(CLR_TIME_BAR_EMPTY),
-	          options_get_str("TimeBarLine"),
-	          options_get_str("TimeBarSpace"));
+	          options::TimeBarLine.c_str(),
+	          options::TimeBarSpace.c_str());
 }
 
 static void info_win_destroy (struct info_win *w)
@@ -2852,8 +2408,6 @@ static void info_win_set_state (struct info_win *w, const int state)
 			|| state == STATE_PAUSE);
 
 	w->state_play = state;
-	xterm_set_title (state, w->title);
-	screen_set_title (state, w->title);
 	info_win_draw_state (w);
 }
 
@@ -2891,15 +2445,6 @@ static void info_win_draw_time (const struct info_win *w)
 	info_win_update_curs (w);
 }
 
-static void info_win_draw_block (const struct info_win *w)
-{
-	assert (w != NULL);
-
-	if (!w->too_small)
-		bar_draw (&w->time_bar, w->win, 2, 3);
-	info_win_update_curs (w);
-}
-
 static void info_win_set_curr_time (struct info_win *w, const int time)
 {
 	assert (w != NULL);
@@ -2929,54 +2474,6 @@ static void info_win_set_total_time (struct info_win *w, const int time)
 	info_win_draw_time (w);
 }
 
-static void info_win_set_block_title (struct info_win *w)
-{
-	assert (w != NULL);
-
-	if (w->total_time == -1) {
-		bar_set_title (&w->time_bar, "");
-	} else if (w->block_start == -1 || w->block_end == -1) {
-		bar_set_title (&w->time_bar, "");
-	} else if (w->block_start == 0 && w->block_end == w->total_time) {
-		bar_set_title (&w->time_bar, "");
-	} else {
-		int start_pos, end_pos;
-		char *new_title, *decorators;
-
-		start_pos = w->block_start * w->time_bar.width / w->total_time;
-		if (w->block_end < w->total_time)
-			end_pos = w->block_end * w->time_bar.width / w->total_time;
-		else
-			end_pos = w->time_bar.width - 1;
-
-		new_title = (char*) xmalloc(w->time_bar.width + 1);
-		memset(new_title, ' ', w->time_bar.width);
-		decorators = options_get_str ("BlockDecorators");
-		if (start_pos == end_pos) {
-			new_title[start_pos] = decorators[1];
-		} else {
-			new_title[start_pos] = decorators[0];
-			new_title[end_pos] = decorators[2];
-		}
-		new_title[w->time_bar.width] = 0x00;
-
-		bar_set_title (&w->time_bar, new_title);
-	}
-}
-
-static void info_win_set_block (struct info_win *w, const int block_start, const int block_end)
-{
-	assert (w != NULL);
-	assert (block_start == -1 || RANGE(0, block_start, w->total_time));
-	assert (block_end == -1 || RANGE(0, block_end, w->total_time));
-
-	info_win.block_start = block_start;
-	info_win.block_end = block_end;
-
-	info_win_set_block_title (w);
-	info_win_draw_block (w);
-}
-
 static void info_win_set_played_title (struct info_win *w, const char *title)
 {
 	assert (w != NULL);
@@ -2990,8 +2487,6 @@ static void info_win_set_played_title (struct info_win *w, const char *title)
 	if (w->title)
 		free (w->title);
 	w->title = xstrdup (title);
-	xterm_set_title (w->state_play, title);
-	screen_set_title (w->state_play, title);
 	info_win_draw_title (w);
 }
 
@@ -3137,13 +2632,13 @@ static void info_win_display_msg (struct info_win *w)
 
 		if (msg_changed &&
 		    w->current_message->msg
-		    && options_get_bool ("PrefixQueuedMessages"))
+		    && options::PrefixQueuedMessages)
 		{
-			char *msg, *decorator;
+			char *msg; const char *decorator;
 			int len;
 
 			msg = w->current_message->msg;
-			decorator = options_get_str ("ErrorMessagesQueued");
+			decorator = options::ErrorMessagesQueued.c_str();
 			len = strlen (msg) + strlen (decorator) + 10;
 			w->current_message->msg = (char *) xmalloc (len);
 			snprintf (w->current_message->msg, len, "(%d%s) %s",
@@ -3216,7 +2711,7 @@ static void info_win_msg (struct info_win *w, const char *msg,
 		this_msg->msg = xstrdup (msg);
 	if (prompt)
 		this_msg->prompt = xstrdup (prompt);
-	this_msg->timeout = options_get_int ("MessageLingerTime");
+	this_msg->timeout = options::MessageLingerTime;
 	this_msg->callback = callback;
 	this_msg->data = data;
 
@@ -3397,7 +2892,7 @@ static void info_win_draw (const struct info_win *w)
 		info_win_draw_static_elements (w);
 		info_win_draw_state (w);
 		info_win_draw_time (w);
-		info_win_draw_block (w);
+		bar_draw (&w->time_bar, w->win, 2, 3);
 		info_win_draw_title (w);
 		info_win_draw_options_state (w);
 		info_win_draw_status (w);
@@ -3424,8 +2919,7 @@ static void info_win_entry_disable (struct info_win *w)
 	entry_destroy (&w->entry);
 	w->in_entry = 0;
 
-	if (!options_get_bool("UseCursorSelection"))
-		curs_set (0);
+	curs_set (0);
 	info_win_draw (w);
 }
 
@@ -3573,7 +3067,7 @@ static void info_win_resize (struct info_win *w)
 
 	bar_resize (&w->mixer_bar, 20);
 	bar_resize (&w->time_bar, COLS - 4);
-	info_win_set_block_title (w);
+	bar_set_title (&w->time_bar, "");
 
 	if (w->in_entry)
 		entry_resize (&w->entry, COLS - 4);
@@ -3595,20 +3089,16 @@ void windows_init ()
 	if (!initscr ())
 		fatal ("Can't initialize terminal!");
 	screen_initialized = 1;
-	validate_layouts ();
 	cbreak ();
 	noecho ();
-	if (!options_get_bool ("UseCursorSelection"))
-		curs_set (0);
+	curs_set (0);
 	use_default_colors ();
 
-	detect_term ();
-	detect_screen ();
 	start_color ();
-	theme_init (has_xterm);
+	theme_init ();
 	init_lines ();
 
-	main_win_init (&main_win, options_get_list ("Layout1"));
+	main_win_init (&main_win, 0);
 	info_win_init (&info_win);
 
 	check_term_size (&main_win, &info_win);
@@ -3648,14 +3138,10 @@ void windows_end ()
 		info_win_clear_msg (&info_win);
 		info_win_destroy (&info_win);
 
-		xterm_clear_title ();
-		screen_clear_title ();
 		utf8_cleanup ();
 	}
 
 	windows_reset ();
-
-	lyrics_cleanup ();
 }
 
 static void iface_refresh_screen ()
@@ -3723,8 +3209,8 @@ static void iface_show_num_files (const int num)
 /* Change the content of the directory menu to these files, directories, and
  * playlists. */
 void iface_set_dir_content (const enum iface_menu iface_menu,
-		const struct plist *files, const lists_t_strs *dirs,
-		const lists_t_strs *playlists)
+		const struct plist *files, const stringlist *dirs,
+		const stringlist *playlists)
 {
 	main_win_set_dir_content (&main_win, iface_menu, files, dirs,
 			playlists);
@@ -3733,8 +3219,8 @@ void iface_set_dir_content (const enum iface_menu iface_menu,
 			main_win_is_time_for_all(&main_win, iface_menu));
 
 	iface_show_num_files (plist_count(files)
-			+ (dirs ? lists_strs_size (dirs) : 0)
-			+ (playlists ? lists_strs_size (playlists) : 0));
+			+ (dirs ? dirs->size() : 0)
+			+ (playlists ? playlists->size() : 0));
 
 	iface_refresh_screen ();
 }
@@ -3796,8 +3282,8 @@ void iface_update_attrs ()
  * the menu state (selected file, view position) and restore it after making
  * a new menu. */
 void iface_update_dir_content (const enum iface_menu iface_menu,
-		const struct plist *files, const lists_t_strs *dirs,
-		const lists_t_strs *playlists)
+		const struct plist *files, const stringlist *dirs,
+		const stringlist *playlists)
 {
 	main_win_update_dir_content (&main_win, iface_menu, files, dirs,
 			playlists);
@@ -3806,8 +3292,8 @@ void iface_update_dir_content (const enum iface_menu iface_menu,
 			main_win_is_time_for_all(&main_win, iface_menu));
 
 	iface_show_num_files (plist_count(files)
-			+ (dirs ? lists_strs_size (dirs) : 0)
-			+ (playlists ? lists_strs_size (playlists) : 0));
+			+ (dirs ? dirs->size() : 0)
+			+ (playlists ? playlists->size() : 0));
 
 	iface_refresh_screen ();
 }
@@ -3840,7 +3326,7 @@ void iface_set_title (const enum iface_menu menu, const char *title)
 
 	assert (title != NULL);
 
-    if (options_get_bool ("FileNamesIconv"))
+    if (options::FileNamesIconv)
     {
         char *conv_title = NULL;
         conv_title = files_iconv_str (title);
@@ -3955,14 +3441,6 @@ void iface_set_curr_time (const int time)
 void iface_set_total_time (const int time)
 {
 	info_win_set_total_time (&info_win, time);
-	info_win_set_block (&info_win, -1, -1);
-	iface_refresh_screen ();
-}
-
-/* Set the start and end marks for the currently played file. */
-void iface_set_block (const int block_start, const int block_end)
-{
-	info_win_set_block (&info_win, block_start, block_end);
 	iface_refresh_screen ();
 }
 
@@ -4011,7 +3489,6 @@ void iface_set_played_file (const char *file)
 		info_win_set_rate (&info_win, -1);
 		info_win_set_curr_time (&info_win, -1);
 		info_win_set_total_time (&info_win, -1);
-		info_win_set_block (&info_win, -1, -1);
 		info_win_set_option_state (&info_win, "Net", 0);
 	}
 	else if (is_url(file)) {
@@ -4098,7 +3575,6 @@ void iface_error (const char *msg)
 void iface_resize ()
 {
 	check_term_size (&main_win, &info_win);
-	validate_layouts ();
 	endwin ();
 	refresh ();
 	main_win_resize (&main_win);
@@ -4258,57 +3734,14 @@ void iface_select_file (const char *file)
 	iface_refresh_screen ();
 }
 
-int iface_in_help ()
-{
-	return main_win_in_help (&main_win);
-}
-
-void iface_switch_to_help ()
-{
-	main_win_switch_to_help (&main_win);
-	iface_refresh_screen ();
-}
-
-void iface_handle_help_key (const struct iface_key *k)
-{
-	main_win_handle_help_key (&main_win, k);
-	iface_refresh_screen ();
-}
-
-int iface_in_lyrics ()
-{
-	return main_win_in_lyrics (&main_win);
-}
-
-void iface_switch_to_lyrics ()
-{
-	main_win_switch_to_lyrics (&main_win);
-	iface_refresh_screen ();
-}
-
-void iface_handle_lyrics_key (const struct iface_key *k)
-{
-	main_win_handle_lyrics_key (&main_win, k);
-	iface_refresh_screen ();
-}
-
 void iface_toggle_layout ()
 {
-	static int curr_layout = 1;
-	char layout_option[10];
-	lists_t_strs *layout_fmt;
+	static int curr_layout = 0;
 
-	if (++curr_layout > 3)
-		curr_layout = 1;
+	++curr_layout;
+	curr_layout &= 3;
 
-	sprintf (layout_option, "Layout%d", curr_layout);
-	layout_fmt = options_get_list (layout_option);
-	if (lists_strs_empty (layout_fmt)) {
-		curr_layout = 1;
-		layout_fmt = options_get_list ("Layout1");
-	}
-
-	main_win_use_layout (&main_win, layout_fmt);
+	main_win_use_layout (&main_win, curr_layout);
 	iface_refresh_screen ();
 }
 
@@ -4316,7 +3749,6 @@ void iface_toggle_percent ()
 {
 	info_win.time_bar.show_pct = !info_win.time_bar.show_pct;
 	bar_update_title (&info_win.time_bar);
-	info_win_draw_block (&info_win);
 	iface_refresh_screen ();
 }
 
@@ -4358,16 +3790,7 @@ void iface_temporary_exit ()
 void iface_restore ()
 {
 	iface_refresh ();
-	if (!options_get_bool("UseCursorSelection"))
-		curs_set (0);
-}
-
-void iface_load_lyrics (const char *file)
-{
-	lyrics_cleanup ();
-	lyrics_autoload (file);
-	main_win.lyrics_screen_top = 0;
-	main_win_draw (&main_win);
+	curs_set (0);
 }
 
 static void update_queue_position (struct plist *playlist,

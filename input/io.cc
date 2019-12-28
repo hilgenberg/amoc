@@ -489,7 +489,7 @@ static void io_open_file (struct io_stream *s, const char *file)
 		s->opened = 1;
 
 #ifdef HAVE_MMAP
-		if (!options_get_bool ("UseMMap")) {
+		if (!options::UseMMap) {
 			logit ("Not using mmap()");
 			s->mem = NULL;
 			break;
@@ -545,8 +545,8 @@ struct io_stream *io_open (const char *file, const int buffered)
 	s->pos = 0;
 
 	if (buffered) {
-		s->buf = new fifo_buf (options_get_int("InputBuffer") * 1024);
-		s->prebuffer = options_get_int("Prebuffering") * 1024;
+		s->buf = new fifo_buf (options::InputBuffer * 1024);
+		s->prebuffer = options::Prebuffering * 1024;
 
 		pthread_cond_init (&s->buf_free_cond, NULL);
 		pthread_cond_init (&s->buf_fill_cond, NULL);

@@ -624,7 +624,9 @@ char *build_title_with_format (const struct file_tags *tags, const char *fmt)
 /* Build file title from struct file_tags. Returned memory is malloc()ed. */
 char *build_title (const struct file_tags *tags)
 {
-	return build_title_with_format (tags, options_get_str ("FormatString"));
+	return build_title_with_format(tags, 
+	"%(N:%N   :)%(a:%a   :)%(A:%A   :)%t");
+	//"%(n:%n :)%(a:%a - :)%(t:%t:)%(A: \\(%A\\):)");
 }
 
 /* Copy the item to the playlist. Return the index of the added item. */
@@ -700,7 +702,7 @@ void plist_set_title_file (struct plist *plist, const int num,
 		free (plist->items[num].title_file);
 
 #ifdef  HAVE_RCC
-	if (options_get_bool ("UseRCCForFilesystem")) {
+	if (options::UseRCCForFilesystem) {
 		char *t_str = xstrdup (title);
 		plist->items[num].title_file = rcc_reencode (t_str);
 		return;

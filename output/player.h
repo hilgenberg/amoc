@@ -1,9 +1,9 @@
 #ifndef PLAYER_H
 #define PLAYER_H
 
-#include "output/out_buf.h"
-#include "input/io.h"
-#include "playlist.h"
+#include "out_buf.h"
+#include "../input/io.h"
+#include "../playlist.h"
 
 void player_cleanup ();
 void player (const char *file, const char *next_file, struct out_buf *out_buf);

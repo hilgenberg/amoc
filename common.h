@@ -1,17 +1,10 @@
-/*
- * The purpose of this header is to provide common functions and macros
- * used throughout MOC code.  It also provides (x-prefixed) functions
- * which augment or adapt their respective system functions with error
- * checking and the like.
- */
-
 #pragma once
-
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <limits.h>
 #include <byteswap.h>
+#include <algorithm>
 
 struct timespec;
 
@@ -138,4 +131,5 @@ char *strcasestr (const char *haystack, const char *needle);
 #endif
 
 #include "StringFormatting.h"
+#include "lists.h"
 

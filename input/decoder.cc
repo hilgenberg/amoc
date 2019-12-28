@@ -35,9 +35,6 @@ static bool have_tremor = false;
 /* This structure holds the user's decoder preferences for audio formats. */
 struct decoder_s_preference {
 	struct decoder_s_preference *next;    /* chain pointer */
-#ifdef DEBUG
-	const char *source;                   /* entry in PreferredDecoders */
-#endif
 	int decoders;                         /* number of decoders */
 	int decoder_list[PLUGINS_NUM];        /* decoder indices */
 	char *subtype;                        /* MIME subtype or NULL */
@@ -86,7 +83,7 @@ static decoder_t_preference *lookup_preference (const char *extn,
 
 			if (!type) {
 				if (mime && *mime == NULL && file && file[0]) {
-					if (options_get_bool ("UseMimeMagic"))
+					if (options::UseMimeMagic)
 						*mime = file_mime_type (file);
 				}
 				if (mime && *mime && strchr (*mime, '/'))
@@ -361,55 +358,39 @@ static int lookup_decoder_by_name (const char *name)
 }
 
 /* Return a string of concatenated driver names. */
-static char *list_decoder_names (int *decoder_list, int count)
+static std::string list_decoder_names (int *decoder_list, int count)
 {
-	int ix;
-	char *result;
-	lists_t_strs *names;
+	std::string result;
 
-	if (count == 0)
-		return xstrdup ("");
-
-	names = lists_strs_new (count);
-	for (ix = 0; ix < count; ix += 1)
-		lists_strs_append (names, plugins[decoder_list[ix]].name);
-
-	if (have_tremor) {
-		ix = lists_strs_find (names, "vorbis");
-		if (ix < lists_strs_size (names))
-			lists_strs_replace (names, ix, "vorbis(tremor)");
+	for (int ix = 0; ix < count; ix += 1)
+	{
+		if (ix > 0) result += " ";
+		std::string s = plugins[decoder_list[ix]].name;
+		if (have_tremor && s == "vorbis") s = "vorbis(tremor)";
+		#if !defined(HAVE_FFMPEG)
+		else if (s == "ffmpeg")
+			#if defined(HAVE_LIBAV)
+			s = "ffmpeg(libav)";
+			#else
+			s = "ffmpeg/libav";
+			#endif
+		#endif
+		result += s;
 	}
-
-	ix = lists_strs_find (names, "ffmpeg");
-	if (ix < lists_strs_size (names)) {
-#if defined(HAVE_FFMPEG)
-			lists_strs_replace (names, ix, "ffmpeg");
-#elif defined(HAVE_LIBAV)
-			lists_strs_replace (names, ix, "ffmpeg(libav)");
-#else
-			lists_strs_replace (names, ix, "ffmpeg/libav");
-#endif
-	}
-
-	result = lists_strs_fmt (names, " %s");
-	lists_strs_free (names);
 
 	return result;
 }
 
 /* Create a new preferences entry and initialise it. */
-static decoder_t_preference *make_preference (const char *prefix)
+static decoder_t_preference *make_preference (const std::string &prefix)
 {
 	decoder_t_preference *result;
 
-	assert (prefix && prefix[0]);
-
 	result = (decoder_t_preference *)xmalloc (
-		offsetof (decoder_t_preference, type) + strlen (prefix) + 1
-	);
+		offsetof (decoder_t_preference, type) + prefix.length() + 1);
 	result->next = NULL;
 	result->decoders = 0;
-	strcpy (result->type, prefix);
+	strcpy (result->type, prefix.c_str());
 	result->subtype = strchr (result->type, '/');
 	if (result->subtype) {
 		*result->subtype++ = 0x00;
@@ -440,14 +421,13 @@ static bool is_listed_decoder (decoder_t_preference *pref, int d)
 }
 
 /* Add the named decoder (if valid) to a preferences decoder list. */
-static void load_each_decoder (decoder_t_preference *pref, const char *name)
+static void load_each_decoder (decoder_t_preference *pref, const std::string &name)
 {
 	int d;
 
 	assert (pref);
-	assert (name && name[0]);
 
-	d = lookup_decoder_by_name (name);
+	d = lookup_decoder_by_name (name.c_str());
 
 	/* Drop unknown decoders. */
 	if (d == plugins_num)
@@ -463,22 +443,19 @@ static void load_each_decoder (decoder_t_preference *pref, const char *name)
 }
 
 /* Build a preference's decoder list. */
-static void load_decoders (decoder_t_preference *pref, lists_t_strs *tokens)
+static void load_decoders (decoder_t_preference *pref, const stringlist &tokens)
 {
 	int ix, dx, asterisk_at;
 	int decoder[PLUGINS_NUM];
-	const char *name;
 
 	assert (pref);
-	assert (tokens);
 
 	asterisk_at = -1;
 
 	/* Add the index of each known decoder to the decoders list.
 	 * Note the position following the first asterisk. */
-	for (ix = 1; ix < lists_strs_size (tokens); ix += 1) {
-		name = lists_strs_at (tokens, ix);
-		if (strcmp (name, "*"))
+	for (auto &name : tokens) {
+		if (name == "*")
 			load_each_decoder (pref, name);
 		else if (asterisk_at == -1)
 			asterisk_at = pref->decoders;
@@ -505,60 +482,30 @@ static void load_decoders (decoder_t_preference *pref, lists_t_strs *tokens)
 	assert (RANGE(0, pref->decoders, plugins_num));
 }
 
-/* Add a new preference for an audio format. */
-static void load_each_preference (const char *preference)
-{
-	const char *prefix;
-	lists_t_strs *tokens;
-	decoder_t_preference *pref;
-
-	assert (preference && preference[0]);
-
-	tokens = lists_strs_new (4);
-	lists_strs_split (tokens, preference, "(,)");
-	prefix = lists_strs_at (tokens, 0);
-	pref = make_preference (prefix);
-#ifdef DEBUG
-	pref->source = preference;
-#endif
-	load_decoders (pref, tokens);
-	pref->next = preferences;
-	preferences = pref;
-	lists_strs_free (tokens);
-}
-
 /* Load all preferences given by the user in PreferredDecoders. */
 static void load_preferences ()
 {
-	int ix;
-	const char *preference;
-	lists_t_strs *list;
+	const char *PreferredDecoders[] = {
+	"aac(aac,ffmpeg)", "m4a(ffmpeg)", "mpc(musepack,*,ffmpeg)", "mpc8(musepack,*,ffmpeg)",
+	"sid(sidplay2)", "mus(sidplay2)", "wav(sndfile,*,ffmpeg)", "wv(wavpack,*,ffmpeg)",
+	"audio/aac(aac)", "audio/aacp(aac)", "audio/m4a(ffmpeg)", "audio/wav(sndfile,*)",
+	"oga(vorbis,*,ffmpeg)", "ogg(vorbis,*,ffmpeg)", "ogv(ffmpeg)", "application/ogg(vorbis)",
+	"audio/ogg(vorbis)", "flac(flac,*,ffmpeg)", "opus(ffmpeg)", "spx(speex)"};
 
-	list = options_get_list ("PreferredDecoders");
-
-	for (ix = 0; ix < lists_strs_size (list); ix += 1) {
-		preference = lists_strs_at (list, ix);
-		load_each_preference (preference);
-	}
-
-#ifdef DEBUG
+	for (auto *s : PreferredDecoders)
 	{
-		char *names;
-		decoder_t_preference *pref;
-
-		for (pref = preferences; pref; pref = pref->next) {
-			names = list_decoder_names (pref->decoder_list, pref->decoders);
-			debug("%s:%s", pref->source, names);
-			free (names);
-		}
+		stringlist tokens = split(s, "(,)");
+		assert(tokens.size() >= 1);
+		decoder_t_preference *pref = make_preference (tokens[0]);
+		load_decoders (pref, tokens);
+		pref->next = preferences;
+		preferences = pref;
 	}
-#endif
 }
 
 static void load_plugins (int debug_info)
 {
 	int ix;
-	char *names;
 
 #define H(X) \
 	assert(plugins_num < PLUGINS_NUM);\
@@ -577,9 +524,8 @@ static void load_plugins (int debug_info)
 	for (ix = 0; ix < plugins_num; ix += 1)
 		default_decoder_list[ix] = ix;
 
-	names = list_decoder_names (default_decoder_list, plugins_num);
-	logit ("Loaded %d decoders:%s", plugins_num, names);
-	free (names);
+	std::string names = list_decoder_names (default_decoder_list, plugins_num);
+	logit ("Loaded %d decoders:%s", plugins_num, names.c_str());
 }
 
 void decoder_init (int debug_info)

@@ -302,34 +302,26 @@ struct decoder *mod_plugin ()
 {
   ModPlug_GetSettings(&settings);
   settings.mFlags = 0;
-  settings.mFlags |= options_get_bool("ModPlug_Oversampling")
-    ?MODPLUG_ENABLE_OVERSAMPLING:0;
-  settings.mFlags |= options_get_bool("ModPlug_NoiseReduction")
-    ?MODPLUG_ENABLE_NOISE_REDUCTION:0;
-  settings.mFlags |= options_get_bool("ModPlug_Reverb")
-    ?MODPLUG_ENABLE_REVERB:0;
-  settings.mFlags |= options_get_bool("ModPlug_MegaBass")
-    ?MODPLUG_ENABLE_MEGABASS:0;
-  settings.mFlags |= options_get_bool("ModPlug_Surround")
-    ?MODPLUG_ENABLE_SURROUND:0;
-  if(!strcasecmp(options_get_symb("ModPlug_ResamplingMode"), "FIR"))
+  settings.mFlags |= MODPLUG_ENABLE_OVERSAMPLING;
+  settings.mFlags |= MODPLUG_ENABLE_NOISE_REDUCTION;
+  //settings.mFlags |= MODPLUG_ENABLE_REVERB;
+  //settings.mFlags |= MODPLUG_ENABLE_MEGABASS;
+  //settings.mFlags |= MODPLUG_ENABLE_SURROUND;
+
     settings.mResamplingMode = MODPLUG_RESAMPLE_FIR;
-  if(!strcasecmp(options_get_symb("ModPlug_ResamplingMode"), "SPLINE"))
-    settings.mResamplingMode = MODPLUG_RESAMPLE_SPLINE;
-  if(!strcasecmp(options_get_symb("ModPlug_ResamplingMode"), "LINEAR"))
-    settings.mResamplingMode = MODPLUG_RESAMPLE_LINEAR;
-  if(!strcasecmp(options_get_symb("ModPlug_ResamplingMode"), "NEAREST"))
-    settings.mResamplingMode = MODPLUG_RESAMPLE_NEAREST;
-  settings.mChannels = options_get_int("ModPlug_Channels");
-  settings.mBits = options_get_int("ModPlug_Bits");
-  settings.mFrequency = options_get_int("ModPlug_Frequency");
-  settings.mReverbDepth = options_get_int("ModPlug_ReverbDepth");
-  settings.mReverbDelay = options_get_int("ModPlug_ReverbDelay");
-  settings.mBassAmount = options_get_int("ModPlug_BassAmount");
-  settings.mBassRange = options_get_int("ModPlug_BassRange");
-  settings.mSurroundDepth = options_get_int("ModPlug_SurroundDepth");
-  settings.mSurroundDelay = options_get_int("ModPlug_SurroundDelay");
-  settings.mLoopCount = options_get_int("ModPlug_LoopCount");
+    //settings.mResamplingMode = MODPLUG_RESAMPLE_SPLINE;
+    //settings.mResamplingMode = MODPLUG_RESAMPLE_LINEAR;
+    //settings.mResamplingMode = MODPLUG_RESAMPLE_NEAREST;
+  settings.mChannels = 2;
+  settings.mBits = 16;
+  settings.mFrequency = 44100;
+  settings.mReverbDepth = 0;
+  settings.mReverbDelay = 0;
+  settings.mBassAmount = 0;
+  settings.mBassRange = 10;
+  settings.mSurroundDepth = 0;
+  settings.mSurroundDelay = 0;
+  settings.mLoopCount = 0;
   ModPlug_SetSettings(&settings);
   return &modplug_decoder;
 }

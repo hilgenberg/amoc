@@ -327,11 +327,8 @@ void utf8_init ()
 			log_errno ("iconv_open() failed", errno);
 	}
 
-	if (options_get_bool ("FileNamesIconv"))
+	if (options::FileNamesIconv)
 		files_iconv_desc = iconv_open ("UTF-8", "");
-
-	if (options_get_bool ("NonUTFXterm"))
-		xterm_iconv_desc = iconv_open ("", "UTF-8");
 }
 
 void utf8_cleanup ()

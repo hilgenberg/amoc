@@ -9,10 +9,6 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
 #include <stdio.h>
 #include <pthread.h>
 #include <string.h>
@@ -20,16 +16,13 @@
 #include <errno.h>
 #include <assert.h>
 
-#include "common.h"
-#include "log.h"
-#include "input/decoder.h"
-#include "output/audio.h"
-#include "output/out_buf.h"
-#include "server.h"
-#include "options.h"
+#include "../input/decoder.h"
+#include "audio.h"
+#include "out_buf.h"
+#include "../server.h"
 #include "player.h"
-#include "files.h"
-#include "playlist.h"
+#include "../files.h"
+#include "../playlist.h"
 
 #define PCM_BUF_SIZE		(36 * 1024)
 #define PREBUFFER_THRESHOLD	(18 * 1024)
@@ -471,9 +464,7 @@ static void decode_loop (const struct decoder *f, void *decoder_data,
 			if (decoder_stream && out_buf_get_fill(out_buf)
 					< PREBUFFER_THRESHOLD) {
 				prebuffering = 1;
-				io_prebuffer (decoder_stream,
-						options_get_int("Prebuffering")
-						* 1024);
+				io_prebuffer (decoder_stream, options::Prebuffering * 1024);
 				prebuffering = 0;
 				status_msg ("Playing...");
 			}
@@ -489,8 +480,7 @@ static void decode_loop (const struct decoder *f, void *decoder_data,
 
 			f->get_error (decoder_data, &err);
 			if (err.type != ERROR_OK) {
-				if (err.type != ERROR_STREAM ||
-				    options_get_bool ("ShowStreamErrors"))
+				if (err.type != ERROR_STREAM)
 					error ("%s", err.err);
 				decoder_error_clear (&err);
 			}
@@ -517,8 +507,7 @@ static void decode_loop (const struct decoder *f, void *decoder_data,
 			debug ("waiting...");
 			if (eof && !precache.file && next_file
 					&& file_type(next_file) == F_SOUND
-					&& options_get_bool("Precache")
-					&& options_get_bool("AutoNext"))
+					&& options::AutoNext)
 				start_precache (&precache, next_file);
 			pthread_cond_wait (&request_cond, &request_cond_mtx);
 			UNLOCK (request_cond_mtx);
@@ -606,7 +595,7 @@ static void decode_loop (const struct decoder *f, void *decoder_data,
 
 	out_buf_wait (out_buf);
 
-	if (precache.ok && (stopped || !options_get_bool ("AutoNext"))) {
+	if (precache.ok && (stopped || !options::AutoNext)) {
 		precache_wait (&precache);
 		precache.f->close (precache.decoder_data);
 		precache_reset (&precache);
@@ -653,8 +642,7 @@ static void play_file (const char *file, const struct decoder *f,
 
 		precache.f->get_error (precache.decoder_data, &err);
 		if (err.type != ERROR_OK) {
-			if (err.type != ERROR_STREAM ||
-			    options_get_bool ("ShowStreamErrors"))
+			if (err.type != ERROR_STREAM)
 				error ("%s", err.err);
 			decoder_error_clear (&err);
 		}
@@ -741,8 +729,7 @@ static void fill_cb (struct io_stream *unused1 ATTR_UNUSED, size_t fill,
 	if (prebuffering) {
 		char msg[32];
 
-		sprintf (msg, "Prebuffering %zu/%d KB", fill / 1024U,
-		              options_get_int("Prebuffering"));
+		sprintf (msg, "Prebuffering %zu/%d KB", fill / 1024U, options::Prebuffering);
 		status_msg (msg);
 	}
 }
@@ -782,7 +769,7 @@ void player (const char *file, const char *next_file, struct out_buf *out_buf)
 		prebuffering = 1;
 		io_set_buf_fill_callback (decoder_stream, fill_cb, NULL);
 		io_prebuffer (decoder_stream,
-				options_get_int("Prebuffering") * 1024);
+				options::Prebuffering * 1024);
 		prebuffering = 0;
 
 		status_msg ("Playing...");

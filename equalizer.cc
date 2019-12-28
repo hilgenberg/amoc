@@ -54,7 +54,7 @@
 #define EQUALIZER_CFG_MIXIN "Mixin:"
 
 #define EQUALIZER_SAVE_FILE "equalizer"
-#define EQUALIZER_SAVE_OPTION "Equalizer_SaveState"
+#define EQUALIZER_SAVE_OPTION Equalizer_SaveState
 
 typedef struct t_biquad t_biquad;
 
@@ -504,7 +504,7 @@ void equalizer_init()
 
 void equalizer_shutdown()
 {
-  if(options_get_bool(EQUALIZER_SAVE_OPTION))
+  if(options::EQUALIZER_SAVE_OPTION)
     equalizer_write_config();
 
   clear_eq_set(&equ_list);

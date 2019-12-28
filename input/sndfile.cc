@@ -19,6 +19,8 @@
 #include <strings.h>
 #include <assert.h>
 #include <sndfile.h>
+#include <set>
+#include <string>
 
 #include "decoder.h"
 #include "../server.h"
@@ -38,16 +40,15 @@ struct sndfile_data
 	bool timing_broken;
 };
 
-static lists_t_strs *supported_extns = NULL;
+static std::set<std::string> supported_extns;
 
 static void load_extn_list ()
 {
+	if (!supported_extns.empty()) return;
 	const int counts[] = {SFC_GET_SIMPLE_FORMAT_COUNT,
 	                      SFC_GET_FORMAT_MAJOR_COUNT};
 	const int formats[] = {SFC_GET_SIMPLE_FORMAT,
 	                       SFC_GET_FORMAT_MAJOR};
-
-	supported_extns = lists_strs_new (16);
 
 	for (size_t ix = 0; ix < ARRAY_SIZE(counts); ix += 1) {
 		int limit;
@@ -57,30 +58,22 @@ static void load_extn_list ()
 		for (int iy = 0 ; iy < limit ; iy += 1) {
 			format_info.format = iy ;
 			sf_command (NULL, formats[ix], &format_info, sizeof (format_info));
-			if (!lists_strs_exists (supported_extns, format_info.extension))
-				lists_strs_append (supported_extns, format_info.extension);
+			supported_extns.insert(format_info.extension);
 		}
 	}
 
 	/* These are synonyms of supported extensions. */
-	if (lists_strs_exists (supported_extns, "aiff"))
-		lists_strs_append (supported_extns, "aif");
-	if (lists_strs_exists (supported_extns, "au"))
-		lists_strs_append (supported_extns, "snd");
-	if (lists_strs_exists (supported_extns, "wav")) {
-		lists_strs_append (supported_extns, "nist");
-		lists_strs_append (supported_extns, "sph");
-	}
-	if (lists_strs_exists (supported_extns, "iff"))
-		lists_strs_append (supported_extns, "svx");
-	if (lists_strs_exists (supported_extns, "oga"))
-		lists_strs_append (supported_extns, "ogg");
-	if (lists_strs_exists (supported_extns, "sf"))
-		lists_strs_append (supported_extns, "ircam");
-	if (lists_strs_exists (supported_extns, "mat")) {
-		lists_strs_append (supported_extns, "mat4");
-		lists_strs_append (supported_extns, "mat5");
-	}
+	#define SYN(x,y) if (supported_extns.count(x)) supported_extns.insert(y)
+	SYN("aiff", "aif");
+	SYN("au", "snd");
+	SYN("wav", "nist");
+	SYN("wav", "sph");
+	SYN("iff", "svx");
+	SYN("oga", "ogg");
+	SYN("sf", "ircam");
+	SYN("mat", "mat4");
+	SYN("mat", "mat5");
+	#undef SYN
 }
 
 static void sndfile_init ()
@@ -90,7 +83,7 @@ static void sndfile_init ()
 
 static void sndfile_destroy ()
 {
-	lists_strs_free (supported_extns);
+	supported_extns.clear();
 }
 
 /* Return true iff libsndfile's frame count is unknown or miscalculated. */
@@ -266,7 +259,7 @@ static void sndfile_get_name (const char *file, char buf[4])
 
 static int sndfile_our_format_ext (const char *ext)
 {
-	return lists_strs_exists (supported_extns, ext);
+	return supported_extns.count(ext);
 }
 
 static void sndfile_get_error (void *prv_data, struct decoder_error *error)

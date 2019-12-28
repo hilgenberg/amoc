@@ -155,7 +155,7 @@ static FILE *open_ratings_file (const char *fn, const char *mode)
 
 	char buf[512]; /* buffer for file path */
 	size_t  N = sizeof(buf);
-	const char *rfn = options_get_str ("RatingFile");
+	const char *rfn = options::RatingFile.c_str();
 
 	const char *sep = strrchr (fn, '/');
 	if (!sep)

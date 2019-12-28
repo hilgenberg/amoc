@@ -378,7 +378,7 @@ void server_init (int debugging, int foreground)
 
 	clients_init ();
 	audio_initialize ();
-	tags_cache = tags_cache_new (options_get_int("TagsCacheSize"));
+	tags_cache = tags_cache_new (options::TagsCacheSize);
 	tags_cache_load (tags_cache, create_file_name("cache"));
 
 	server_tid = pthread_self ();
@@ -442,26 +442,21 @@ static void add_event (struct client *cli, const int event, void *data)
 static void on_song_change ()
 {
 	static char *last_file = NULL;
-	static lists_t_strs *on_song_change = NULL;
+	static stringlist on_song_change;
+	static bool init = false;
 
 	int ix;
 	bool same_file, unpaused;
 	char *curr_file, **args;
 	struct file_tags *curr_tags;
-	lists_t_strs *arg_list;
 
 	/* We only need to do OnSongChange tokenisation once. */
-	if (on_song_change == NULL) {
-		char *command;
-
-		on_song_change = lists_strs_new (4);
-		command = options_get_str ("OnSongChange");
-
-		if (command)
-			lists_strs_tokenise (on_song_change, command);
+	if (!init) {
+		init = true;
+		on_song_change = split(options::OnSongChange);
 	}
 
-	if (lists_strs_empty (on_song_change))
+	if (on_song_change.empty())
 		return;
 
 	curr_file = audio_get_sname ();
@@ -471,90 +466,66 @@ static void on_song_change ()
 
 	same_file = (last_file && !strcmp (last_file, curr_file));
 	unpaused = (audio_get_prev_state () == STATE_PAUSE);
-	if (same_file && (unpaused || !options_get_bool ("RepeatSongChange"))) {
+	if (same_file && (unpaused || !options::RepeatSongChange)) {
 		free (curr_file);
 		return;
 	}
 
 	curr_tags = tags_cache_get_immediate (tags_cache, curr_file,
 	                                      TAGS_COMMENTS | TAGS_TIME);
-	arg_list = lists_strs_new (lists_strs_size (on_song_change));
-	for (ix = 0; ix < lists_strs_size (on_song_change); ix += 1) {
-		const char *arg;
-
-		arg = lists_strs_at (on_song_change, ix);
+	stringlist arg_list;
+	for (auto &arg : on_song_change)
+	{
 		if (arg[0] != '%')
-			lists_strs_append (arg_list, arg);
+			arg_list.push_back(arg);
 		else if (!curr_tags)
-			lists_strs_append (arg_list, "");
+			arg_list.push_back("");
 		else {
 			switch (arg[1]) {
-			case 'a':
-				lists_strs_append (arg_list, curr_tags->artist ? curr_tags->artist : "");
-				break;
-			case 'r':
-				lists_strs_append (arg_list, curr_tags->album ? curr_tags->album : "");
-				break;
-			case 't':
-				lists_strs_append (arg_list, curr_tags->title ? curr_tags->title : "");
-				break;
+			case 'a': arg_list.push_back(curr_tags->artist ? curr_tags->artist : ""); break;
+			case 'r': arg_list.push_back(curr_tags->album ? curr_tags->album : ""); break;
+			case 't': arg_list.push_back(curr_tags->title ? curr_tags->title : ""); break;
 			case 'n':
-				if (curr_tags->track >= 0) {
-					char *str = (char *) xmalloc (sizeof (char) * 4);
-					snprintf (str, 4, "%d", curr_tags->track);
-					lists_strs_push (arg_list, str);
-				}
+				if (curr_tags->track >= 0)
+					arg_list.push_back(format("%d", curr_tags->track));
 				else
-					lists_strs_append (arg_list, "");
+					arg_list.push_back("");
 				break;
 			case 'f':
-				lists_strs_append (arg_list, curr_file);
+				arg_list.push_back(curr_file);
 				break;
 			case 'D':
-				if (curr_tags->time >= 0) {
-					char *str = (char *) xmalloc (sizeof (char) * 10);
-					snprintf (str, 10, "%d", curr_tags->time);
-					lists_strs_push (arg_list, str);
-				}
+				if (curr_tags->time >= 0)
+					arg_list.push_back(format("%d", curr_tags->time));
 				else
-					lists_strs_append (arg_list, "");
+					arg_list.push_back("");
 				break;
 			case 'd':
 				if (curr_tags->time >= 0) {
 					char *str = (char *) xmalloc (sizeof (char) * 12);
 					sec_to_min (str, curr_tags->time);
-					lists_strs_push (arg_list, str);
+					arg_list.push_back(str);
+					free(str);
 				}
 				else
-					lists_strs_append (arg_list, "");
+					arg_list.push_back("");
 				break;
 			default:
-				lists_strs_append (arg_list, arg);
+				arg_list.push_back(arg);
 			}
 		}
 	}
 	tags_free (curr_tags);
 
-#ifndef NDEBUG
-	{
-		char *cmd;
-
-		cmd = lists_strs_fmt (arg_list, " %s");
-		debug ("Running command: %s", cmd);
-		free (cmd);
-	}
-#endif
-
 	switch (fork ()) {
 	case 0:
-		args = lists_strs_save (arg_list);
+		args = pack(arg_list);
 		execve (args[0], args, environ);
 		exit (EXIT_FAILURE);
 	case -1:
 		log_errno ("Failed to fork()", errno);
 	}
 
-	lists_strs_free (arg_list);
 	free (last_file);
 	last_file = curr_file;
 }
@@ -564,7 +535,7 @@ static void on_stop ()
 {
 	char *command;
 
-	command = xstrdup (options_get_str("OnStop"));
+	command = xstrdup (options::OnStop.c_str());
 
 	if (command) {
 		char *args[2], *err;
@@ -906,65 +877,6 @@ static int send_sname (struct client *cli)
 	free (sname);
 
 	return status;
-}
-
-/* Return 0 if an option is valid when getting/setting with the client. */
-static int valid_sync_option (const char *name)
-{
-	return !strcasecmp(name, "ShowStreamErrors")
-		|| !strcasecmp(name, "Repeat")
-		|| !strcasecmp(name, "Shuffle")
-		|| !strcasecmp(name, "AutoNext");
-}
-
-/* Send requested option value to the client. Return 1 if OK. */
-static int send_option (struct client *cli)
-{
-	char *name;
-
-	if (!(name = get_str(cli->socket)))
-		return 0;
-
-	/* We can send only a few options, others make no sense here. */
-	if (!valid_sync_option(name)) {
-		logit ("Client wanted to get invalid option '%s'", name);
-		free (name);
-		return 0;
-	}
-
-	/* All supported options are boolean type. */
-	if (!send_data_bool(cli, options_get_bool(name))) {
-		free (name);
-		return 0;
-	}
-
-	free (name);
-	return 1;
-}
-
-/* Get and set an option from the client. Return 1 on error. */
-static int get_set_option (struct client *cli)
-{
-	char *name;
-	int val;
-
-	if (!(name = get_str (cli->socket)))
-		return 0;
-	if (!valid_sync_option (name)) {
-		logit ("Client requested setting invalid option '%s'", name);
-		return 0;
-	}
-	if (!get_int (cli->socket, &val)) {
-		free (name);
-		return 0;
-	}
-
-	options_set_bool (name, val ? true : false);
-	free (name);
-
-	add_event_all (EV_OPTIONS, NULL);
-
-	return 1;
 }
 
 /* Set the mixer to the value provided by the client. Return 0 on error. */
@@ -1585,14 +1497,60 @@ static void handle_command (const int client_id)
 			if (!send_int(cli->socket, EV_PONG))
 				err = 1;
 			break;
-		case CMD_GET_OPTION:
-			if (!send_option(cli))
+		case CMD_GET_OPTION_AUTONEXT:
+			if (!send_data_bool(cli, options::AutoNext))
 				err = 1;
 			break;
-		case CMD_SET_OPTION:
-			if (!get_set_option(cli))
+		case CMD_GET_OPTION_SHUFFLE:
+			if (!send_data_bool(cli, options::Shuffle))
 				err = 1;
 			break;
+		case CMD_GET_OPTION_REPEAT:
+			if (!send_data_bool(cli, options::Repeat))
+				err = 1;
+			break;
+		case CMD_SET_OPTION_AUTONEXT:
+		{
+			int val = 0;
+			if (!get_int (cli->socket, &val))
+			{
+				err = 1;
+			}
+			else
+			{
+				options::AutoNext = val;
+				add_event_all (EV_OPTIONS, NULL);
+			}
+			break;
+		}
+		case CMD_SET_OPTION_SHUFFLE:
+		{
+			int val = 0;
+			if (!get_int (cli->socket, &val))
+			{
+				err = 1;
+			}
+			else
+			{
+				options::Shuffle = val;
+				add_event_all (EV_OPTIONS, NULL);
+			}
+			break;
+		}
+		case CMD_SET_OPTION_REPEAT:
+		{
+			int val = 0;
+			if (!get_int (cli->socket, &val))
+			{
+				err = 1;
+			}
+			else
+			{
+				options::Repeat = val;
+				add_event_all (EV_OPTIONS, NULL);
+			}
+			break;
+		}
 		case CMD_GET_MIXER:
 			if (!send_data_int(cli, audio_get_mixer()))
 				err = 1;
@@ -1797,8 +1755,6 @@ void server_loop ()
 
 	assert (server_sock != -1);
 
-	log_circular_start ();
-
 	do {
 		int res;
 		fd_set fds_write, fds_read;
@@ -1850,9 +1806,6 @@ void server_loop ()
 			logit ("Exiting...");
 
 	} while (!server_quit);
-
-	log_circular_log ();
-	log_circular_stop ();
 
 	close_clients ();
 	clients_cleanup ();

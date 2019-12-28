@@ -31,7 +31,7 @@
 # define COLOR_GREY	10
 #endif
 
-static char current_theme[PATH_MAX];
+static std::string current_theme;
 
 static int colors[CLR_LAST];
 
@@ -245,34 +245,25 @@ static int new_colordef (const int line_num, const char *name, const short red,
 }
 
 /* Find path to the theme for the given name. Returned memory is static. */
-static char *find_theme_file (const char *name)
+static const char *find_theme_file (const char *name)
 {
 	int rc;
-	static char path[PATH_MAX];
+	static std::string path;
 
-	path[sizeof(path)-1] = 0;
 	if (name[0] == '/') {
 
 		/* Absolute path */
-		strncpy (path, name, sizeof(path));
-		if (path[sizeof(path)-1])
-			interface_fatal ("Theme path too long!");
-		return path;
+		path = name;
+		return path.c_str();
 	}
 
 	/* Try the user directory */
-	rc = snprintf(path, sizeof(path), "%s/%s",
-	              create_file_name("themes"), name);
-	if (rc >= ssizeof(path))
-		interface_fatal ("Theme path too long!");
-	if (file_exists(path))
-		return path;
+	path = format("%s/%s", create_file_name("themes"), name);
+	if (file_exists(path.c_str())) return path.c_str();
 
 	/* File related to the current directory? */
-	strncpy (path, name, sizeof(path));
-	if (path[sizeof(path)-1])
-		interface_fatal ("Theme path too long!");
-	return path;
+	path = name;
+	return path.c_str();
 }
 
 /* Parse a theme element line. strtok() should be already invoked and consumed
@@ -465,7 +456,7 @@ static int load_color_theme (const char *name, const int errors_are_fatal)
 	char *line;
 	int result = 1;
 	int line_num = 0;
-	char *theme_file = find_theme_file (name);
+	const char *theme_file = find_theme_file (name);
 
 	if (!(file = fopen(theme_file, "r"))) {
 		if (errors_are_fatal)
@@ -493,21 +484,15 @@ static void reset_colors_table ()
 		colors[i] = -1;
 }
 
-void theme_init (bool has_xterm)
+void theme_init ()
 {
 	reset_colors_table ();
 
 	if (has_colors ()) {
-		char *file;
+		const char *file = "custom";
 
-		if (has_xterm && (file = options_get_str ("XTermTheme"))) {
-			load_color_theme (file, 1);
-			strncpy (current_theme, find_theme_file (file), PATH_MAX);
-		}
-		else if ((file = options_get_str ("Theme"))) {
-			load_color_theme (file, 1);
-			strncpy (current_theme, find_theme_file (file), PATH_MAX);
-		}
+		load_color_theme (file, 1);
+		current_theme = find_theme_file(file);
 
 		set_default_colors ();
 	}

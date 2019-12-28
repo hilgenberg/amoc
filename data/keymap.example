@@ -58,6 +58,52 @@
 # GUI environment, for example) which also does meta-key detection, then
 # MOC is at the mercy of the timings with which that program presents them.
 #
+
+#TODO:
+# Executing external commands (1 - 10) invoked with key commands (F1 - F10
+# by default).
+#
+# Some arguments are substituted before executing:
+#
+#     %f - file path
+#     %i - title made from tags
+#     %S - start block mark (in seconds)
+#     %E - end block mark (in seconds)
+#
+# Data from tags can also be substituted:
+#
+#     %t - title
+#     %a - album
+#     %r - artist
+#     %n - track
+#     %m - time of the file (in seconds)
+#
+# The parameters above apply to the currently selected file.  If you change
+# them to capital letters, they are taken from the file currently playing.
+#
+# Programs are run using execv(), not a shell, so you can't do things like
+# redirecting the output to a file.  The command string is split using blank
+# characters as separators; the first element is the command to be executed
+# and the rest are its parameters, so if you use "echo Playing: %I" we run
+# program 'echo' (from $PATH) with 2 parameters: the string 'Playing:' and
+# the title of the file currently playing.  Even if the title contains
+# spaces, it's still one parameter and it's safe if it contains `rm -rf /`.
+#
+# Examples:   ExecCommand1 = "cp %f /mnt/usb_drive"
+#             ExecCommand2 = "/home/joe/now_playing %I"
+#
+#ExecCommand1 =
+#ExecCommand2 =
+#ExecCommand3 =
+#ExecCommand4 =
+#ExecCommand5 =
+#ExecCommand6 =
+#ExecCommand7 =
+#ExecCommand8 =
+#ExecCommand9 =
+#ExecCommand10 =
+
+
 # Default key configuration for MOC (and a list of all available commands):
 
 # MOC control keys:
@@ -79,9 +125,6 @@ toggle_show_format    = ^f
 toggle_menu           = TAB
 toggle_layout         = l
 toggle_hidden_files   = H
-show_lyrics           = L
-theme_menu            = T
-help                  = h ?
 refresh               = ^r
 reload                = r
 
@@ -119,16 +162,6 @@ volume_90             = M-9
 #                            (i.e., 'shift 1' -> '!' -> 'Fastdir1').
 go_to_a_directory     = i
 go_to_music_directory = m
-go_to_fast_dir1       = !
-go_to_fast_dir2       = @
-go_to_fast_dir3       = #
-go_to_fast_dir4       = $
-go_to_fast_dir5       = %
-go_to_fast_dir6       = ^
-go_to_fast_dir7       = &
-go_to_fast_dir8       = *
-go_to_fast_dir9       = (
-go_to_fast_dir10      = )
 go_to_playing_file    = G
 go_up                 = U
 

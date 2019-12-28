@@ -26,6 +26,8 @@
 #include <strings.h>
 #include <assert.h>
 #include <stdint.h>
+#include <set>
+#include <string>
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -95,7 +97,7 @@ struct extn_list {
 	const char *format;
 };
 
-static lists_t_strs *supported_extns = NULL;
+static std::set<std::string> supported_extns;
 
 static void ffmpeg_log_repeats (char *msg LOGIT_ONLY)
 {
@@ -120,14 +122,8 @@ static void ffmpeg_log_repeats (char *msg LOGIT_ONLY)
 		msg_count += 1;
 	}
 	if (!prev_msg && msg) {
-		int count, ix;
-		lists_t_strs *lines;
-
-		lines = lists_strs_new (4);
-		count = lists_strs_split (lines, msg, "\n");
-		for (ix = 0; ix < count; ix += 1)
-			logit ("FFmpeg said: %s", lists_strs_at (lines, ix));
-		lists_strs_free (lines);
+		for (auto &s : split(msg, "\n"))
+			logit ("FFmpeg said: %s", s.c_str());
 
 		prev_msg = msg;
 		msg_count = 1;
@@ -197,7 +193,7 @@ static unsigned int find_first_audio (AVFormatContext *ic)
 	return result;
 }
 
-static void load_audio_extns (lists_t_strs *list)
+static void load_audio_extns ()
 {
 	int ix;
 
@@ -245,28 +241,28 @@ static void load_audio_extns (lists_t_strs *list)
 
 	for (ix = 0; audio_extns[ix].extn; ix += 1) {
 		if (av_find_input_format (audio_extns[ix].format))
-			lists_strs_append (list, audio_extns[ix].extn);
+			supported_extns.insert(audio_extns[ix].extn);
 	}
 
 	if (av_find_input_format ("ogg")) {
-		lists_strs_append (list, "ogg");
+		supported_extns.insert("ogg");
 		if (avcodec_find_decoder (AV_CODEC_ID_VORBIS))
-			lists_strs_append (list, "oga");
+			supported_extns.insert("oga");
 		if (avcodec_find_decoder (AV_CODEC_ID_OPUS))
-			lists_strs_append (list, "opus");
+			supported_extns.insert("opus");
 		if (avcodec_find_decoder (AV_CODEC_ID_THEORA))
-			lists_strs_append (list, "ogv");
+			supported_extns.insert("ogv");
 	}
 
 	/* In theory, FFmpeg supports Speex if built with libspeex enabled.
 	 * In practice, it breaks badly. */
 #if 0
 	if (avcodec_find_decoder (AV_CODEC_ID_SPEEX))
-		lists_strs_append (list, "spx");
+		supported_extns.insert("spx");
 #endif
 }
 
-static void load_video_extns (lists_t_strs *list)
+static void load_video_extns ()
 {
 	int ix;
 	const struct extn_list video_extns[] = {
@@ -282,7 +278,7 @@ static void load_video_extns (lists_t_strs *list)
 
 	for (ix = 0; video_extns[ix].extn; ix += 1) {
 		if (av_find_input_format (video_extns[ix].format))
-			lists_strs_append (list, video_extns[ix].extn);
+			supported_extns.insert(video_extns[ix].extn);
 	}
 }
 
@@ -374,9 +370,8 @@ static void ffmpeg_init ()
 	avcodec_register_all ();
 	av_register_all ();
 
-	supported_extns = lists_strs_new (16);
-	load_audio_extns (supported_extns);
-	load_video_extns (supported_extns);
+	load_audio_extns ();
+	load_video_extns ();
 
 	rc = av_lockmgr_register (locking_cb);
 	if (rc < 0) {
@@ -394,7 +389,7 @@ static void ffmpeg_destroy ()
 	av_log_set_level (AV_LOG_QUIET);
 	ffmpeg_log_repeats (NULL);
 
-	lists_strs_free (supported_extns);
+	supported_extns.clear();
 }
 
 /* Fill info structure with data from ffmpeg comments. */
@@ -1268,7 +1263,7 @@ static int ffmpeg_get_duration (void *prv_data)
 
 static int ffmpeg_our_format_ext (const char *ext)
 {
-	return (lists_strs_exists (supported_extns, ext)) ? 1 : 0;
+	return supported_extns.count(ext);
 }
 
 static int ffmpeg_our_format_mime (const char *mime_type)

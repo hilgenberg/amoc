@@ -28,15 +28,6 @@
 #include <sidplay/utils/SidDatabase.h>
 
 #define RESID_ID      "ReSID"
-#define OPT_DEFLEN    "SidPlay2_DefaultSongLength"
-#define OPT_MINLEN    "SidPlay2_MinimumSongLength"
-#define OPT_DATABASE  "SidPlay2_Database"
-#define OPT_FREQ      "SidPlay2_Frequency"
-#define OPT_PREC      "SidPlay2_Bits"
-#define OPT_PMODE     "SidPlay2_PlayMode"
-#define OPT_OPTI      "SidPlay2_Optimisation"
-#define OPT_START     "SidPlay2_StartAtStart"
-#define OPT_SUBTUNES  "SidPlay2_PlaySubTunes"
 
 #define STITLE 0
 #define SAUTHOR 1
@@ -94,11 +85,8 @@ static int init_db;
 static pthread_mutex_t db_mtx, player_select_mtx;
 
 static int defaultLength;
-
 static int minLength;
-
 static bool startAtStart;
-
 static bool playSubTunes;
 
 static sidplay2_data * make_data()
@@ -116,29 +104,14 @@ static sidplay2_data * make_data()
 
   s2d->cfg = s2d->player->config();
 
-  s2d->cfg.frequency = options_get_int(OPT_FREQ);
+  s2d->cfg.frequency = 44100;
+  s2d->cfg.precision = 16;
+  s2d->cfg.optimisation = 0;
 
-  s2d->cfg.precision = options_get_int(OPT_PREC);
-
-  s2d->cfg.optimisation = options_get_int(OPT_OPTI);
-
-  switch(options_get_symb(OPT_PMODE)[0])
-  {
-    case 'M':
-      s2d->cfg.playback = sid2_mono;
-      break;
-    case 'S':
-      s2d->cfg.playback = sid2_stereo;
-      break;
-    case 'L':
-      s2d->cfg.playback = sid2_left;
-      break;
-    case 'R':
-      s2d->cfg.playback = sid2_right;
-      break;
-    default :
-      s2d->cfg.playback = sid2_mono;
-  }
+  s2d->cfg.playback = sid2_mono;
+  //s2d->cfg.playback = sid2_stereo;
+  //s2d->cfg.playback = sid2_left;
+  //s2d->cfg.playback = sid2_right;
 
   s2d->player->config(s2d->cfg);
 
@@ -267,7 +240,7 @@ static void init_database()
   if(cancel)
     return;
 
-  char * dbfile = options_get_str(OPT_DATABASE);
+  char * dbfile = NULL;
 
   if(dbfile!=NULL && dbfile[0]!='\0')
   {
@@ -560,13 +533,10 @@ int sidplay2_our_format_ext(const char *ext)
 
 void init()
 {
-  defaultLength = options_get_int(OPT_DEFLEN);
-
-  minLength = options_get_int(OPT_MINLEN);
-
-  startAtStart = options_get_bool(OPT_START);
-
-  playSubTunes = options_get_bool(OPT_SUBTUNES);
+  defaultLength = 180;
+  minLength = 0;
+  startAtStart = true;
+  playSubTunes = true;
 
   database = NULL;
   init_db = 1;

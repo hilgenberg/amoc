@@ -205,7 +205,7 @@ static int fill_capabilities (struct output_driver_caps *caps)
 
 	assert (!handle);
 
-	hw_params = alsa_open_device (options_get_str ("ALSADevice"));
+	hw_params = alsa_open_device (options::ALSADevice.c_str());
 	if (!hw_params)
 		return 0;
 
@@ -472,7 +472,7 @@ static int alsa_init (struct output_driver_caps *caps)
 
 	assert (!mixer_handle);
 
-	device = options_get_str ("ALSADevice");
+	device = options::ALSADevice.c_str();
 	logit ("Initialising ALSA device: %s", device);
 
 #ifndef NDEBUG
@@ -482,8 +482,8 @@ static int alsa_init (struct output_driver_caps *caps)
 	alsa_open_mixer (device);
 
 	if (mixer_handle) {
-		mixer_elem1 = alsa_init_mixer_channel (options_get_str ("ALSAMixer1"));
-		mixer_elem2 = alsa_init_mixer_channel (options_get_str ("ALSAMixer2"));
+		mixer_elem1 = alsa_init_mixer_channel (options::ALSAMixer1.c_str());
+		mixer_elem2 = alsa_init_mixer_channel (options::ALSAMixer2.c_str());
 	}
 
 	mixer_elem_curr = mixer_elem1 ? mixer_elem1 : mixer_elem2;
@@ -497,17 +497,6 @@ static int alsa_init (struct output_driver_caps *caps)
 	result = fill_capabilities (caps);
 	if (result == 0)
 		goto err;
-
-	if (sizeof (long) < 8 && options_was_defaulted ("ALSAStutterDefeat")) {
-		fprintf (stderr,
-		         "\n"
-		         "Warning: Your system may be vulnerable to stuttering audio.\n"
-		         "         You should read the example configuration file comments\n"
-		         "         for the 'ALSAStutterDefeat' option and set it accordingly.\n"
-		         "         Setting the option will remove this warning.\n"
-		         "\n");
-		xsleep (5, 1);
-	}
 
 	if (0) {
 	err:
@@ -534,7 +523,7 @@ static int alsa_open (struct sound_params *sound_params)
 		return 0;
 	}
 
-	device = options_get_str ("ALSADevice");
+	device = options::ALSADevice.c_str();
 	logit ("Opening ALSA device: %s", device);
 
 	hw_params = alsa_open_device (device);
@@ -557,7 +546,7 @@ static int alsa_open (struct sound_params *sound_params)
 	bytes_per_sample = sfmt_Bps (sound_params->fmt);
 	logit ("Set sample width: %d bytes", bytes_per_sample);
 
-	if (options_get_bool ("ALSAStutterDefeat")) {
+	if (options::ALSAStutterDefeat) {
 		rc = snd_pcm_hw_params_set_rate_resample (handle, hw_params, 0);
 		if (rc == 0)
 			logit ("ALSA resampling disabled");
@@ -890,9 +879,9 @@ static char *alsa_get_mixer_channel_name ()
 	char *result;
 
 	if (mixer_elem_curr == mixer_elem1)
-		result = xstrdup (options_get_str ("ALSAMixer1"));
+		result = xstrdup (options::ALSAMixer1.c_str());
 	else
-		result = xstrdup (options_get_str ("ALSAMixer2"));
+		result = xstrdup (options::ALSAMixer2.c_str());
 
 	return result;
 }

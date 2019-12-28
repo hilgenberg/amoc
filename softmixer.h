@@ -13,7 +13,7 @@
 #define SOFTMIXER_CFG_VALUE "Value:"
 #define SOFTMIXER_CFG_MONO "Mono:"
 
-#define SOFTMIXER_SAVE_OPTION "Softmixer_SaveState"
+#define SOFTMIXER_SAVE_OPTION Softmixer_SaveState
 #define SOFTMIXER_SAVE_FILE "softmixer"
 
 char *softmixer_name();

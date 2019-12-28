@@ -1,7 +1,4 @@
-
-#ifndef INTERFACE_H
-#define INTERFACE_H
-
+#pragma once
 #include "lists.h"
 
 /* The desired state of the client (and server). */
@@ -24,22 +21,19 @@ struct file_info {
 	int total_time;
 	int channels;
 	int state; /* STATE_* */
-	char *block_file;
-	int block_start;
-	int block_end;
 };
 
-void init_interface (const int sock, const int logging, lists_t_strs *args);
+void init_interface (const int sock, const int logging, stringlist &args);
 void interface_loop ();
 void interface_end ();
 int user_wants_interrupt ();
 void interface_error (const char *msg);
 void interface_fatal (const char *format, ...) ATTR_PRINTF(1, 2);
 void interface_cmdline_clear_plist (int server_sock);
-void interface_cmdline_append (int server_sock, lists_t_strs *args);
+void interface_cmdline_append (int server_sock, stringlist &args);
 void interface_cmdline_play_first (int server_sock);
 void interface_cmdline_file_info (const int server_sock);
-void interface_cmdline_playit (int server_sock, lists_t_strs *args);
+void interface_cmdline_playit (int server_sock, stringlist &args);
 void interface_cmdline_seek_by (int server_sock, const int seek_by);
 void interface_cmdline_set_rating (int server_sock, int rating);
 void interface_cmdline_jump_to_percent (int server_sock, const int percent);
@@ -47,6 +41,5 @@ void interface_cmdline_jump_to (int server_sock, const int pos);
 void interface_cmdline_adj_volume (int server_sock, const char *arg);
 void interface_cmdline_set (int server_sock, char *arg, const int val);
 void interface_cmdline_formatted_info (const int server_sock, const char *format_str);
-void interface_cmdline_enqueue (int server_sock, lists_t_strs *args);
+void interface_cmdline_enqueue (int server_sock, stringlist &args);
 
-#endif

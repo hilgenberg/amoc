@@ -124,7 +124,7 @@ static int moc_jack_init (struct output_driver_caps *caps)
 {
 	const char *client_name;
 
-	client_name = options_get_str ("JackClientName");
+	client_name = options::JackClientName.c_str();
 
 	jack_set_error_function (error_cb);
 
@@ -135,7 +135,7 @@ static int moc_jack_init (struct output_driver_caps *caps)
 
 	/* open a client connection to the JACK server */
 	options = JackNullOption;
-	if (!options_get_bool ("JackStartServer"))
+	if (!options::JackStartServer)
 		options = (jack_options_t)(options | JackNoStartServer);
 	client = jack_client_open (client_name, options, &status, NULL);
 	if (client == NULL) {
@@ -182,13 +182,13 @@ static int moc_jack_init (struct output_driver_caps *caps)
 	/* connect ports
 	 * a value of NULL in JackOut* gives no connection
 	 * */
-	if(strcmp(options_get_str("JackOutLeft"),"NULL")){
-		if(jack_connect(client,"moc:output0", options_get_str("JackOutLeft")))
-			fprintf(stderr,"%s is not a valid Jack Client / Port", options_get_str("JackOutLeft"));
+	if (options::JackOutLeft != "NULL"){
+		if(jack_connect(client,"moc:output0", options::JackOutLeft.c_str()))
+			fprintf(stderr,"%s is not a valid Jack Client / Port", options::JackOutLeft.c_str());
 	}
-	if(strcmp(options_get_str("JackOutRight"),"NULL")){
-		if(jack_connect(client,"moc:output1", options_get_str("JackOutRight")))
-			fprintf(stderr,"%s is not a valid Jack Client / Port", options_get_str("JackOutRight"));
+	if(options::JackOutRight != "NULL"){
+		if(jack_connect(client,"moc:output1", options::JackOutRight.c_str()))
+			fprintf(stderr,"%s is not a valid Jack Client / Port", options::JackOutRight.c_str());
 	}
 
 	caps->formats = SFMT_FLOAT;

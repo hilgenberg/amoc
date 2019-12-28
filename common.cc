@@ -346,7 +346,7 @@ char *create_file_name (const char *file)
 {
 	int rc;
 	static char fname[PATH_MAX];
-	char *moc_dir = options_get_str ("MOCDir");
+	const char *moc_dir = options::MOCDir.c_str();
 
 	if (moc_dir[0] == '~')
 		rc = snprintf(fname, sizeof(fname), "%s/%s/%s", get_home (),

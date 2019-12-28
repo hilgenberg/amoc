@@ -45,7 +45,7 @@
 
 #include "out_buf.h"
 #include "../protocol.h"
-#include "../player.h"
+#include "player.h"
 #include "audio.h"
 #include "../files.h"
 #include "../input/io.h"
@@ -281,8 +281,8 @@ int sfmt_Bps (const long format)
  * request and whether or not there are files in the queue. */
 static void go_to_another_file ()
 {
-	bool shuffle = options_get_bool ("Shuffle");
-	bool go_next = (play_next || options_get_bool("AutoNext"));
+	bool shuffle = options::Shuffle;
+	bool go_next = (play_next || options::AutoNext);
 	int curr_playing_curr_pos;
 	/* XXX: Shouldn't play_next be protected by mutex? */
 
@@ -307,7 +307,7 @@ static void go_to_another_file ()
 		/* If we just finished playing files from the queue and the
 		 * appropriate option is set, continue with the file played
 		 * before playing the queue. */
-		if (before_queue_fname && options_get_bool ("QueueNextSongReturn")) {
+		if (before_queue_fname) {
 			free (curr_playing_fname);
 			curr_playing_fname = before_queue_fname;
 			before_queue_fname = NULL;
@@ -353,7 +353,7 @@ static void go_to_another_file ()
 						curr_playing_curr_pos);
 
 			if (curr_playing == -1) {
-				if (options_get_bool("Repeat"))
+				if (options::Repeat)
 					curr_playing = plist_last (curr_plist);
 				logit ("Beginning of the list.");
 			}
@@ -372,7 +372,7 @@ static void go_to_another_file ()
 				curr_playing = plist_next (curr_plist,
 						curr_playing_curr_pos);
 
-			if (curr_playing == -1 && options_get_bool("Repeat")) {
+			if (curr_playing == -1 && options::Repeat) {
 				if (shuffle) {
 					plist_clear (&shuffled_plist);
 					plist_cat (&shuffled_plist, &playlist);
@@ -387,7 +387,7 @@ static void go_to_another_file ()
 				logit ("Next item");
 
 		}
-		else if (!options_get_bool("Repeat")) {
+		else if (!options::Repeat) {
 			curr_playing = -1;
 		}
 		else
@@ -541,7 +541,7 @@ void audio_play (const char *fname)
 
 		started_playing_in_queue = 1;
 	}
-	else if (options_get_bool("Shuffle")) {
+	else if (options::Shuffle) {
 		plist_clear (&shuffled_plist);
 		plist_cat (&shuffled_plist, &playlist);
 		plist_shuffle (&shuffled_plist);
@@ -692,8 +692,8 @@ int audio_open (struct sound_params *sound_params)
 	/* Set driver_sound_params to parameters supported by the driver that
 	 * are nearly the requested parameters. */
 
-	if (options_get_int("ForceSampleRate")) {
-		driver_sound_params.rate = options_get_int("ForceSampleRate");
+	if (options::ForceSampleRate) {
+		driver_sound_params.rate = options::ForceSampleRate;
 		logit ("Setting forced driver sample rate to %dHz",
 				driver_sound_params.rate);
 	}
@@ -857,62 +857,59 @@ void audio_close ()
 
 /* Try to initialize drivers from the list and fill funcs with
  * those of the first working driver. */
-static void find_working_driver (lists_t_strs *drivers, struct hw_funcs *funcs)
+static void find_working_driver (struct hw_funcs *funcs)
 {
-	int ix;
+	//SoundDriver_t SoundDriver = SoundDriver_t::AUTO;
+	//OPENBSD: "SNDIO:JACK:OSS", else "Jack:ALSA:OSS"
+	using options::SoundDriver_t;
+	auto d = options::SoundDriver;
 
 	memset (funcs, 0, sizeof(*funcs));
 
-	for (ix = 0; ix < lists_strs_size (drivers); ix += 1) {
-		const char *name;
-
-		name = lists_strs_at (drivers, ix);
-
-#ifdef HAVE_SNDIO
-		if (!strcasecmp(name, "sndio")) {
-			sndio_funcs (funcs);
-			printf ("Trying SNDIO...\n");
-			if (funcs->init(&hw_caps))
-				return;
-		}
-#endif
-
-#ifdef HAVE_OSS
-		if (!strcasecmp(name, "oss")) {
-			oss_funcs (funcs);
-			printf ("Trying OSS...\n");
-			if (funcs->init(&hw_caps))
-				return;
-		}
+	bool a = (d == SoundDriver_t::AUTO);
+#ifdef HAVE_JACK
+	if (a || d == SoundDriver_t::JACK) {
+		memset (funcs, 0, sizeof(*funcs));
+		moc_jack_funcs (funcs);
+		if (a) printf ("Trying JACK...\n");
+		if (funcs->init(&hw_caps)) return;
+	}
 #endif
 
 #ifdef HAVE_ALSA
-		if (!strcasecmp(name, "alsa")) {
-			alsa_funcs (funcs);
-			printf ("Trying ALSA...\n");
-			if (funcs->init(&hw_caps))
-				return;
-		}
+	if (a || d == SoundDriver_t::ALSA) {
+		memset (funcs, 0, sizeof(*funcs));
+		alsa_funcs (funcs);
+		if (a) printf ("Trying ALSA...\n");
+		if (funcs->init(&hw_caps)) return;
+	}
 #endif
 
-#ifdef HAVE_JACK
-		if (!strcasecmp(name, "jack")) {
-			moc_jack_funcs (funcs);
-			printf ("Trying JACK...\n");
-			if (funcs->init(&hw_caps))
-				return;
-		}
+#ifdef HAVE_OSS
+	if (a || d == SoundDriver_t::OSS) {
+		memset (funcs, 0, sizeof(*funcs));
+		oss_funcs (funcs);
+		if (a) printf ("Trying OSS...\n");
+		if (funcs->init(&hw_caps)) return;
+	}
+#endif
+
+#ifdef HAVE_SNDIO
+	if (a || d == SoundDriver_t::SNDIO) {
+		memset (funcs, 0, sizeof(*funcs));
+		sndio_funcs (funcs);
+		if (a) printf ("Trying SNDIO...\n");
+		if (funcs->init(&hw_caps)) return;
+	}
 #endif
 
 #ifndef NDEBUG
-		if (!strcasecmp(name, "null")) {
-			null_funcs (funcs);
-			printf ("Trying NULL...\n");
-			if (funcs->init(&hw_caps))
-				return;
-		}
-#endif
+	if (d == SoundDriver_t::NOSOUND) {
+		memset (funcs, 0, sizeof(*funcs));
+		null_funcs (funcs);
+		if (funcs->init(&hw_caps)) return;
 	}
+#endif
 
 	fatal ("No valid sound driver!");
 }
@@ -929,7 +926,7 @@ static void print_output_capabilities
 
 void audio_initialize ()
 {
-	find_working_driver (options_get_list ("SoundDriver"), &hw);
+	find_working_driver (&hw);
 
 	if (hw_caps.max_channels < hw_caps.min_channels)
 		fatal ("Error initializing audio device: "
@@ -939,7 +936,7 @@ void audio_initialize ()
 		       "device reports no usable formats.");
 
 	print_output_capabilities (&hw_caps);
-	if (!options_get_bool ("Allow24bitOutput")
+	if (!options::Allow24bitOutput
 			&& hw_caps.formats & (SFMT_S32 | SFMT_U32)) {
 		logit ("Disabling 24bit modes because Allow24bitOutput is set to no.");
 		hw_caps.formats &= ~(SFMT_S32 | SFMT_U32);
@@ -948,7 +945,7 @@ void audio_initialize ()
 			       "Consider setting Allow24bitOutput to yes.");
 	}
 
-	out_buf = out_buf_new (options_get_int("OutputBuffer") * 1024);
+	out_buf = out_buf_new (options::OutputBuffer * 1024);
 
 	softmixer_init();
 	equalizer_init();

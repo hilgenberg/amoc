@@ -11,7 +11,7 @@ Help("""
 
 # use ncpu jobs
 SetOption('num_jobs', multiprocessing.cpu_count())
-print("Using %d parallel jobs" % GetOption('num_jobs'))
+#print("Using %d parallel jobs" % GetOption('num_jobs'))
 
 # compile all .c and .cc files
 src = []

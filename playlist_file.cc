@@ -380,7 +380,7 @@ int plist_load (struct plist *plist, const char *fname, const char *cwd,
 	int num, read_tags;
 	const char *ext;
 
-	read_tags = options_get_bool ("ReadTags");
+	read_tags = options::ReadTags;
 	ext = ext_pos (fname);
 
 	if (ext && !strcasecmp(ext, "pls"))

@@ -143,44 +143,6 @@ static size_t header_cb (void *data, size_t size, size_t nmemb,
 	return size * nmemb;
 }
 
-#if !defined(NDEBUG) && defined(DEBUG)
-static int debug_cb (CURL *unused1 ATTR_UNUSED, curl_infotype i,
-                     char *msg, size_t size, void *unused2 ATTR_UNUSED)
-{
-	int ix;
-	char *log;
-	const char *type;
-	lists_t_strs *lines;
-
-	switch (i) {
-	case CURLINFO_TEXT:
-		type = "INFO";
-		break;
-	case CURLINFO_HEADER_IN:
-		type = "RECV HEADER";
-		break;
-	case CURLINFO_HEADER_OUT:
-		type = "SEND HEADER";
-		break;
-	default:
-		return 0;
-	}
-
-	log = (char *)xmalloc (size + 1);
-	strncpy (log, msg, size);
-	log[size] = 0;
-
-	lines = lists_strs_new (8);
-	lists_strs_split (lines, log, "\n");
-	for (ix = 0; ix < lists_strs_size (lines); ix += 1)
-		debug ("CURL: [%s] %s", type, lists_strs_at (lines, ix));
-	lists_strs_free (lines);
-	free (log);
-
-	return 0;
-}
-#endif
-
 /* Read messages given by curl and set the stream status. Return 0 on error. */
 static int check_curl_stream (struct io_stream *s)
 {
@@ -257,13 +219,9 @@ void io_curl_open (struct io_stream *s, const char *url)
 			s->curl.http200_aliases);
 	curl_easy_setopt (s->curl.handle, CURLOPT_HTTPHEADER,
 			s->curl.http_headers);
-	if (options_get_str("HTTPProxy"))
+	if (!options::HTTPProxy.empty())
 		curl_easy_setopt (s->curl.handle, CURLOPT_PROXY,
-				options_get_str("HTTPProxy"));
-#if !defined(NDEBUG) && defined(DEBUG)
-	curl_easy_setopt (s->curl.handle, CURLOPT_VERBOSE, 1);
-	curl_easy_setopt (s->curl.handle, CURLOPT_DEBUGFUNCTION, debug_cb);
-#endif
+				options::HTTPProxy.c_str());
 
 	if ((s->curl.multi_status = curl_multi_add_handle(s->curl.multi_handle,
 					s->curl.handle)) != CURLM_OK) {

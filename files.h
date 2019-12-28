@@ -9,8 +9,8 @@
 
 void files_init ();
 void files_cleanup ();
-int read_directory (const char *directory, lists_t_strs *dirs,
-		lists_t_strs *playlists, struct plist *plist);
+int read_directory (const char *directory, stringlist &dirs,
+		stringlist &playlists, struct plist *plist);
 int read_directory_recurr (const char *directory, struct plist *plist);
 void resolve_path (char *buf, const int size, const char *file);
 const char *ext_pos (const char *file);

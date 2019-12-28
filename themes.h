@@ -41,6 +41,6 @@ enum color_index
 	CLR_WRONG
 };
 
-void theme_init (bool has_xterm);
+void theme_init ();
 int get_color (const enum color_index);
 

@@ -63,9 +63,9 @@ static const struct {
 
 static int open_dev ()
 {
-	if ((dsp_fd = open (options_get_str ("OSSDevice"), O_WRONLY)) == -1) {
+	if ((dsp_fd = open (options::OSSDevice.c_str(), O_WRONLY)) == -1) {
 		char *err = xstrerror (errno);
-		error ("Can't open %s: %s", options_get_str ("OSSDevice"), err);
+		error ("Can't open %s: %s", options::OSSDevice.c_str(), err);
 		free (err);
 		return 0;
 	}
@@ -197,23 +197,19 @@ static int oss_init (struct output_driver_caps *caps)
 {
 #ifdef OSSv3_MIXER
 	/* Open the mixer device */
-	mixer_fd = open (options_get_str ("OSSMixerDevice"), O_RDWR);
+	mixer_fd = open (options::OSSMixerDevice.c_str(), O_RDWR);
 	if (mixer_fd == -1) {
 		char *err = xstrerror (errno);
 		error ("Can't open mixer device %s: %s",
-		        options_get_str ("OSSMixerDevice"), err);
+		        options::OSSMixerDevice.c_str(), err);
 		free (err);
 	}
 	else {
-		mixer_channel1 = oss_mixer_name_to_channel (
-				options_get_symb ("OSSMixerChannel1"));
-		mixer_channel2 = oss_mixer_name_to_channel (
-				options_get_symb ("OSSMixerChannel2"));
+		mixer_channel1 = oss_mixer_name_to_channel (options::OSSMixerChannel1.c_str());
+		mixer_channel2 = oss_mixer_name_to_channel (options::OSSMixerChannel2.c_str());
 
-		if (mixer_channel1 == -1)
-			fatal ("Bad first OSS mixer channel!");
-		if (mixer_channel2 == -1)
-			fatal ("Bad second OSS mixer channel!");
+		if (mixer_channel1 == -1) fatal ("Bad first OSS mixer channel!");
+		if (mixer_channel2 == -1) fatal ("Bad second OSS mixer channel!");
 
 		/* test mixer channels */
 		mixer_channel_current = mixer_channel1;
@@ -449,8 +445,8 @@ static char *oss_get_mixer_channel_name ()
 {
 #ifdef OSSv3_MIXER
 	if (mixer_channel_current == mixer_channel1)
-		return xstrdup (options_get_symb ("OSSMixerChannel1"));
-	return xstrdup (options_get_symb ("OSSMixerChannel2"));
+		return xstrdup (options::OSSMixerChannel1.c_str());
+	return xstrdup (options::OSSMixerChannel2.c_str());
 #else
 	return xstrdup ("moc");
 #endif

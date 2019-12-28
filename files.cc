@@ -176,7 +176,7 @@ void make_file_title (struct plist *plist, const int num,
 			if (extn) file[extn-1-file] = 0;
 		}
 
-		if (options_get_bool ("FileNamesIconv"))
+		if (options::FileNamesIconv)
 		{
 			char *old_title = file;
 			file = files_iconv_str (file);
@@ -217,7 +217,7 @@ void make_tags_title (struct plist *plist, const int num)
 		return;
 	}
 
-	hide_extn = options_get_bool ("HideFileExtension");
+	hide_extn = options::HideFileExtension;
 	make_file_title (plist, num, hide_extn);
 }
 
@@ -227,7 +227,7 @@ void switch_titles_file (struct plist *plist)
 	int i;
 	bool hide_extn;
 
-	hide_extn = options_get_bool ("HideFileExtension");
+	hide_extn = options::HideFileExtension;
 
 	for (i = 0; i < plist->num; i++) {
 		if (plist_deleted (plist, i))
@@ -246,7 +246,7 @@ void switch_titles_tags (struct plist *plist)
 	int i;
 	bool hide_extn;
 
-	hide_extn = options_get_bool ("HideFileExtension");
+	hide_extn = options::HideFileExtension;
 
 	for (i = 0; i < plist->num; i++) {
 		if (plist_deleted (plist, i))
@@ -368,18 +368,16 @@ struct file_tags *read_file_tags (const char *file,
 /* Read the content of the directory, make an array of absolute paths for
  * all recognized files. Put directories, playlists and sound files
  * in proper structures. Return 0 on error.*/
-int read_directory (const char *directory, lists_t_strs *dirs,
-		lists_t_strs *playlists, struct plist *plist)
+int read_directory (const char *directory, stringlist &dirs,
+		stringlist &playlists, struct plist *plist)
 {
 	DIR *dir;
 	struct dirent *entry;
-	bool show_hidden = options_get_bool ("ShowHiddenFiles");
+	bool show_hidden = options::ShowHiddenFiles;
 	int dir_is_root;
 
 	assert (directory != NULL);
 	assert (*directory == '/');
-	assert (dirs != NULL);
-	assert (playlists != NULL);
 	assert (plist != NULL);
 
 	if (!(dir = opendir(directory))) {
@@ -419,9 +417,9 @@ int read_directory (const char *directory, lists_t_strs *dirs,
 		if (type == F_SOUND)
 			plist_add (plist, file);
 		else if (type == F_DIR)
-			lists_strs_append (dirs, file);
+			dirs.emplace_back(file);
 		else if (type == F_PLAYLIST)
-			lists_strs_append (playlists, file);
+			playlists.emplace_back(file);
 	}
 
 	closedir (dir);

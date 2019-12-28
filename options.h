@@ -1,41 +1,95 @@
-#ifndef OPTIONS_H
-#define OPTIONS_H
-
+#pragma once
 #include "lists.h"
+typedef std::string str;
 
-enum option_type
+namespace options
 {
-	OPTION_FREE = 0,
-	OPTION_INT  = 1,
-	OPTION_BOOL = 2,
-	OPTION_STR  = 4,
-	OPTION_SYMB = 8,
-	OPTION_LIST = 16,
-	OPTION_ANY  = 255
-};
+	void init(const char *config_file = NULL);
 
-int options_get_int (const char *name);
-bool options_get_bool (const char *name);
-char *options_get_str (const char *name);
-char *options_get_symb (const char *name);
-lists_t_strs *options_get_list (const char *name);
-void options_set_int (const char *name, const int value);
-void options_set_bool (const char *name, const bool value);
-void options_set_str (const char *name, const char *value);
-void options_set_symb (const char *name, const char *value);
-void options_set_list (const char *name, const char *value, bool append);
-bool options_set_pair (const char *name, const char *value, bool append);
-void options_init ();
-void options_parse (const char *config_file);
-void options_free ();
-void options_ignore_config (const char *name);
-int options_check_str (const char *name, const char *val);
-int options_check_symb (const char *name, const char *val);
-int options_check_int (const char *name, const int val);
-int options_check_bool (const char *name, const bool val);
-int options_check_list (const char *name, const char *val);
-int options_was_defaulted (const char *name);
-enum option_type options_get_type (const char *name);
-extern const char * options_rating_strings[6];
 
-#endif
+	extern bool shuffle;
+	extern int PreBuffering, InputBuffer;
+
+	extern const char **rating_strings; // "     ", "*    ", ... "*****"
+
+	extern bool ReadTags;
+	extern str  MusicDir;
+	extern bool StartInMusicDir;
+	extern bool Repeat;
+	extern bool Shuffle;
+	extern bool AutoNext;
+	//str  ("FormatString", "%(n:%n :)%(a:%a - :)%(t:%t:)%(A: \\(%A\\):)", CHECK_NONE);
+	extern int InputBuffer;
+	extern int OutputBuffer;
+	extern int Prebuffering;
+	extern str HTTPProxy;
+
+	enum class SoundDriver_t : int { AUTO = -1, SNDIO, JACK, ALSA, OSS, NOSOUND };
+	extern SoundDriver_t SoundDriver;
+
+	extern str  JackClientName;
+	extern bool JackStartServer;
+	extern str  JackOutLeft ;
+	extern str  JackOutRight;
+
+	extern str OSSDevice;
+	extern str OSSMixerDevice;
+	extern str OSSMixerChannel1;
+	extern str OSSMixerChannel2;
+
+	extern str  ALSADevice;
+	extern str  ALSAMixer1;
+	extern str  ALSAMixer2;
+	extern bool ALSAStutterDefeat;
+
+	extern bool Softmixer_SaveState;
+	extern bool Equalizer_SaveState;
+
+	extern bool ShowHiddenFiles;
+	extern bool HideFileExtension;
+
+	extern str  MOCDir;
+	extern bool UseMMap;
+	extern bool UseMimeMagic;
+	extern str  ID3v1TagsEncoding;
+	extern bool UseRCC;
+	extern bool UseRCCForFilesystem;
+	extern bool EnforceTagsEncoding;
+	extern bool FileNamesIconv;
+
+	extern str  RatingStar;
+	extern str  RatingSpace;
+	extern str  RatingFile;
+
+	extern str  TimeBarLine;
+	extern str  TimeBarSpace;
+
+	extern int  SeekTime;
+	extern int  SilentSeekTime;
+
+	enum class ResampleMethod_t : int { SincBestQuality, SincMediumQuality, SincFastest, ZeroOrderHold, Linear };
+	extern ResampleMethod_t ResampleMethod;
+	
+	extern int  ForceSampleRate;
+	extern bool Allow24bitOutput;
+	extern bool UseRealtimePriority;
+	extern int  TagsCacheSize;
+	extern bool PlaylistNumbering;
+
+	extern bool FollowPlayedFile;
+	extern bool CanStartInPlaylist;
+
+	extern bool PlaylistFullPaths;
+
+	extern str  BlockDecorators;
+	extern int  MessageLingerTime;
+	extern bool PrefixQueuedMessages;
+	extern str  ErrorMessagesQueued;
+
+	extern str  OnSongChange;
+	extern bool RepeatSongChange;
+	extern str  OnStop;
+
+	extern bool QueueNextSongReturn;
+}
+

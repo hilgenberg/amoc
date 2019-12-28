@@ -45,11 +45,7 @@
 
 static int mocp_argc;
 static const char **mocp_argv;
-
-#ifndef OPENWRT
 static int popt_next_val = 1;
-static char *render_popt_command_line ();
-#endif
 
 /* List of MOC-specific environment variables. */
 static struct {
@@ -62,8 +58,6 @@ static struct {
 
 struct parameters
 {
-	char *config_file;
-	int no_config_file;
 	int debug;
 	int only_server;
 	int foreground;
@@ -157,7 +151,7 @@ static void check_moc_dir ()
 }
 
 /* Run client and the server if needed. */
-static void start_moc (const struct parameters *params, lists_t_strs *args)
+static void start_moc (const struct parameters *params, stringlist &args)
 {
 	int server_sock;
 
@@ -194,7 +188,6 @@ static void start_moc (const struct parameters *params, lists_t_strs *args)
 			close (notify_pipe[0]);
 			close (notify_pipe[1]);
 			server_loop ();
-			options_free ();
 			decoder_cleanup ();
 			io_cleanup ();
 			files_cleanup ();
@@ -232,7 +225,7 @@ static void start_moc (const struct parameters *params, lists_t_strs *args)
 }
 
 /* Send commands requested in params to the server. */
-static void server_command (struct parameters *params, lists_t_strs *args)
+static void server_command (struct parameters *params, stringlist &args)
 {
 	int sock;
 
@@ -407,28 +400,6 @@ static void show_help (poptContext ctx)
 	printf ("\n");
 }
 
-/* Show POPT-interpreted command line arguments. */
-#ifndef OPENWRT
-static void show_args ()
-{
-	if (mocp_argc > 0) {
-		char *str;
-
-		str = getenv ("MOCP_POPTRC");
-		if (str)
-			printf ("MOCP_POPTRC='%s' ", str);
-
-		str = getenv ("MOCP_OPTS");
-		if (str)
-			printf ("MOCP_OPTS='%s' ", str);
-
-		str = render_popt_command_line ();
-		printf ("%s\n", str);
-		free (str);
-	}
-}
-#endif
-
 /* Disambiguate the user's request. */
 static void show_misc_cb (poptContext ctx,
                           enum poptCallbackReason unused1 ATTR_UNUSED,
@@ -444,11 +415,6 @@ static void show_misc_cb (poptContext ctx,
 		show_help (ctx);
 		break;
 	case 0:
-#ifndef OPENWRT
-		if (!strcmp (opt->longName, "echo-args"))
-			show_args ();
-		else
-#endif
 		if (!strcmp (opt->longName, "usage"))
 			show_usage (ctx);
 		break;
@@ -460,13 +426,6 @@ static void show_misc_cb (poptContext ctx,
 enum {
 	CL_HANDLED = 0,
 	CL_NOIFACE,
-	CL_SDRIVER,
-	CL_MUSICDIR,
-	CL_SETOPTION,
-	CL_MOCDIR,
-	CL_SYNCPL,
-	CL_NOSYNC,
-	CL_ASCII,
 	CL_JUMP,
 	CL_RATE,
 	CL_GETINFO
@@ -479,30 +438,10 @@ static struct poptOption general_opts[] = {
 	{"debug", 'D', POPT_ARG_NONE, &params.debug, CL_HANDLED,
 			"Turn on logging to a file", NULL},
 #endif
-	{"moc-dir", 'M', POPT_ARG_STRING, NULL, CL_MOCDIR,
-			"Use the specified MOC directory instead of the default", "DIR"},
-	{"music-dir", 'm', POPT_ARG_NONE, NULL, CL_MUSICDIR,
-			"Start in MusicDir", NULL},
-	{"config", 'C', POPT_ARG_STRING, &params.config_file, CL_HANDLED,
-			"Use the specified config file instead of the default"
-			" (conflicts with '--no-config')", "FILE"},
-	{"no-config", 0, POPT_ARG_NONE, &params.no_config_file, CL_HANDLED,
-			"Use program defaults rather than any config file"
-			" (conflicts with '--config')", NULL},
-	{"set-option", 'O', POPT_ARG_STRING, NULL, CL_SETOPTION,
-			"Override the configuration option NAME with VALUE", "'NAME=VALUE'"},
 	{"foreground", 'F', POPT_ARG_NONE, &params.foreground, CL_HANDLED,
 			"Run the server in foreground (logging to stdout)", NULL},
 	{"server", 'S', POPT_ARG_NONE, &params.only_server, CL_HANDLED,
 			"Only run the server", NULL},
-	{"sound-driver", 'R', POPT_ARG_STRING, NULL, CL_SDRIVER,
-			"Use the first valid sound driver", "DRIVERS"},
-	{"ascii", 'A', POPT_ARG_NONE, NULL, CL_ASCII,
-			"Use ASCII characters to draw lines", NULL},
-	{"sync", 'y', POPT_ARG_NONE, NULL, CL_SYNCPL,
-			"Synchronize the playlist with other clients", NULL},
-	{"nosync", 'n', POPT_ARG_NONE, NULL, CL_NOSYNC,
-			"Don't synchronize the playlist with other clients", NULL},
 	POPT_TABLEEND
 };
 
@@ -560,10 +499,6 @@ static struct poptOption misc_opts[] = {
 	       (void *) (uintptr_t) show_misc_cb, 0, NULL, NULL},
 	{"version", 'V', POPT_ARG_NONE, NULL, 0,
 			"Print version information", NULL},
-#ifndef OPENWRT
-	{"echo-args", 0, POPT_ARG_NONE, NULL, 0,
-			"Print POPT-interpreted arguments", NULL},
-#endif
 	{"usage", 0, POPT_ARG_NONE, NULL, 0,
 			"Print brief usage", NULL},
 	{"help", 'h', POPT_ARG_NONE, NULL, 0,
@@ -578,34 +513,6 @@ static struct poptOption mocp_opts[] = {
 	POPT_AUTOALIAS
 	POPT_TABLEEND
 };
-
-/* Read the POPT configuration files as given in MOCP_POPTRC. */
-static void read_mocp_poptrc (poptContext ctx, const char *env_poptrc)
-{
-	int ix, rc, count;
-	lists_t_strs *files;
-
-	files = lists_strs_new (4);
-	count = lists_strs_split (files, env_poptrc, ":");
-
-	for (ix = 0; ix < count; ix += 1) {
-		const char *fn;
-
-		fn = lists_strs_at (files, ix);
-		if (!strlen (fn))
-			continue;
-
-		if (!is_secure (fn))
-			fatal ("POPT config file is not secure: %s", fn);
-
-		rc = poptReadConfigFile (ctx, fn);
-		if (rc < 0)
-			fatal ("Error reading POPT config file '%s': %s",
-			        fn, poptStrerror (rc));
-	}
-
-	lists_strs_free (files);
-}
 
 /* Check that the ~/.popt file is secure. */
 static void check_popt_secure ()
@@ -651,36 +558,7 @@ static void read_default_poptrc (poptContext ctx)
 /* Read the POPT configuration files(s). */
 static void read_popt_config (poptContext ctx)
 {
-	const char *env_poptrc;
-
-	env_poptrc = getenv ("MOCP_POPTRC");
-	if (env_poptrc)
-		read_mocp_poptrc (ctx, env_poptrc);
-	else
-		read_default_poptrc (ctx);
-}
-
-/* Prepend MOCP_OPTS to the command line. */
-static void prepend_mocp_opts (poptContext ctx)
-{
-	int rc;
-	const char *env_opts;
-
-	env_opts = getenv ("MOCP_OPTS");
-	if (env_opts && strlen (env_opts)) {
-		int env_argc;
-		const char **env_argv;
-
-		rc = poptParseArgvString (env_opts, &env_argc, &env_argv);
-		if (rc < 0)
-			fatal ("Error parsing MOCP_OPTS: %s", poptStrerror (rc));
-
-		rc = poptStuffArgs (ctx, env_argv);
-		if (rc < 0)
-			fatal ("Error prepending MOCP_OPTS: %s", poptStrerror (rc));
-
-		free (env_argv);
-	}
+	read_default_poptrc (ctx);
 }
 
 /* Return a copy of the POPT option table structure which is suitable
@@ -812,151 +690,6 @@ struct poptOption *find_popt_option (struct poptOption *opts, int wanted)
 }
 #endif
 
-/* Render the command line as interpreted by POPT. */
-#ifndef OPENWRT
-static char *render_popt_command_line ()
-{
-	int rc;
-	lists_t_strs *cmdline;
-	char *result;
-	const char **rest;
-	poptContext ctx;
-	struct poptOption *null_opts;
-
-	null_opts = clone_popt_options (mocp_opts);
-
-	ctx = poptGetContext ("mocp", mocp_argc, mocp_argv, null_opts,
-	                       POPT_CONTEXT_NO_EXEC);
-
-	read_popt_config (ctx);
-	prepend_mocp_opts (ctx);
-
-	cmdline = lists_strs_new (mocp_argc * 2);
-	lists_strs_append (cmdline, mocp_argv[0]);
-
-	while (1) {
-		size_t len;
-		char *str;
-		const char *arg;
-		struct poptOption *opt;
-
-		rc = poptGetNextOpt (ctx);
-		if (rc == -1)
-			break;
-
-		if (rc == POPT_ERROR_BADOPT) {
-			lists_strs_append (cmdline, poptBadOption (ctx, 0));
-			continue;
-		}
-
-		opt = find_popt_option (null_opts, rc);
-		if (!opt) {
-			result = xstrdup ("Couldn't find option in copied option table!");
-			goto err;
-		}
-
-		arg = poptGetOptArg (ctx);
-
-		if (opt->longName) {
-			len = strlen (opt->longName) + 3;
-			if (arg)
-				len += strlen (arg) + 3;
-			str = (char*) xmalloc (len);
-
-			if (arg)
-				snprintf (str, len, "--%s='%s'", opt->longName, arg);
-			else
-				snprintf (str, len, "--%s", opt->longName);
-		}
-		else {
-			len = 3;
-			if (arg)
-				len += strlen (arg) + 3;
-			str = (char*) xmalloc (len);
-
-			if (arg)
-				snprintf (str, len, "-%c '%s'", opt->shortName, arg);
-			else
-				snprintf (str, len, "-%c", opt->shortName);
-		}
-
-		lists_strs_push (cmdline, str);
-		free ((void *) arg);
-	}
-
-	rest = poptGetArgs (ctx);
-	if (rest)
-		lists_strs_load (cmdline, rest);
-
-	result = lists_strs_fmt (cmdline, "%s ");
-
-err:
-	poptFreeContext (ctx);
-	free_popt_clone (null_opts);
-	lists_strs_free (cmdline);
-
-	return result;
-}
-#endif
-
-static void override_config_option (const char *arg, lists_t_strs *deferred)
-{
-	int len;
-	bool append;
-	const char *ptr;
-	char  *name, *value;
-	enum option_type type;
-
-	assert (arg != NULL);
-
-	ptr = strchr (arg, '=');
-	if (ptr == NULL)
-		goto error;
-
-	/* Allow for list append operator ("+="). */
-	append = (ptr > arg && *(ptr - 1) == '+');
-
-	name = trim (arg, ptr - arg - (append ? 1 : 0));
-	if (!name || !name[0])
-		goto error;
-	type = options_get_type (name);
-
-	if (type == OPTION_LIST) {
-		if (deferred) {
-			lists_strs_append (deferred, arg);
-			free (name);
-			return;
-		}
-	}
-	else if (append)
-		goto error;
-
-	value = trim (ptr + 1, strlen (ptr + 1));
-	if (!value || !value[0])
-		goto error;
-
-	if (value[0] == '\'' || value[0] == '"') {
-		len = strlen (value);
-		if (value[0] != value[len - 1])
-			goto error;
-		if (strlen (value) < 2)
-			goto error;
-		memmove (value, value + 1, len - 2);
-		value[len - 2] = 0x00;
-	}
-
-	if (!options_set_pair (name, value, append))
-		goto error;
-	options_ignore_config (name);
-
-	free (name);
-	free (value);
-	return;
-
-error:
-	fatal ("Malformed override option: %s", arg);
-}
-
 static long get_num_param (const char *p,const char ** last)
 {
 	char *e;
@@ -972,7 +705,7 @@ static long get_num_param (const char *p,const char ** last)
 }
 
 /* Process the command line options. */
-static void process_options (poptContext ctx, lists_t_strs *deferred)
+static void process_options (poptContext ctx)
 {
 	int rc;
 
@@ -982,37 +715,8 @@ static void process_options (poptContext ctx, lists_t_strs *deferred)
 		arg = poptGetOptArg (ctx);
 
 		switch (rc) {
-		case CL_SDRIVER:
-			if (!options_check_list ("SoundDriver", arg))
-				fatal ("No such sound driver: %s", arg);
-			options_set_list ("SoundDriver", arg, false);
-			options_ignore_config ("SoundDriver");
-			break;
-		case CL_MUSICDIR:
-			options_set_bool ("StartInMusicDir", true);
-			options_ignore_config ("StartInMusicDir");
-			break;
 		case CL_NOIFACE:
 			params.allow_iface = 0;
-			break;
-		case CL_SETOPTION:
-			override_config_option (arg, deferred);
-			break;
-		case CL_MOCDIR:
-			options_set_str ("MOCDir", arg);
-			options_ignore_config ("MOCDir");
-			break;
-		case CL_SYNCPL:
-			options_set_bool ("SyncPlaylist", true);
-			options_ignore_config ("SyncPlaylist");
-			break;
-		case CL_NOSYNC:
-			options_set_bool ("SyncPlaylist", false);
-			options_ignore_config ("SyncPlaylist");
-			break;
-		case CL_ASCII:
-			options_set_bool ("ASCIILines", true);
-			options_ignore_config ("ASCIILines");
 			break;
 		case CL_JUMP:
 			params.jump_to = get_num_param (arg, &jump_type);
@@ -1049,11 +753,6 @@ static void process_options (poptContext ctx, lists_t_strs *deferred)
 		alias = poptBadOption (ctx, POPT_BADOPTION_NOALIAS);
 		reason = poptStrerror (rc);
 
-#ifdef OPENWRT
-		if (!strcmp (opt, "--echo-args"))
-			reason = "Not available on OpenWRT";
-#endif
-
 		/* poptBadOption() with POPT_BADOPTION_NOALIAS fails to
 		 * return the correct option if poptStuffArgs() was used. */
 		if (!strcmp (opt, alias) || getenv ("MOCP_OPTS"))
@@ -1061,112 +760,34 @@ static void process_options (poptContext ctx, lists_t_strs *deferred)
 		else
 			fatal ("%s (aliased by %s): %s", opt, alias, reason);
 	}
-
-	if (params.config_file && params.no_config_file)
-		fatal ("Conflicting --config and --no-config options given!");
 }
 
 /* Process the command line options and arguments. */
-static lists_t_strs *process_command_line (lists_t_strs *deferred)
+static stringlist process_command_line()
 {
 	const char **rest;
 	poptContext ctx;
-	lists_t_strs *result;
-
-	assert (deferred != NULL);
+	stringlist result;
 
 	ctx = poptGetContext ("mocp", mocp_argc, mocp_argv, mocp_opts, 0);
 
 	read_popt_config (ctx);
-	prepend_mocp_opts (ctx);
-	process_options (ctx, deferred);
+	process_options (ctx);
 
 	if (params.foreground)
 		params.only_server = 1;
 
-	result = lists_strs_new (4);
 	rest = poptGetArgs (ctx);
 	if (rest)
-		lists_strs_load (result, rest);
+		result = unpack(rest);
 
 	poptFreeContext (ctx);
 
 	return result;
 }
 
-static void process_deferred_overrides (lists_t_strs *deferred)
-{
-	int ix;
-	bool cleared;
-	const char marker[] = "*Marker*";
-	char **config_decoders;
-	lists_t_strs *decoders_option;
-
-	/* We need to shuffle the PreferredDecoders list into the
-	 * right order as we load any deferred overriding options. */
-
-	decoders_option = options_get_list ("PreferredDecoders");
-	lists_strs_reverse (decoders_option);
-	config_decoders = lists_strs_save (decoders_option);
-	lists_strs_clear (decoders_option);
-	lists_strs_append (decoders_option, marker);
-
-	for (ix = 0; ix < lists_strs_size (deferred); ix += 1)
-		override_config_option (lists_strs_at (deferred, ix), NULL);
-
-	cleared = lists_strs_empty (decoders_option) ||
-	          strcmp (lists_strs_at (decoders_option, 0), marker) != 0;
-	lists_strs_reverse (decoders_option);
-	if (!cleared) {
-		char **override_decoders;
-
-		free (lists_strs_pop (decoders_option));
-		override_decoders = lists_strs_save (decoders_option);
-		lists_strs_clear (decoders_option);
-		lists_strs_load (decoders_option, (const char **)config_decoders);
-		lists_strs_load (decoders_option, (const char **)override_decoders);
-		free (override_decoders);
-	}
-	free (config_decoders);
-}
-
-static void log_environment_variables ()
-{
-#ifndef NDEBUG
-	size_t ix;
-
-	for (ix = 0; ix < ARRAY_SIZE(environment_variables); ix += 1) {
-		char *str;
-
-		str = getenv (environment_variables[ix].name);
-		if (str)
-			logit ("%s='%s'", environment_variables[ix].name, str);
-	}
-#endif
-}
-
-/* Log the command line which launched MOC. */
-static void log_command_line ()
-{
-#ifndef NDEBUG
-	lists_t_strs *cmdline;
-	char *str;
-
-	cmdline = lists_strs_new (mocp_argc);
-	if (lists_strs_load (cmdline, mocp_argv) > 0)
-		str = lists_strs_fmt (cmdline, "%s ");
-	else
-		str = xstrdup ("No command line available");
-	logit ("%s", str);
-	free (str);
-	lists_strs_free (cmdline);
-#endif
-}
-
 int main (int argc, const char *argv[])
 {
-	lists_t_strs *deferred_overrides, *args;
-
 	assert (argc >= 0);
 	assert (argv != NULL);
 	assert (argv[argc] == NULL);
@@ -1194,34 +815,18 @@ int main (int argc, const char *argv[])
 
 	memset (&params, 0, sizeof(params));
 	params.allow_iface = 1;
-	options_init ();
-	deferred_overrides = lists_strs_new (4);
+	options::init (create_file_name ("config"));
 
 	/* set locale according to the environment variables */
 	if (!setlocale(LC_ALL, ""))
 		logit ("Could not set locale!");
 
-	log_environment_variables ();
-	log_command_line ();
-	args = process_command_line (deferred_overrides);
+	stringlist args = process_command_line();
 
 	if (!params.allow_iface && params.only_server)
 		fatal ("Server command options can't be used with --server!");
 
-	if (!params.no_config_file) {
-		if (params.config_file) {
-			if (!can_read_file (params.config_file))
-				fatal ("Configuration file is not readable: %s",
-				        params.config_file);
-		}
-		else
-			params.config_file = create_file_name ("config");
-		options_parse (params.config_file);
-	}
-
-	process_deferred_overrides (deferred_overrides);
-	lists_strs_free (deferred_overrides);
-	deferred_overrides = NULL;
+	options::init ("config");
 
 	check_moc_dir ();
 
@@ -1235,8 +840,6 @@ int main (int argc, const char *argv[])
 	else
 		server_command (&params, args);
 
-	lists_strs_free (args);
-	options_free ();
 	decoder_cleanup ();
 	io_cleanup ();
 	rcc_cleanup ();
