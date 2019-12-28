@@ -5,8 +5,8 @@
 #include <wctype.h>
 #include <wchar.h>
 
-#include "lists.h"
-#include "files.h"
+#include "../lists.h"
+#include "../files.h"
 #include "keys.h"
 
 /* Interface's menus */

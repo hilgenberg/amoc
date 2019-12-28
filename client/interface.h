@@ -1,5 +1,5 @@
 #pragma once
-#include "lists.h"
+#include "../lists.h"
 
 /* The desired state of the client (and server). */
 enum want_quit {

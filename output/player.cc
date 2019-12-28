@@ -19,7 +19,7 @@
 #include "../input/decoder.h"
 #include "audio.h"
 #include "out_buf.h"
-#include "../server.h"
+#include "../server/server.h"
 #include "player.h"
 #include "../files.h"
 #include "../playlist.h"

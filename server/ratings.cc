@@ -9,17 +9,12 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
 
-#include "playlist.h"
-#include "options.h"
-#include "interface.h" /* for user_wants_interrupt() */
+#include "../playlist.h"
+#include "../client/interface.h" /* for user_wants_interrupt() */
 #include "server.h" /* for server_error */
 
 /* Ratings files should contain lines in this format:

@@ -11,10 +11,6 @@
 
 /* Based on aplay copyright (c) by Jaroslav Kysela <perex@suse.cz> */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
 #include <stdlib.h>
 #include <inttypes.h>
 #include <alsa/asoundlib.h>
@@ -27,10 +23,8 @@
 #define STRERROR_FN alsa_strerror
 
 #include "../common.h"
-#include "../server.h"
+#include "../server/server.h"
 #include "audio.h"
-#include "../options.h"
-#include "../log.h"
 
 #define BUFFER_MAX_USEC	300000
 

@@ -16,13 +16,10 @@
 #include <errno.h>
 #include <ctype.h>
 
-#include "common.h"
 #include "keys.h"
 #include "interface.h"
 #include "interface_elements.h"
-#include "options.h"
-#include "log.h"
-#include "files.h"
+#include "../files.h"
 
 /* ^c version of c */
 #ifndef CTRL

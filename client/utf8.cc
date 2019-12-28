@@ -9,10 +9,6 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
 #include <stdio.h>
 #include <stdarg.h>
 
@@ -33,7 +29,7 @@
 #include <wchar.h>
 
 #include "utf8.h"
-#include "rcc.h"
+#include "../rcc.h"
 
 static char *terminal_charset = NULL;
 static int using_utf8 = 0;

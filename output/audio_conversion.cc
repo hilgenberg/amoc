@@ -26,10 +26,7 @@
 # include <samplerate.h>
 #endif
 
-#include "../common.h"
 #include "audio_conversion.h"
-#include "../log.h"
-#include "../options.h"
 
 static void float_to_u8 (const float *in, unsigned char *out,
 		const size_t samples)

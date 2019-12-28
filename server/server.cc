@@ -9,8 +9,6 @@
  *
  */
 
-#include "config.h"
-
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -31,18 +29,16 @@
 #include <pthread.h>
 #include <assert.h>
 
-#include "common.h"
-#include "log.h"
-#include "protocol.h"
-#include "output/audio.h"
-#include "output/oss.h"
-#include "options.h"
+#include "../protocol.h"
+#include "../output/audio.h"
+#include "../output/oss.h"
+#include "../options.h"
 #include "server.h"
-#include "playlist.h"
+#include "../playlist.h"
 #include "tags_cache.h"
-#include "files.h"
-#include "softmixer.h"
-#include "equalizer.h"
+#include "../files.h"
+#include "../output/softmixer.h"
+#include "../output/equalizer.h"
 #include "ratings.h"
 
 #define SERVER_LOG	"mocp_server_log"

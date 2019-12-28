@@ -2,8 +2,8 @@
 #define MENU_H
 
 # include <ncurses.h>
-#include "files.h"
-#include "rbtree.h"
+#include "../files.h"
+#include "../rbtree.h"
 
 enum menu_request
 {

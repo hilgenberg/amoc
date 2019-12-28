@@ -19,7 +19,7 @@
 #include <errno.h>
 #include <assert.h>
 
-#include "../server.h"
+#include "../server/server.h"
 #include "../input/decoder.h"
 #include "../playlist.h"
 #include "../lists.h"
@@ -40,8 +40,8 @@
 # include "jack.h"
 #endif
 
-#include "../softmixer.h"
-#include "../equalizer.h"
+#include "../output/softmixer.h"
+#include "../output/equalizer.h"
 
 #include "out_buf.h"
 #include "../protocol.h"

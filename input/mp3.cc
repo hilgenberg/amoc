@@ -35,7 +35,7 @@
 #include "decoder.h"
 #include "io.h"
 #include "../files.h"
-#include "../utf8.h"
+#include "../client/utf8.h"
 #include "../rcc.h"
 
 #define INPUT_BUFFER	(32 * 1024)

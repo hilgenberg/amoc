@@ -13,10 +13,6 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-  #include "config.h"
-#endif
-
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -26,13 +22,10 @@
 
 /* #define DEBUG */
 
-#include "common.h"
-#include "output/audio.h"
-#include "output/audio_conversion.h"
+#include "audio.h"
+#include "audio_conversion.h"
 #include "softmixer.h"
-#include "options.h"
-#include "files.h"
-#include "log.h"
+#include "../files.h"
 
 static int active;
 static int mix_mono;

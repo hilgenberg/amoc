@@ -26,16 +26,16 @@
 
 #include "menu.h"
 #include "themes.h"
-#include "lists.h"
+#include "../lists.h"
 #include "interface_elements.h"
-#include "files.h"
-#include "input/decoder.h"
+#include "../files.h"
+#include "../input/decoder.h"
 #include "keys.h"
-#include "playlist.h"
-#include "protocol.h"
+#include "../playlist.h"
+#include "../protocol.h"
 #include "interface.h"
 #include "utf8.h"
-#include "rcc.h"
+#include "../rcc.h"
 
 #define STARTUP_MESSAGE "Welcome to " PACKAGE_NAME \
                         " (version " PACKAGE_VERSION ")!"

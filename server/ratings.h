@@ -1,7 +1,7 @@
 #ifndef RATINGS_H
 #define RATINGS_H
 
-#include "playlist.h"
+#include "../playlist.h"
 
 /* store ratings for a file */
 bool ratings_write_file (const char *fn, int rating);

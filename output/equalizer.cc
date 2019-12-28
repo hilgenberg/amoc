@@ -36,9 +36,9 @@
 #include <dirent.h>
 #include <locale.h>
 
-#include "output/audio.h"
-#include "output/audio_conversion.h"
-#include "files.h"
+#include "audio.h"
+#include "audio_conversion.h"
+#include "../files.h"
 #include "equalizer.h"
 
 #define TWOPI (2.0 * M_PI)

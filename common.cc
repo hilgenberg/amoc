@@ -9,11 +9,6 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-# undef malloc
-#endif
-
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -34,11 +29,9 @@
 #endif
 
 #include "common.h"
-#include "server.h"
-#include "interface.h"
-#include "interface_elements.h"
-#include "log.h"
-#include "options.h"
+#include "server/server.h"
+#include "client/interface.h"
+#include "client/interface_elements.h"
 
 static int im_server = 0; /* Am I the server? */
 

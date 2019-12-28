@@ -20,13 +20,10 @@
 #include <stdint.h>
 #include <assert.h>
 
-#include "common.h"
 #include "playlist.h"
-#include "log.h"
-#include "options.h"
 #include "files.h"
 #include "rbtree.h"
-#include "utf8.h"
+#include "client/utf8.h"
 #include "rcc.h"
 
 /* Initial size of the table */

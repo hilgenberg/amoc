@@ -1,7 +1,7 @@
 #ifndef SERVER_H
 #define SERVER_H
 
-#include "playlist.h"
+#include "../playlist.h"
 
 #define CLIENTS_MAX	10
 

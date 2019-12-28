@@ -23,7 +23,7 @@
 #include <string>
 
 #include "decoder.h"
-#include "../server.h"
+#include "../server/server.h"
 #include "../files.h"
 #include "../lists.h"
 

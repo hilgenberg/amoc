@@ -17,9 +17,7 @@
 
 #include <assert.h>
 
-#include "../common.h"
 #include "audio.h"
-#include "../log.h"
 
 #define PCT_TO_SIO(pct)	((127 * (pct) + 50) / 100)
 #define SIO_TO_PCT(vol)	((100 * (vol) + 64) / 127)

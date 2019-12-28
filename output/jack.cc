@@ -12,10 +12,7 @@
 #include <assert.h>
 #include <math.h>
 
-#include "../common.h"
 #include "audio.h"
-#include "../log.h"
-#include "../options.h"
 
 #define RINGBUF_SZ 32768
 

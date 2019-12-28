@@ -9,7 +9,6 @@
  *
  */
 
-#include "config.h"
 #include <stdio.h>
 #include <assert.h>
 #include <sys/types.h>
@@ -26,17 +25,14 @@
 #include <pthread.h>
 #endif
 
-#include "common.h"
 #include "playlist.h"
 #include "lists.h"
-#include "interface.h"
+#include "client/interface.h"
 #include "input/decoder.h"
-#include "options.h"
 #include "files.h"
 #include "playlist_file.h"
-#include "log.h"
-#include "utf8.h"
-#include "ratings.h"
+#include "client/utf8.h"
+#include "server/ratings.h"
 
 #define READ_LINE_INIT_SIZE	256
 

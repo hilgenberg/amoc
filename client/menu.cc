@@ -18,11 +18,9 @@
 #include <string.h>
 #include <assert.h>
 
-#include "common.h"
-#include "options.h"
 #include "menu.h"
-#include "files.h"
-#include "rbtree.h"
+#include "../files.h"
+#include "../rbtree.h"
 #include "utf8.h"
 
 /* Draw menu item on a given position from the top of the menu. */

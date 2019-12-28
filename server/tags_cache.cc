@@ -9,7 +9,6 @@
  *
  */
 
-#include "config.h"
 #include <pthread.h>
 #include <assert.h>
 #include <stdlib.h>
@@ -35,11 +34,11 @@ typedef unsigned long int u_long;
 #endif
 
 #include "server.h"
-#include "playlist.h"
-#include "rbtree.h"
-#include "files.h"
+#include "../playlist.h"
+#include "../rbtree.h"
+#include "../files.h"
 #include "tags_cache.h"
-#include "output/audio.h"
+#include "../output/audio.h"
 
 #ifdef HAVE_DB_H
 # define DB_ONLY

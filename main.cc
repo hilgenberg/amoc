@@ -9,10 +9,6 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -32,12 +28,9 @@
 #include <assert.h>
 #include <popt.h>
 
-#include "common.h"
-#include "server.h"
-#include "interface.h"
-#include "options.h"
+#include "server/server.h"
+#include "client/interface.h"
 #include "protocol.h"
-#include "log.h"
 #include "input/decoder.h"
 #include "lists.h"
 #include "files.h"

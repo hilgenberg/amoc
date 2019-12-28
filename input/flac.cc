@@ -18,7 +18,7 @@
 
 #include "../output/audio.h"
 #include "decoder.h"
-#include "../server.h"
+#include "../server/server.h"
 #include "io.h"
 
 #define MAX_SUPPORTED_CHANNELS		2

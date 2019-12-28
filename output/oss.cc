@@ -9,10 +9,6 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <sys/time.h>
@@ -30,7 +26,7 @@
 # include <soundcard.h>
 #endif
 
-#include "../server.h"
+#include "../server/server.h"
 #include "audio.h"
 
 #if OSS_VERSION >= 0x40000 || SOUND_VERSION >= 0x40000

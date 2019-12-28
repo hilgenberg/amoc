@@ -19,7 +19,7 @@
 
 #include "interface.h"
 #include "themes.h"
-#include "files.h"
+#include "../files.h"
 
 /* ncurses extension */
 #ifndef COLOR_DEFAULT
