@@ -3739,7 +3739,7 @@ void iface_toggle_layout ()
 	static int curr_layout = 0;
 
 	++curr_layout;
-	curr_layout &= 3;
+	curr_layout %= 3;
 
 	main_win_use_layout (&main_win, curr_layout);
 	iface_refresh_screen ();
