@@ -3,7 +3,7 @@
 
 #include "../playlist.h"
 
-#define CLIENTS_MAX	10
+#define CLIENTS_MAX 3
 
 void server_init (int debug, int foreground);
 void server_loop ();
@@ -21,6 +21,6 @@ void tags_response (const int client_id, const char *file,
 		const struct file_tags *tags);
 void ev_audio_start ();
 void ev_audio_stop ();
-void server_queue_pop (const char *filename);
+void server_queue_pop (const str &filename);
 
 #endif

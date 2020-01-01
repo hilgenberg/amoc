@@ -8,12 +8,6 @@
 
 struct timespec;
 
-#ifdef HAVE_FUNC_ATTRIBUTE_FORMAT
-# define ATTR_PRINTF(x,y) __attribute__ ((format (printf, x, y)))
-#else
-# define ATTR_PRINTF(...)
-#endif
-
 #ifdef HAVE_FUNC_ATTRIBUTE_NORETURN
 # define ATTR_NORETURN __attribute__((noreturn))
 #else
@@ -93,9 +87,9 @@ char *xstrerror (int errnum);
 void xsignal (int signum, void (*func)(int));
 
 void internal_error (const char *file, int line, const char *function,
-                     const char *format, ...) ATTR_PRINTF(4, 5);
+                     const char *format, ...);
 void internal_fatal (const char *file, int line, const char *function,
-                     const char *format, ...) ATTR_NORETURN ATTR_PRINTF(4, 5);
+                     const char *format, ...) ATTR_NORETURN;
 void set_me_server ();
 char *str_repl (char *target, const char *oldstr, const char *newstr);
 char *trim (const char *src, size_t len);
@@ -129,7 +123,3 @@ void common_cleanup ();
 #if !HAVE_DECL_STRCASESTR && !defined(__cplusplus)
 char *strcasestr (const char *haystack, const char *needle);
 #endif
-
-#include "StringFormatting.h"
-#include "lists.h"
-

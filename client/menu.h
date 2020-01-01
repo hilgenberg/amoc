@@ -4,6 +4,7 @@
 # include <ncurses.h>
 #include "../files.h"
 #include "../rbtree.h"
+#include "../playlist.h"
 
 enum menu_request
 {
@@ -45,7 +46,6 @@ struct menu_item
 	char time[FILE_TIME_STR_SZ];		/* File time string */
 	char rating[FILE_RATING_STR_SZ];	/* File rating string */
 	char format[FILE_FORMAT_SZ];		/* File format */
-	int queue_pos;				/* Position in the queue */
 
 	struct menu_item *next;
 	struct menu_item *prev;
@@ -92,8 +92,8 @@ struct menu_state
 
 struct menu *menu_new (WINDOW *win, const int posx, const int posy,
 		const int width, const int height);
-struct menu_item *menu_add (struct menu *menu, const char *title,
-		const enum file_type type, const char *file);
+struct menu_item *menu_add (struct menu *menu, const plist_item &item);
+void menu_item_update (struct menu_item *mi, const plist_item &item);
 
 void menu_item_set_attr_normal (struct menu_item *mi, const int attr);
 void menu_item_set_attr_sel (struct menu_item *mi, const int attr);
@@ -103,7 +103,6 @@ void menu_item_set_attr_marked (struct menu_item *mi, const int attr);
 void menu_item_set_time (struct menu_item *mi, const char *time);
 void menu_item_set_rating (struct menu_item *mi, const char *rating);
 void menu_item_set_format (struct menu_item *mi, const char *format);
-void menu_item_set_queue_pos (struct menu_item *mi, const int pos);
 
 void menu_free (struct menu *menu);
 void menu_driver (struct menu *menu, const enum menu_request req);
@@ -116,7 +115,6 @@ void menu_get_state (const struct menu *menu, struct menu_state *st);
 void menu_update_size (struct menu *menu, const int posx, const int posy,
 		const int width, const int height);
 void menu_unmark_item (struct menu *menu);
-struct menu *menu_filter_pattern (const struct menu *menu, const char *pattern);
 void menu_set_show_time (struct menu *menu, const int t);
 void menu_set_show_rating (struct menu *menu, const bool t);
 void menu_set_show_format (struct menu *menu, const bool t);

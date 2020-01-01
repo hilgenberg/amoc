@@ -5,3 +5,4 @@ __pycache__/
 *.dblite
 *.swp
 *~
+/.vscode/

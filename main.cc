@@ -55,7 +55,6 @@ struct parameters
 	int only_server;
 	int foreground;
 	int append;
-	int enqueue;
 	int clear;
 	int play;
 	int allow_iface;
@@ -66,15 +65,12 @@ struct parameters
 	int next;
 	int previous;
 	int rate;
-	int get_file_info;
 	int toggle_pause;
 	int playit;
 	int seek_by;
 	int new_rating;
 	char jump_type;
 	int jump_to;
-	char *formatted_info_param;
-	int get_formatted_info;
 	char *adj_volume;
 	char *toggle;
 	char *on;
@@ -235,12 +231,8 @@ static void server_command (struct parameters *params, stringlist &args)
 		interface_cmdline_clear_plist (sock);
 	if (params->append)
 		interface_cmdline_append (sock, args);
-	if (params->enqueue)
-		interface_cmdline_enqueue (sock, args);
 	if (params->play)
 		interface_cmdline_play_first (sock);
-	if (params->get_file_info)
-		interface_cmdline_file_info (sock);
 	if (params->seek_by)
 		interface_cmdline_seek_by (sock, params->seek_by);
 	if (params->rate)
@@ -249,8 +241,6 @@ static void server_command (struct parameters *params, stringlist &args)
 		interface_cmdline_jump_to_percent (sock,params->jump_to);
 	if (params->jump_type=='s')
 		interface_cmdline_jump_to (sock,params->jump_to);
-	if (params->get_formatted_info)
-		interface_cmdline_formatted_info (sock, params->formatted_info_param);
 	if (params->adj_volume)
 		interface_cmdline_adj_volume (sock, params->adj_volume);
 	if (params->toggle)
@@ -420,8 +410,7 @@ enum {
 	CL_HANDLED = 0,
 	CL_NOIFACE,
 	CL_JUMP,
-	CL_RATE,
-	CL_GETINFO
+	CL_RATE
 };
 
 static struct parameters params;
@@ -466,8 +455,6 @@ static struct poptOption server_opts[] = {
 			"the command line to playlist", NULL},
 	{"recursively", 'e', POPT_ARG_NONE, &params.append, CL_NOIFACE,
 			"Alias for --append", NULL},
-	{"enqueue", 'q', POPT_ARG_NONE, &params.enqueue, CL_NOIFACE,
-			"Add the files given on command line to the queue", NULL},
 	{"clear", 'c', POPT_ARG_NONE, &params.clear, CL_NOIFACE,
 			"Clear the playlist", NULL},
 	{"play", 'p', POPT_ARG_NONE, &params.play, CL_NOIFACE,
@@ -480,10 +467,6 @@ static struct poptOption server_opts[] = {
 			"Turn on a control (shuffle, autonext, repeat)", "CONTROL"},
 	{"off", 'u', POPT_ARG_STRING, &params.off, CL_NOIFACE,
 			"Turn off a control (shuffle, autonext, repeat)", "CONTROL"},
-	{"info", 'i', POPT_ARG_NONE, &params.get_file_info, CL_NOIFACE,
-			"Print information about the file currently playing", NULL},
-	{"format", 'Q', POPT_ARG_STRING, &params.formatted_info_param, CL_GETINFO,
-			"Print formatted information about the file currently playing", "FORMAT"},
 	POPT_TABLEEND
 };
 
@@ -725,10 +708,6 @@ static void process_options (poptContext ctx)
 			exit (EXIT_FAILURE);
 		case CL_RATE:
 			params.rate = 1;
-			params.allow_iface = 0;
-			break;
-		case CL_GETINFO:
-			params.get_formatted_info = 1;
 			params.allow_iface = 0;
 			break;
 		default:

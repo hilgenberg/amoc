@@ -25,12 +25,10 @@
 #include <pthread.h>
 #endif
 
-#include "playlist.h"
 #include "lists.h"
 #include "client/interface.h"
 #include "input/decoder.h"
 #include "files.h"
-#include "playlist_file.h"
 #include "client/utf8.h"
 #include "server/ratings.h"
 
@@ -97,29 +95,16 @@ int is_dir (const char *file)
 	return S_ISDIR(file_stat.st_mode) ? 1 : 0;
 }
 
+int is_plist_file (const char *name)
+{
+	const char *ext = ext_pos (name);
+	return ext && !strcasecmp(ext, "m3u");
+}
+
 /* Return 1 if the file can be read by this user, 0 if not */
 int can_read_file (const char *file)
 {
 	return access(file, R_OK) == 0;
-}
-
-enum file_type file_type (const char *file)
-{
-	struct stat file_stat;
-
-	assert (file != NULL);
-
-	if (is_url(file))
-		return F_URL;
-	if (stat(file, &file_stat) == -1)
-		return F_OTHER; /* Ignore the file if stat() failed */
-	if (S_ISDIR(file_stat.st_mode))
-		return F_DIR;
-	if (is_sound_file(file))
-		return F_SOUND;
-	if (is_plist_file(file))
-		return F_PLAYLIST;
-	return F_OTHER;
 }
 
 /* Given a file name, return the mime type or NULL. */
@@ -153,104 +138,6 @@ char *file_mime_type (const char *file ASSERT_ONLY)
 #endif
 
 	return result;
-}
-
-/* Make a title from the file name for the item.  If hide_extn != 0,
- * strip the file name from extension. */
-void make_file_title (struct plist *plist, const int num,
-		const bool hide_extension)
-{
-	assert (plist != NULL);
-	assert (LIMIT(num, plist->num));
-	assert (!plist_deleted (plist, num));
-
-	if (file_type (plist->items[num].file) != F_URL) {
-		char *file = xstrdup (plist->items[num].file);
-
-		if (hide_extension) {
-			const char *extn = ext_pos (file);
-			if (extn) file[extn-1-file] = 0;
-		}
-
-		if (options::FileNamesIconv)
-		{
-			char *old_title = file;
-			file = files_iconv_str (file);
-			free (old_title);
-		}
-
-		plist_set_title_file (plist, num, file);
-		free (file);
-	}
-	else
-		plist_set_title_file (plist, num, plist->items[num].file);
-}
-
-/* Make a title from the tags for the item. */
-void make_tags_title (struct plist *plist, const int num)
-{
-	bool hide_extn;
-	char *title;
-
-	assert (plist != NULL);
-	assert (LIMIT(num, plist->num));
-	assert (!plist_deleted (plist, num));
-
-	if (file_type (plist->items[num].file) == F_URL) {
-		make_file_title (plist, num, false);
-		return;
-	}
-
-	if (plist->items[num].title_tags)
-		return;
-
-	assert (plist->items[num].file != NULL);
-
-	if (plist->items[num].tags->title) {
-		title = build_title (plist->items[num].tags);
-		plist_set_title_tags (plist, num, title);
-		free (title);
-		return;
-	}
-
-	hide_extn = options::HideFileExtension;
-	make_file_title (plist, num, hide_extn);
-}
-
-/* Switch playlist titles to title_file */
-void switch_titles_file (struct plist *plist)
-{
-	int i;
-	bool hide_extn;
-
-	hide_extn = options::HideFileExtension;
-
-	for (i = 0; i < plist->num; i++) {
-		if (plist_deleted (plist, i))
-			continue;
-
-		if (!plist->items[i].title_file)
-			make_file_title (plist, i, hide_extn);
-
-		assert (plist->items[i].title_file != NULL);
-	}
-}
-
-/* Switch playlist titles to title_tags */
-void switch_titles_tags (struct plist *plist)
-{
-	int i;
-	bool hide_extn;
-
-	hide_extn = options::HideFileExtension;
-
-	for (i = 0; i < plist->num; i++) {
-		if (plist_deleted (plist, i))
-			continue;
-
-		if (!plist->items[i].title_tags && !plist->items[i].title_file)
-			make_file_title (plist, i, hide_extn);
-	}
 }
 
 /* Add file to the directory path in buf resolving '../' and removing './'. */
@@ -316,202 +203,50 @@ void resolve_path (char *buf, const int size, const char *file)
 		buf[--len] = 0;
 }
 
-/* Read selected tags for a file into tags structure (or create it if NULL).
- * If some tags are already present, don't read them.
- * If present_tags is NULL, allocate new tags. */
-struct file_tags *read_file_tags (const char *file,
-		struct file_tags *tags, const int tags_sel)
+str resolve_path (const str &path)
 {
-	struct decoder *df;
-	int needed_tags;
+	std::vector<char> buf(path.length()+1);
 
-	assert (file != NULL);
-
-	if (tags == NULL)
-		tags = tags_new ();
-
-	if (file_type (file) == F_URL)
-		return tags;
-
-	needed_tags = ~tags->filled & tags_sel;
-	if (!needed_tags) {
-		debug ("No need to read any tags");
-		return tags;
-	}
-
-	df = get_decoder (file);
-	if (!df) {
-		logit ("Can't find decoder functions for %s", file);
-		return tags;
-	}
-
-	/* This makes sure that we don't cause a memory leak */
-	assert (!((needed_tags & TAGS_COMMENTS) &&
-	          (tags->title || tags->artist || tags->album)));
-
-	df->info (file, tags, needed_tags);
-
-	if (needed_tags & TAGS_RATING)
+	int j = 0; // used size of buf
+	for (int i = 0; path[i]; ++i)
 	{
-		ratings_read_file (file, tags);
-	}
+		if (path[i] == '/')
+		{
+			// --> single /
+			if (j > 0 && buf[j-1] == '/') continue;
 
-	tags->filled |= tags_sel;
+			if (j == 1 && buf[0] == '.') // ./ --> empty string
+			{
+				j = 0;
+				while (path[i+1] == '/') ++i;
+				continue;
+			}
 
-	return tags;
-}
+			//  /./ --> /
+			if (j >= 2 && buf[j-2] == '/' && buf[j-1] == '.') { --j; continue; }
 
-/* Read the content of the directory, make an array of absolute paths for
- * all recognized files. Put directories, playlists and sound files
- * in proper structures. Return 0 on error.*/
-int read_directory (const char *directory, stringlist &dirs,
-		stringlist &playlists, struct plist *plist)
-{
-	DIR *dir;
-	struct dirent *entry;
-	bool show_hidden = options::ShowHiddenFiles;
-	int dir_is_root;
-
-	assert (directory != NULL);
-	assert (*directory == '/');
-	assert (plist != NULL);
-
-	if (!(dir = opendir(directory))) {
-		error_errno ("Can't read directory", errno);
-		return 0;
-	}
-
-	if (!strcmp(directory, "/"))
-		dir_is_root = 1;
-	else
-		dir_is_root = 0;
-
-	while ((entry = readdir(dir))) {
-		int rc;
-		char file[PATH_MAX];
-		enum file_type type;
-
-		if (user_wants_interrupt()) {
-			error ("Interrupted! Not all files read!");
-			break;
+			//  /something/../ --> /   and   
+			if (j >= 3 && buf[j-3] == '/' && buf[j-2] == '.' && buf[j-1] == '.')
+			{
+				j -= 2;
+				if (j == 1) continue; //   /../ --> /
+				--j;
+				while (j > 0 && buf[j-1] != '/') --j;
+				if (j == 0) // foo/../ --> empty string
+				{
+					while (path[i+1] == '/') ++i;
+				}
+				continue;
+			}
 		}
 
-		if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
-			continue;
-		if (!show_hidden && entry->d_name[0] == '.')
-			continue;
-
-		rc = snprintf(file, sizeof(file), "%s/%s",
-		              dir_is_root ? "" : directory, entry->d_name);
-		if (rc >= ssizeof(file)) {
-			error ("Path too long!");
-			closedir (dir);
-			return 0;
-		}
-
-		type = file_type (file);
-		if (type == F_SOUND)
-			plist_add (plist, file);
-		else if (type == F_DIR)
-			dirs.emplace_back(file);
-		else if (type == F_PLAYLIST)
-			playlists.emplace_back(file);
+		buf[j++] = path[i];
 	}
 
-	closedir (dir);
-
-	return 1;
-}
-
-static int dir_symlink_loop (const ino_t inode_no, const ino_t *dir_stack,
-		const int depth)
-{
-	int i;
-
-	for (i = 0; i < depth; i++)
-		if (dir_stack[i] == inode_no)
-			return 1;
-
-	return 0;
-}
-
-/* Recursively add files from the directory to the playlist.
- * Return 1 if OK (and even some errors), 0 if the user interrupted. */
-static int read_directory_recurr_internal (const char *directory, struct plist *plist,
-		ino_t **dir_stack, int *depth)
-{
-	DIR *dir;
-	struct dirent *entry;
-	struct stat st;
-
-	if (stat (directory, &st)) {
-		char *err = xstrerror (errno);
-		error ("Can't stat %s: %s", directory, err);
-		free (err);
-		return 0;
-	}
-
-	assert (plist != NULL);
-	assert (directory != NULL);
-
-	if (*dir_stack && dir_symlink_loop(st.st_ino, *dir_stack, *depth)) {
-		logit ("Detected symlink loop on %s", directory);
-		return 1;
-	}
-
-	if (!(dir = opendir(directory))) {
-		error_errno ("Can't read directory", errno);
-		return 1;
-	}
-
-	(*depth)++;
-	*dir_stack = (ino_t *)xrealloc (*dir_stack, sizeof(ino_t) * (*depth));
-	(*dir_stack)[*depth - 1] = st.st_ino;
-
-	while ((entry = readdir(dir))) {
-		int rc;
-		char file[PATH_MAX];
-		enum file_type type;
-
-		if (user_wants_interrupt()) {
-			error ("Interrupted! Not all files read!");
-			break;
-		}
-
-		if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
-			continue;
-		rc = snprintf(file, sizeof(file), "%s/%s", directory, entry->d_name);
-		if (rc >= ssizeof(file)) {
-			error ("Path too long!");
-			continue;
-		}
-		type = file_type (file);
-		if (type == F_DIR)
-			read_directory_recurr_internal(file, plist, dir_stack, depth);
-		else if (type == F_SOUND && plist_find_fname(plist, file) == -1)
-			plist_add (plist, file);
-	}
-
-	(*depth)--;
-	*dir_stack = (ino_t *)xrealloc (*dir_stack, sizeof(ino_t) * (*depth));
-
-	closedir (dir);
-	return 1;
-}
-
-int read_directory_recurr (const char *directory, struct plist *plist)
-{
-	int ret;
-	int depth = 0;
-	ino_t *dir_stack = NULL;
-
-	ret = read_directory_recurr_internal (directory, plist, &dir_stack,
-			&depth);
-
-	if (dir_stack)
-		free (dir_stack);
-
-	return ret;
+	if (j >= 2 && buf[j-2] == '/' && buf[j-1] == '.') j -= 2; // remove trailing "/."
+	if (j > 1 && buf[j-1] == '/') --j; // remove trailing slash
+	buf[j] = 0;
+	return str(buf.data());
 }
 
 /* Return the file extension position or NULL if the file has no extension. */
@@ -742,5 +477,75 @@ bool is_secure (const char *file)
 	if (sb.st_uid != 0 && sb.st_uid != geteuid ())
 		return false;
 
+	return true;
+}
+
+
+/* Purge content of a directory. */
+bool purge_directory (const char *dir_path)
+{
+	logit ("Purging %s...", dir_path);
+
+	DIR *dir = opendir (dir_path);
+	if (!dir) {
+		char *err = xstrerror (errno);
+		logit ("Can't open directory %s: %s", dir_path, err);
+		free (err);
+		return false;
+	}
+
+	struct dirent *d;
+	while ((d = readdir (dir))) {
+		if (!strcmp (d->d_name, ".") || !strcmp (d->d_name, ".."))
+			continue;
+
+		int len = strlen (dir_path) + strlen (d->d_name) + 2;
+		char *fpath = (char *)xmalloc (len);
+		snprintf (fpath, len, "%s/%s", dir_path, d->d_name);
+
+		struct stat st;
+		if (stat (fpath, &st) < 0) {
+			char *err = xstrerror (errno);
+			logit ("Can't stat %s: %s", fpath, err);
+			free (err);
+			free (fpath);
+			closedir (dir);
+			return false;
+		}
+
+		if (S_ISDIR(st.st_mode)) {
+			if (!purge_directory (fpath)) {
+				free (fpath);
+				closedir (dir);
+				return false;
+			}
+
+			logit ("Removing directory %s...", fpath);
+			if (rmdir (fpath) < 0) {
+				char *err = xstrerror (errno);
+				logit ("Can't remove %s: %s", fpath, err);
+				free (err);
+				free (fpath);
+				closedir (dir);
+				return false;
+			}
+		}
+		else {
+			logit ("Removing file %s...", fpath);
+
+			if (unlink (fpath) < 0) {
+				char *err = xstrerror (errno);
+				logit ("Can't remove %s: %s", fpath, err);
+				free (err);
+				free (fpath);
+				closedir (dir);
+				return false;
+			}
+		}
+
+		free (fpath);
+	}
+
+	closedir (dir);
 	return true;
 }

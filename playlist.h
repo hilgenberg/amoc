@@ -1,115 +1,126 @@
-#ifndef PLAYLIST_H
-#define PLAYLIST_H
+#pragma once
 
+#include <cstring>
 #include <sys/types.h>
+#include <map>
+#include <memory>
 
-#include "rbtree.h"
-
-/* Flags for the info decoder function. */
-enum tags_select
-{
-	TAGS_COMMENTS	= 0x01, /* artist, title, etc. */
-	TAGS_TIME	= 0x02, /* time of the file. */
-	TAGS_RATING	= 0x04  /* rating (0..5) */
-};
+#define TAGS_COMMENTS 1
+#define TAGS_TIME     2
 
 struct file_tags
 {
-	char *title;
-	char *artist;
-	char *album;
-	int track;
-	int time;
-	int rating;
-	int filled; /* Which tags are filled: TAGS_COMMENTS, TAGS_TIME. */
+	file_tags() : track(-1), time(-1), rating(-1), filled(0) {}
+	void read_file_tags (const char *file);
+
+	int time; // in seconds or -1 for streams
+	str title, artist, album;
+	int track, rating;
+	std::map<str, str> extra;
+	int filled;
 };
 
 enum file_type
 {
+	F_OTHER = 0,
 	F_DIR,
 	F_SOUND,
 	F_URL,
-	F_PLAYLIST,
-	F_OTHER
+	F_PLAYLIST
 };
 
-struct plist_item
+class plist_item
 {
-	char *file;
-	enum file_type type;	/* type of the file (F_OTHER if not read yet) */
-	char *title_file;	/* title based on the file name */
-	char *title_tags;	/* title based on the tags */
-	struct file_tags *tags;
-	short deleted;
-	time_t mtime;		/* modification time */
-	int queue_pos;		/* position in the queue */
+public:
+	static file_type ftype(const str &path);
+
+	//plist_item() : type(F_OTHER) {}
+	explicit plist_item(const str &p) : path(p), type(ftype(path)) {}
+	plist_item(const str &p, file_type t) : path(p), type(t) {}
+	plist_item(const plist_item &i)
+		: path(i.path), type(i.type)
+		, tags(i.tags ? new file_tags(*i.tags) : NULL)
+	{}
+
+	str title() const;
+	bool read_file_tags();
+
+	const str path; // absolute path or URL
+	file_type type;
+	std::unique_ptr<file_tags> tags;
 };
+bool operator< (const plist_item &a, const plist_item &b);
 
 struct plist
 {
-	int num;			/* Number of elements on the list */
-	int allocated;		/* Number of allocated elements */
-	int not_deleted;	/* Number of non-deleted items */
-	struct plist_item *items;
-	int serial;		/* Optional serial number of this playlist */
-	int total_time;		/* Total time for files on the playlist */
-	int items_with_time;	/* Number of items for which the time is set. */
+public:
+	plist() : serial(-1) {}
+	plist(const plist &) = delete;
+	plist(plist &&p) : serial(p.serial) { items.swap(p.items); }
 
-	struct rb_tree *search_tree;
+	void clear() { items.clear(); }
+	void remove(int i)
+	{
+		if (i < 0 || (size_t)i >= items.size()) return;
+		items.erase(items.begin() + i);
+	}
+
+	bool load_directory(const char *directory);
+	bool add_directory(const char *directory, bool recursive = true);
+	bool load_m3u(const char *path);
+	bool save (const char *m3u_path) const;
+	plist & operator+= (const plist &other);
+	plist & operator+= (plist &&other);
+	plist & operator+= (const plist_item &i);
+	plist & operator+= (str &&f) { items.emplace_back(new plist_item(f)); return *this; }
+	plist & operator+= (const char *f) { items.emplace_back(new plist_item(f)); return *this; }
+
+	size_t size() const { return items.size(); }
+
+	int total_time() const
+	{
+		int sum = 0;
+		for (auto &i : items)
+		{
+			if (!i->tags) continue;
+			sum += std::max(0, i->tags->time);
+		}
+		return sum;
+	}
+	int find(const char *file) // TODO: remove this!
+	{
+		for (int i = 0, n = (int)items.size(); i < n; ++i)
+			if (items[i]->path == file) return i;
+		return -1;
+	}
+
+	void shuffle();
+	void sort()
+	{
+		std::sort(items.begin(), items.end(), 
+		[](const std::unique_ptr<plist_item>&a, const std::unique_ptr<plist_item>&b)
+		{ return *a < *b; });
+	}
+	bool move_to_front(const char *item)
+	{
+		for (auto &i : items)
+		{
+			if (i->path != item) continue;
+			std::swap(i, items[0]);
+			return true;
+		}
+		return false;
+	}
+
+
+	void swap(plist &other)
+	{
+		std::swap(items, other.items);
+		std::swap(serial, other.serial);
+	}
+
+	std::vector<std::unique_ptr<plist_item> > items;
+	int serial; /* Optional serial number of this playlist */
 };
 
-void plist_init (struct plist *plist);
-int plist_add (struct plist *plist, const char *file_name);
-int plist_add_from_item (struct plist *plist, const struct plist_item *item);
-char *plist_get_file (const struct plist *plist, int i);
-int plist_next (struct plist *plist, int num);
-int plist_prev (struct plist *plist, int num);
-void plist_clear (struct plist *plist);
-void plist_delete (struct plist *plist, const int num);
-void plist_free (struct plist *plist);
-void plist_sort_fname (struct plist *plist);
-int plist_find_fname (struct plist *plist, const char *file);
-struct file_tags *tags_new ();
-void tags_clear (struct file_tags *tags);
-void tags_copy (struct file_tags *dst, const struct file_tags *src);
-void tags_update (struct file_tags *dst, struct file_tags *src, int move);
-struct file_tags *tags_dup (const struct file_tags *tags);
-void tags_free (struct file_tags *tags);
-char *build_title_with_format (const struct file_tags *tags, const char *fmt);
-char *build_title (const struct file_tags *tags);
-int plist_count (const struct plist *plist);
-void plist_set_title_tags (struct plist *plist, const int num,
-		const char *title);
-void plist_set_title_file (struct plist *plist, const int num,
-		const char *title);
-void plist_set_file (struct plist *plist, const int num, const char *file);
-int plist_deleted (const struct plist *plist, const int num);
-void plist_cat (struct plist *a, struct plist *b);
-void update_file (struct plist_item *item);
-void plist_set_item_time (struct plist *plist, const int num, const int time);
-void plist_set_item_rating (struct plist *plist, const int num, const int rating);
-int get_item_time (const struct plist *plist, const int i);
-int get_item_rating (const struct plist *plist, const int i);
-int plist_total_time (const struct plist *plisti, int *all_files);
-void plist_shuffle (struct plist *plist);
-void plist_swap_first_fname (struct plist *plist, const char *fname);
-struct plist_item *plist_new_item ();
-void plist_free_item_fields (struct plist_item *item);
-void plist_set_serial (struct plist *plist, const int serial);
-int plist_get_serial (const struct plist *plist);
-int plist_last (const struct plist *plist);
-int plist_find_del_fname (const struct plist *plist, const char *file);
-const char *plist_get_next_dead_entry (const struct plist *plist,
-                                       int *last_index);
-void plist_item_copy (struct plist_item *dst, const struct plist_item *src);
-enum file_type plist_file_type (const struct plist *plist, const int num);
-void plist_remove_common_items (struct plist *a, struct plist *b);
-void plist_discard_tags (struct plist *plist);
-void plist_set_tags (struct plist *plist, const int num,
-		const struct file_tags *tags);
-struct file_tags *plist_get_tags (const struct plist *plist, const int num);
-void plist_swap_files (struct plist *plist, const char *file1,
-		const char *file2);
-int plist_get_position (const struct plist *plist, int num);
-
-#endif
+inline void swap(plist &a, plist &b) { a.swap(b); }

@@ -1,18 +1,3 @@
-/*
- * MOC - music on console
- * Copyright (C) 2003 - 2005 Damian Pietras <daper@daper.net>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- */
-
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -23,8 +8,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include "common.h"
-#include "log.h"
 #include "protocol.h"
 #include "playlist.h"
 #include "files.h"
@@ -50,7 +33,7 @@
 			        xstrerror (errno)); \
 	} while (0)
 
-/* Buffer used to send data in one bigger chunk instead of sending sigle
+/* Buffer used to send data in one bigger chunk instead of sending single
  * integer, string etc. values. */
 struct packet_buf
 {
@@ -80,6 +63,17 @@ int get_int (int sock, int *i)
 		log_errno ("recv() failed when getting int", errno);
 
 	return res == ssizeof(int) ? 1 : 0;
+}
+
+int get_bool (int sock, bool &f)
+{
+	ssize_t res;
+	char c;
+	res = recv (sock, &c, 1, 0);
+	if (res == -1)
+		log_errno ("recv() failed when getting bool", errno);
+	f = c;
+	return res == 1 ? 1 : 0;
 }
 
 /* Get an integer value from the socket without blocking. */
@@ -113,34 +107,6 @@ int send_int (int sock, int i)
 
 	return res == ssizeof(int) ? 1 : 0;
 }
-
-#if 0
-/* Get a long value from the socket, return == 0 on error. */
-static int get_long (int sock, long *i)
-{
-	ssize_t res;
-
-	res = recv (sock, i, sizeof(long), 0);
-	if (res == -1)
-		log_errno ("recv() failed when getting int", errno);
-
-	return res == ssizeof(long) ? 1 : 0;
-}
-#endif
-
-#if 0
-/* Send a long value to the socket, return == 0 on error */
-static int send_long (int sock, long i)
-{
-	ssize_t res;
-
-	res = send (sock, &i, sizeof(long), 0);
-	if (res == -1)
-		log_errno ("send() failed", errno);
-
-	return res == ssizeof(long) ? 1 : 0;
-}
-#endif
 
 /* Get the string from socket, return NULL on error. The memory is malloced. */
 char *get_str (int sock)
@@ -257,6 +223,13 @@ static void packet_buf_add_int (struct packet_buf *b, const int n)
 	b->len += sizeof(n);
 }
 
+/* Add an integer value to the buffer */
+static void packet_buf_add_bool (struct packet_buf *b, bool f)
+{
+	packet_buf_add_space (b, 1);
+	b->buf[b->len++] = f;
+}
+
 /* Add a string value to the buffer. */
 static void packet_buf_add_str (struct packet_buf *b, const char *str)
 {
@@ -284,39 +257,29 @@ static void packet_buf_add_time (struct packet_buf *b, const time_t n)
 }
 
 /* Add tags to the buffer. If tags == NULL, add empty tags. */
-void packet_buf_add_tags (struct packet_buf *b, const struct file_tags *tags)
+static void packet_buf_add_tags (struct packet_buf *b, const file_tags *tags)
 {
 	assert (b != NULL);
 
 	if (tags) {
-		packet_buf_add_str (b, tags->title ? tags->title : "");
-		packet_buf_add_str (b, tags->artist ? tags->artist : "");
-		packet_buf_add_str (b, tags->album ? tags->album : "");
+		packet_buf_add_bool(b, true);
+		packet_buf_add_str (b, tags->title.c_str());
+		packet_buf_add_str (b, tags->artist.c_str());
+		packet_buf_add_str (b, tags->album.c_str());
 		packet_buf_add_int (b, tags->track);
-		packet_buf_add_int (b, tags->filled & TAGS_TIME ? tags->time : -1);
-		packet_buf_add_int (b, tags->filled & TAGS_RATING ? tags->rating : -1);
-		packet_buf_add_int (b, tags->filled);
+		packet_buf_add_int (b, tags->time);
+		packet_buf_add_int (b, tags->rating);
 	}
 	else {
-
-		/* empty tags: */
-		packet_buf_add_str (b, ""); /* title */
-		packet_buf_add_str (b, ""); /* artist */
-		packet_buf_add_str (b, ""); /* album */
-		packet_buf_add_int (b, -1); /* track */
-		packet_buf_add_int (b, -1); /* time */
-		packet_buf_add_int (b, -1); /* rating */
-		packet_buf_add_int (b,  0); /* filled */
+		packet_buf_add_bool(b, false);
 	}
 }
 
 /* Add an item to the buffer. */
-void packet_buf_add_item (struct packet_buf *b, const struct plist_item *item)
+void packet_buf_add_item (struct packet_buf *b, const plist_item *item)
 {
-	packet_buf_add_str (b, item->file);
-	packet_buf_add_str (b, item->title_tags ? item->title_tags : "");
-	packet_buf_add_tags (b, item->tags);
-	packet_buf_add_time (b, item->mtime);
+	packet_buf_add_str (b, item->path.c_str());
+	packet_buf_add_tags (b, item->tags.get());
 }
 
 /* Send data to the socket. Return 0 on error. */
@@ -365,62 +328,38 @@ int send_item (int sock, const struct plist_item *item)
 
 struct file_tags *recv_tags (int sock)
 {
-	struct file_tags *tags = tags_new ();
-
-	if (!(tags->title = get_str(sock))) {
-		logit ("Error while receiving title");
-		tags_free (tags);
+	bool b; if (!get_bool(sock, b)){
+		logit ("Error while receiving tags flag");
 		return NULL;
 	}
+	if (!b) return NULL;
 
-	if (!(tags->artist = get_str(sock))) {
-		logit ("Error while receiving artist");
-		tags_free (tags);
-		return NULL;
-	}
+	file_tags *tags = new file_tags;
 
-	if (!(tags->album = get_str(sock))) {
-		logit ("Error while receiving album");
-		tags_free (tags);
-		return NULL;
-	}
+	char *s;
+	#define STR(x) if (!(s = get_str(sock))) { logit ("Error while receiving tags"); delete tags; return NULL; } \
+		tags->x = s; free(s)
+	STR(title);
+	STR(artist);
+	STR(album);
+	#undef STR
 
 	if (!get_int(sock, &tags->track)) {
 		logit ("Error while receiving track");
-		tags_free (tags);
+		delete tags;
 		return NULL;
 	}
 
 	if (!get_int(sock, &tags->time)) {
 		logit ("Error while receiving time");
-		tags_free (tags);
+		delete tags;
 		return NULL;
 	}
 
 	if (!get_int(sock, &tags->rating)) {
 		logit ("Error while receiving ratings");
-		tags_free (tags);
+		delete tags;
 		return NULL;
-	}
-
-	if (!get_int(sock, &tags->filled)) {
-		logit ("Error while receiving 'filled'");
-		tags_free (tags);
-		return NULL;
-	}
-
-	/* Set NULL instead of empty tags. */
-	if (!tags->title[0]) {
-		free (tags->title);
-		tags->title = NULL;
-	}
-	if (!tags->artist[0]) {
-		free (tags->artist);
-		tags->artist = NULL;
-	}
-	if (!tags->album[0]) {
-		free (tags->album);
-		tags->album = NULL;
 	}
 
 	return tags;
@@ -447,49 +386,16 @@ int send_tags (int sock, const struct file_tags *tags)
  * The memory is malloc()ed.  Returns NULL on error. */
 struct plist_item *recv_item (int sock)
 {
-	struct plist_item *item = plist_new_item ();
-
 	/* get the file name */
-	if (!(item->file = get_str(sock))) {
+	char *path = get_str(sock);
+	if (!path) {
 		logit ("Error while receiving file name");
-		free (item);
 		return NULL;
 	}
+	if (!*path) { free(path); return NULL; }
 
-	if (item->file[0]) {
-		if (!(item->title_tags = get_str(sock))) {
-			logit ("Error while receiving tags title");
-			free (item->file);
-			free (item);
-			return NULL;
-		}
-
-		item->type = file_type (item->file);
-
-		if (!item->title_tags[0]) {
-			free (item->title_tags);
-			item->title_tags = NULL;
-		}
-
-		if (!(item->tags = recv_tags(sock))) {
-			logit ("Error while receiving tags");
-			free (item->file);
-			if (item->title_tags)
-				free (item->title_tags);
-			free (item);
-			return NULL;
-		}
-
-		if (!get_time(sock, &item->mtime)) {
-			logit ("Error while receiving mtime");
-			if (item->title_tags)
-				free (item->title_tags);
-			free (item->file);
-			tags_free (item->tags);
-			free (item);
-			return NULL;
-		}
-	}
+	plist_item *item = new plist_item (path); free(path);
+	item->tags.reset(recv_tags(sock));
 
 	return item;
 }
@@ -573,7 +479,14 @@ void free_tag_ev_data (struct tag_ev_response *d)
 	assert (d != NULL);
 
 	free (d->file);
-	tags_free (d->tags);
+	delete d->tags;
+	free (d);
+}
+void free_rating_ev_data (struct rating_ev_response *d)
+{
+	assert (d != NULL);
+
+	free (d->file);
 	free (d);
 }
 
@@ -612,11 +525,20 @@ struct tag_ev_response *tag_ev_data_dup (const struct tag_ev_response *d)
 
 	new_resp = (struct tag_ev_response *)xmalloc (sizeof(struct tag_ev_response));
 	new_resp->file = xstrdup (d->file);
-	if (d->tags)
-	{
-		new_resp->tags = tags_new ();
-		tags_copy (new_resp->tags, d->tags);
-	}
+	new_resp->tags = (d->tags ? new file_tags(*d->tags) : NULL);
+
+	return new_resp;
+}
+struct rating_ev_response *rating_ev_data_dup (const struct rating_ev_response *d)
+{
+	struct rating_ev_response *new_resp;
+
+	assert (d != NULL);
+	assert (d->file != NULL);
+
+	new_resp = (struct rating_ev_response *)xmalloc (sizeof(struct rating_ev_response));
+	new_resp->file = xstrdup (d->file);
+	new_resp->rating = d->rating;
 
 	return new_resp;
 }
@@ -624,16 +546,15 @@ struct tag_ev_response *tag_ev_data_dup (const struct tag_ev_response *d)
 /* Free data associated with the event if any. */
 void free_event_data (const int type, void *data)
 {
-	if (type == EV_PLIST_ADD || type == EV_QUEUE_ADD) {
-		plist_free_item_fields ((struct plist_item *)data);
-		free (data);
+	if (type == EV_PLIST_ADD) {
+		delete (plist_item *)data;
 	}
 	else if (type == EV_FILE_TAGS)
 		free_tag_ev_data ((struct tag_ev_response *)data);
 	else if (type == EV_PLIST_DEL || type == EV_STATUS_MSG
-			|| type == EV_SRV_ERROR || type == EV_QUEUE_DEL)
+			|| type == EV_SRV_ERROR)
 		free (data);
-	else if (type == EV_PLIST_MOVE || type == EV_QUEUE_MOVE)
+	else if (type == EV_PLIST_MOVE)
 		free_move_ev_data ((struct move_ev_data *)data);
 	else if (data)
 		abort (); /* BUG */
@@ -660,25 +581,6 @@ void event_queue_init (struct event_queue *q)
 	q->tail = NULL;
 }
 
-#if 0
-/* Search for an event of this type and return pointer to it or NULL if there
- * was no such event. */
-struct event *event_search (struct event_queue *q, const int event)
-{
-	struct event *e;
-
-	assert (q != NULL);
-
-	while ((e = q->head)) {
-		if (e->type == event)
-			return e;
-		e = e->next;
-	}
-
-	return NULL;
-}
-#endif
-
 /* Return != 0 if the queue is empty. */
 int event_queue_empty (const struct event_queue *q)
 {
@@ -699,13 +601,12 @@ static struct packet_buf *make_event_packet (const struct event *e)
 	packet_buf_add_int (b, e->type);
 
 	if (e->type == EV_PLIST_DEL
-			|| e->type == EV_QUEUE_DEL
 			|| e->type == EV_SRV_ERROR
 			|| e->type == EV_STATUS_MSG) {
 		assert (e->data != NULL);
 		packet_buf_add_str (b, (const char*) e->data);
 	}
-	else if (e->type == EV_PLIST_ADD || e->type == EV_QUEUE_ADD) {
+	else if (e->type == EV_PLIST_ADD) {
 		assert (e->data != NULL);
 		packet_buf_add_item (b, (const plist_item*) e->data);
 	}
@@ -718,7 +619,7 @@ static struct packet_buf *make_event_packet (const struct event *e)
 		packet_buf_add_str (b, r->file);
 		packet_buf_add_tags (b, r->tags);
 	}
-	else if (e->type == EV_PLIST_MOVE || e->type == EV_QUEUE_MOVE) {
+	else if (e->type == EV_PLIST_MOVE) {
 		struct move_ev_data *m;
 
 		assert (e->data != NULL);

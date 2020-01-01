@@ -22,13 +22,15 @@
 #include "../files.h"
 #include "../rbtree.h"
 #include "utf8.h"
+#include "../input/decoder.h"
+#include "themes.h"
 
 /* Draw menu item on a given position from the top of the menu. */
 static void draw_item (const struct menu *menu, const struct menu_item *mi,
 		const int pos, const int item_info_pos, int title_space,
 		const int number_space, const int draw_selected)
 {
-	int title_width, queue_pos_len = 0;
+	int title_width;
 	int ix, x;
 	int y ATTR_UNUSED;		/* OpenBSD flags this as unused. */
 	char buf[32];
@@ -64,13 +66,6 @@ static void draw_item (const struct menu *menu, const struct menu_item *mi,
 		wattrset (menu->win, mi->attr_marked);
 	else
 		wattrset (menu->win, mi->attr_normal);
-
-	/* Compute the length of the queue position if nonzero */
-	if (mi->queue_pos) {
-		sprintf (buf, "%d", mi->queue_pos);
-		queue_pos_len = strlen(buf) + 2;
-		title_space -= queue_pos_len;
-	}
 
 	title_width = strwidth (mi->title);
 
@@ -117,14 +112,7 @@ static void draw_item (const struct menu *menu, const struct menu_item *mi,
 		wattrset (menu->win, menu->info_attr_marked);
 	else
 		wattrset (menu->win, menu->info_attr_normal);
-	wmove (menu->win, pos, item_info_pos - queue_pos_len);
-
-	/* Position in queue. */
-	if (mi->queue_pos) {
-		xwaddstr (menu->win, "[");
-		xwaddstr (menu->win, buf);
-		xwaddstr (menu->win, "]");
-	}
+	wmove (menu->win, pos, item_info_pos);
 
 	if ((menu->show_time && *mi->time) ||
 	    (menu->show_rating && *mi->rating) ||
@@ -269,19 +257,17 @@ struct menu *menu_new (WINDOW *win, const int posx, const int posy,
 	return menu;
 }
 
-struct menu_item *menu_add (struct menu *menu, const char *title,
-		const enum file_type type, const char *file)
+struct menu_item *menu_add (struct menu *menu, const plist_item &item)
 {
 	struct menu_item *mi;
 
 	assert (menu != NULL);
-	assert (title != NULL);
 
 	mi = (struct menu_item *)xmalloc (sizeof(struct menu_item));
 
-	mi->title = xstrdup (title);
-	mi->type = type;
-	mi->file = xstrdup (file);
+	mi->title = xstrdup (item.title().c_str());
+	mi->type = item.type;
+	mi->file = xstrdup (item.path.c_str());
 	mi->num = menu->nitems;
 
 	mi->attr_normal = A_NORMAL;
@@ -293,49 +279,56 @@ struct menu_item *menu_add (struct menu *menu, const char *title,
 	mi->time[0] = 0;
 	mi->rating[0] = 0;
 	mi->format[0] = 0;
-	mi->queue_pos = 0;
 
 	mi->next = NULL;
 	mi->prev = menu->last;
 	if (menu->last)
 		menu->last->next = mi;
 
-	if (!menu->items)
-		menu->items = mi;
-	if (!menu->top)
-		menu->top = menu->items;
-	if (!menu->selected)
-		menu->selected = menu->items;
+	if (!menu->items) menu->items = mi;
+	if (!menu->top) menu->top = menu->items;
+	if (!menu->selected) menu->selected = menu->items;
 
-	if (file)
-		rb_insert (menu->search_tree, (void *)mi);
+	if (mi->file) rb_insert (menu->search_tree, (void *)mi);
 
 	menu->last = mi;
 	menu->nitems++;
 
+	if (item.tags && item.tags->time != -1) {
+		char time_str[6];
+		sec_to_min (time_str, item.tags->time);
+		menu_item_set_time (mi, time_str);
+	}
+	const char *type_name;
+	if (!(type_name = file_type_name(item.path.c_str())))
+		type_name = "";
+	menu_item_set_format (mi, type_name);
+
+	menu_item_set_attr_normal (mi, get_color(CLR_MENU_ITEM_FILE));
+	menu_item_set_attr_sel (mi, get_color(CLR_MENU_ITEM_FILE_SELECTED));
+	menu_item_set_attr_marked (mi, get_color(CLR_MENU_ITEM_FILE_MARKED));
+	menu_item_set_attr_sel_marked (mi, get_color(CLR_MENU_ITEM_FILE_MARKED_SELECTED));
+
 	return mi;
 }
-
-static struct menu_item *menu_add_from_item (struct menu *menu,
-		const struct menu_item *mi)
+void menu_item_update (struct menu_item *mi, const plist_item &item)
 {
-	struct menu_item *new_item;
-
-	assert (menu != NULL);
 	assert (mi != NULL);
 
-	new_item = menu_add (menu, mi->title, mi->type, mi->file);
+	if (item.tags && item.tags->time != -1) {
+		char time_str[6];
+		sec_to_min (time_str, item.tags->time);
+		menu_item_set_time (mi, time_str);
+	}
+	else
+		menu_item_set_time (mi, "");
 
-	new_item->attr_normal = mi->attr_normal;
-	new_item->attr_sel = mi->attr_sel;
-	new_item->attr_marked = mi->attr_marked;
-	new_item->attr_sel_marked = mi->attr_sel_marked;
+	int r = (item.tags ? item.tags->rating : 0);
+	if (r < 0) r = 0;
+	if (r > 5) r = 5;
+	menu_item_set_rating (mi, options::rating_strings[r]);
 
-	strncpy(new_item->time, mi->time, FILE_TIME_STR_SZ);
-	strncpy(new_item->rating, mi->rating, FILE_RATING_STR_SZ);
-	strncpy(new_item->format, mi->format, FILE_FORMAT_SZ);
-
-	return new_item;
+	free(mi->title); mi->title = xstrdup (item.title().c_str());
 }
 
 static struct menu_item *get_item_relative (struct menu_item *mi,
@@ -575,35 +568,6 @@ void menu_unmark_item (struct menu *menu)
 	menu->marked = NULL;
 }
 
-/* Make a new menu from elements matching pattern. */
-struct menu *menu_filter_pattern (const struct menu *menu, const char *pattern)
-{
-	struct menu *new_item;
-	const struct menu_item *mi;
-
-	assert (menu != NULL);
-	assert (pattern != NULL);
-
-	new_item = menu_new (menu->win, menu->posx, menu->posy, menu->width,
-			menu->height);
-	menu_set_show_time (new_item, menu->show_time);
-	menu_set_show_rating (new_item, menu->show_rating);
-	menu_set_show_format (new_item, menu->show_format);
-	menu_set_info_attr_normal (new_item, menu->info_attr_normal);
-	menu_set_info_attr_sel (new_item, menu->info_attr_sel);
-	menu_set_info_attr_marked (new_item, menu->info_attr_marked);
-	menu_set_info_attr_sel_marked (new_item, menu->info_attr_sel_marked);
-
-	for (mi = menu->items; mi; mi = mi->next)
-		if (strcasestr(mi->title, pattern))
-			menu_add_from_item (new_item, mi);
-
-	if (menu->marked)
-		menu_mark_item (new_item, menu->marked->file);
-
-	return new_item;
-}
-
 void menu_item_set_attr_normal (struct menu_item *mi, const int attr)
 {
 	assert (mi != NULL);
@@ -660,13 +624,6 @@ void menu_item_set_format (struct menu_item *mi, const char *format)
 			sizeof(mi->format));
 	assert (mi->format[sizeof(mi->format)-1]
 			== 0);
-}
-
-void menu_item_set_queue_pos (struct menu_item *mi, const int pos)
-{
-	assert (mi != NULL);
-
-	mi->queue_pos = pos;
 }
 
 void menu_set_show_time (struct menu *menu, const int t)

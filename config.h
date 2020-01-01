@@ -277,8 +277,27 @@
 /* Use 64bit IO */
 #define _FILE_OFFSET_BITS 64
 
+#include <vector>
+#include <queue>
+#include <set>
+#include <map>
+#include <string>
+
+#include <pthread.h>
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <time.h>
+#include <unistd.h>
+
+#include <iconv.h>
 #include <ncurses.h>
 #include "common.h"
 #include "log.h"
 #include "options.h"
+#include "StringFormatting.h"
+#include "lists.h"
 

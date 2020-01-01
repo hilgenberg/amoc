@@ -211,7 +211,6 @@ void init(const char *config_file)
 		OPT(ForceSampleRate);
 		OPT(Allow24bitOutput);
 		OPT(UseRealtimePriority);
-		OPT(TagsCacheSize);
 		OPT(PlaylistNumbering);
 
 		OPT(FollowPlayedFile);
@@ -293,7 +292,6 @@ ResampleMethod_t ResampleMethod = ResampleMethod_t::Linear;
 int  ForceSampleRate = 0;
 bool Allow24bitOutput = false;
 bool UseRealtimePriority = false;
-int  TagsCacheSize = 256;
 bool PlaylistNumbering = true;
 
 bool FollowPlayedFile = true;

@@ -51,6 +51,26 @@ char *rcc_reencode (char *str)
 	return result;
 }
 
+str rcc_reencode (const str &s)
+{
+#ifdef HAVE_RCC
+	rcc_string rs = rccFrom (NULL, 0, s.c_str());
+	if (rs) {
+		if (*rs) {
+			char *ss = rccToCharset (NULL, "UTF-8", rs);
+			if (ss) {
+				str ret = ss;
+				free (ss);
+			    	free (rs);
+				return ret;
+			}
+		}
+		free (rs);
+	}
+#endif /* HAVE_RCC */
+	return s;
+}
+
 void rcc_init ()
 {
 #ifdef HAVE_RCC

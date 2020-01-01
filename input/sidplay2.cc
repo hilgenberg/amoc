@@ -399,9 +399,13 @@ void sidplay2_info (const char *file_name, struct file_tags *info,
     && strlen(sti.infoString[STITLE])>0
   )
   {
-    info->title = trim(sti.infoString[STITLE],strlen(sti.infoString[STITLE]));
-    if (info->title)
-      info->filled |= TAGS_COMMENTS;
+    char *s = trim(sti.infoString[STITLE],strlen(sti.infoString[STITLE]));
+    if (s)
+    {
+	info->title = s;
+	info->filled |= TAGS_COMMENTS;
+	free(s);
+    }
   }
 
   if
@@ -411,9 +415,13 @@ void sidplay2_info (const char *file_name, struct file_tags *info,
     && strlen(sti.infoString[SAUTHOR])>0
   )
   {
-    info->artist = trim(sti.infoString[SAUTHOR],strlen(sti.infoString[SAUTHOR]));
-    if (info->artist)
+    char *s = trim(sti.infoString[SAUTHOR],strlen(sti.infoString[SAUTHOR]));
+    if (s)
+    {
+	    info->artist = s;
       info->filled |= TAGS_COMMENTS;
+      free(s);
+    }
   }
 
   // Not really album - but close...
@@ -424,9 +432,13 @@ void sidplay2_info (const char *file_name, struct file_tags *info,
     && strlen(sti.infoString[SCOPY])>0
   )
   {
-    info->album = trim(sti.infoString[SCOPY],strlen(sti.infoString[SCOPY]));
-    if (info->album)
+    char *s = trim(sti.infoString[SCOPY],strlen(sti.infoString[SCOPY]));
+    if (s)
+    {
+	    info->album = s;
       info->filled |= TAGS_COMMENTS;
+      free(s);
+    }
   }
 
   info->time = 0;

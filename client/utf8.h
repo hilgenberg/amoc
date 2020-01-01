@@ -18,11 +18,12 @@ int xwaddnstr (WINDOW *win, const char *str, const int n);
 int xmvwaddstr (WINDOW *win, const int y, const int x, const char *str);
 int xmvwaddnstr (WINDOW *win, const int y, const int x, const char *str,
 		const int n);
-int xwprintw (WINDOW *win, const char *fmt, ...) ATTR_PRINTF(2, 3);
+int xwprintw (WINDOW *win, const char *fmt, ...);
 size_t strwidth (const char *s);
 char *xstrtail (const char *str, const int len);
 char *iconv_str (const iconv_t desc, const char *str);
 char *files_iconv_str (const char *str);
 char *xterm_iconv_str (const char *str);
+str files_iconv_str (const str &s);
 
 #endif

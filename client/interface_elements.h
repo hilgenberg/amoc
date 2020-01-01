@@ -8,6 +8,7 @@
 #include "../lists.h"
 #include "../files.h"
 #include "keys.h"
+#include "../playlist.h"
 
 /* Interface's menus */
 enum iface_menu
@@ -52,14 +53,8 @@ void windows_end ();
 void iface_set_option_state (const char *name, const bool value);
 void iface_set_mixer_name (const char *name);
 void iface_set_status (const char *msg);
-void iface_set_dir_content (const enum iface_menu iface_menu,
-		const struct plist *files,
-		const stringlist *dirs,
-		const stringlist *playlists);
-void iface_update_dir_content (const enum iface_menu iface_menu,
-		const struct plist *files,
-		const stringlist *dirs,
-		const stringlist *playlists);
+void iface_set_dir_content (const enum iface_menu iface_menu, const plist *files);
+void iface_update_dir_content (const enum iface_menu iface_menu, const plist *files);
 void iface_set_curr_item_title (const char *title);
 void iface_get_key (struct iface_key *k);
 int iface_key_is_resize (const struct iface_key *k);
@@ -106,24 +101,15 @@ void iface_disable_message ();
 void iface_user_query (const char *msg, const char *prompt, t_user_reply_callback *callback, void *data);
 void iface_user_reply (const char *reply);
 void iface_user_history_add (const char *text);
-void iface_plist_set_total_time (const int time, const int for_all_files);
+void iface_plist_set_total_time (const int time);
 void iface_set_title (const enum iface_menu menu, const char *title);
 void iface_select_file (const char *file);
 void iface_toggle_layout ();
 void iface_toggle_percent ();
 void iface_swap_plist_items (const char *file1, const char *file2);
 void iface_make_visible (const enum iface_menu menu, const char *file);
-void iface_add_file (const char *file, const char *title,
-		const enum file_type type);
 void iface_temporary_exit ();
 void iface_restore ();
-void iface_update_queue_positions (const struct plist *queue,
-		struct plist *playlist, struct plist *dir_list,
-		const char *deleted_file);
-void iface_clear_queue_positions (const struct plist *queue,
-		struct plist *playlist, struct plist *dir_list);
-void iface_update_queue_position_last (const struct plist *queue,
-		struct plist *playlist, struct plist *dir_list);
 void iface_update_attrs ();
 
 #endif

@@ -103,6 +103,13 @@ char *files_iconv_str (const char *str)
 {
     return iconv_str (files_iconv_desc, str);
 }
+str files_iconv_str (const str &s)
+{
+	char *sc = files_iconv_str(s.c_str());
+	str ret(sc);
+	free(sc);
+	return ret;
+}
 
 char *xterm_iconv_str (const char *str)
 {

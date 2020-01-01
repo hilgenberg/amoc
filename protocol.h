@@ -1,5 +1,4 @@
-#ifndef PROTOCOL_H
-#define PROTOCOL_H
+#pragma once
 
 #include "playlist.h"
 
@@ -20,7 +19,14 @@ struct event_queue
 struct tag_ev_response
 {
 	char *file;
-	struct file_tags *tags;
+	file_tags *tags;
+};
+
+/* Used as data field in the event queue for EV_FILE_RATING. */
+struct rating_ev_response
+{
+	char *file;
+	int rating;
 };
 
 /* Used as data field in the event queue for EV_PLIST_MOVE. */
@@ -59,6 +65,7 @@ enum noblock_io_status
 #define EV_AVG_BITRATE  0x12 /* average bitrate has changed (new song) */
 #define EV_AUDIO_START	0x13 /* playing of audio has started */
 #define EV_AUDIO_STOP	0x14 /* playing of audio has stopped */
+#define EV_FILE_RATING	0x15 /* rantings changed for a file */
 
 /* Events caused by a client that wants to modify the playlist (see
  * CMD_CLI_PLIST* commands). */
@@ -66,13 +73,6 @@ enum noblock_io_status
 #define EV_PLIST_DEL	0x51 /* delete an item, followed by the file name */
 #define EV_PLIST_MOVE	0x52 /* move an item, followed by 2 file names */
 #define EV_PLIST_CLEAR	0x53 /* clear the playlist */
-
-/* These events, though similar to the four previous are caused by server
- * which takes care of clients' queue synchronization. */
-#define EV_QUEUE_ADD	0x54
-#define EV_QUEUE_DEL	0x55
-#define EV_QUEUE_MOVE	0x56
-#define EV_QUEUE_CLEAR	0x57
 
 /* State of the server. */
 #define STATE_PLAY	0x01
@@ -135,11 +135,6 @@ enum noblock_io_status
 
 #define CMD_TOGGLE_MAKE_MONO    0x39    /* toggle mono mixing */
 #define CMD_JUMP_TO	0x3a /* jumps to a some position in the current stream */
-#define CMD_QUEUE_ADD	0x3b /* add an item to the queue */
-#define CMD_QUEUE_DEL	0x3c /* delete an item from the queue */
-#define CMD_QUEUE_MOVE	0x3d /* move an item in the queue */
-#define CMD_QUEUE_CLEAR	0x3e /* clear the queue */
-#define CMD_GET_QUEUE	0x3f /* request the queue from the server */
 #define CMD_SET_RATING	0x40 /* change rating for a file */
 
 #define CMD_GET_OPTION_SHUFFLE	0x50
@@ -157,10 +152,10 @@ char *get_str (int sock);
 int send_str (int sock, const char *str);
 int get_time (int sock, time_t *i);
 int send_time (int sock, time_t i);
-int send_item (int sock, const struct plist_item *item);
-struct plist_item *recv_item (int sock);
-struct file_tags *recv_tags (int sock);
-int send_tags (int sock, const struct file_tags *tags);
+int send_item (int sock, const plist_item *item);
+plist_item *recv_item (int sock);
+file_tags *recv_tags (int sock);
+int send_tags (int sock, const file_tags *tags);
 
 void event_queue_init (struct event_queue *q);
 void event_queue_free (struct event_queue *q);
@@ -171,9 +166,9 @@ void event_push (struct event_queue *q, const int event, void *data);
 int event_queue_empty (const struct event_queue *q);
 enum noblock_io_status event_send_noblock (int sock, struct event_queue *q);
 struct tag_ev_response *tag_ev_data_dup (const struct tag_ev_response *d);
+struct rating_ev_response *rating_ev_data_dup (const struct rating_ev_response *d);
 void free_tag_ev_data (struct tag_ev_response *d);
+void free_rating_ev_data (struct rating_ev_response *d);
 void free_move_ev_data (struct move_ev_data *m);
 struct move_ev_data *move_ev_data_dup (const struct move_ev_data *m);
 struct move_ev_data *recv_move_ev_data (int sock);
-
-#endif

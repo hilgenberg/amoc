@@ -134,8 +134,7 @@ struct decoder
 	 * \param tags_sel OR'ed list of requested tags (values of
 	 * enum tags_select).
 	 */
-	void (*info)(const char *file, struct file_tags *tags,
-			const int tags_sel);
+	void (*info)(const char *file, file_tags *tags, int tags_sel);
 
 	/** Get the current bitrate.
 	 *
@@ -274,7 +273,7 @@ char *file_type_name (const char *file);
  */
 void decoder_error (struct decoder_error *error,
 		const enum decoder_error_type type, const int add_errno,
-		const char *format, ...) ATTR_PRINTF(4, 5);
+		const char *format, ...);
 
 /** Clear decoder_error structure.
  *

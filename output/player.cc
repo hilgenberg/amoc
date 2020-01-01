@@ -18,11 +18,9 @@
 
 #include "../input/decoder.h"
 #include "audio.h"
-#include "out_buf.h"
 #include "../server/server.h"
 #include "player.h"
 #include "../files.h"
-#include "../playlist.h"
 
 #define PCM_BUF_SIZE		(36 * 1024)
 #define PREBUFFER_THRESHOLD	(18 * 1024)
@@ -85,7 +83,7 @@ static enum
 } tags_source;
 
 /* Tags of the currently played file. */
-static struct file_tags *curr_tags = NULL;
+static file_tags *curr_tags = NULL;
 
 /* Mutex for curr_tags and tags_source. */
 static pthread_mutex_t curr_tags_mtx = PTHREAD_MUTEX_INITIALIZER;
@@ -357,11 +355,12 @@ void player_init ()
 	precache.ok = 0;
 }
 
-static void show_tags (const struct file_tags *tags DEBUG_ONLY)
+static void show_tags (const file_tags *tags DEBUG_ONLY)
 {
-	debug ("TAG[title]: %s", tags->title ? tags->title : "N/A");
-	debug ("TAG[album]: %s", tags->album ? tags->album : "N/A");
-	debug ("TAG[artist]: %s", tags->artist ? tags->artist : "N/A");
+	assert(tags);
+	debug ("TAG[title]: %s", tags->title.empty() ? "N/A" :tags->title.c_str());
+	debug ("TAG[album]: %s", tags->album.empty() ? "N/A" :tags->album.c_str());
+	debug ("TAG[artist]: %s", tags->artist.empty() ? "N/A" :tags->artist.c_str());
 	debug ("TAG[track]: %d", tags->track);
 	debug ("TAG[track]: %d", tags->rating);
 }
@@ -372,28 +371,26 @@ static void update_tags (const struct decoder *f, void *decoder_data,
 {
 	char *stream_title = NULL;
 	int tags_changed = 0;
-	struct file_tags *new_tags;
-
-	new_tags = tags_new ();
+	file_tags new_tags;
 
 	LOCK (curr_tags_mtx);
-	if (f->current_tags && f->current_tags(decoder_data, new_tags)
-			&& new_tags->title) {
+	if (f->current_tags && f->current_tags(decoder_data, &new_tags)
+			&& !new_tags.title.empty()) {
 		tags_changed = 1;
-		tags_copy (curr_tags, new_tags);
+		delete curr_tags; curr_tags = new file_tags(new_tags);
 		logit ("Tags change from the decoder");
 		tags_source = TAGS_SOURCE_DECODER;
 		show_tags (curr_tags);
 	}
 	else if (s && (stream_title = io_get_metadata_title(s))) {
-		if (curr_tags && curr_tags->title
+		if (curr_tags && !curr_tags->title.empty()
 				&& tags_source == TAGS_SOURCE_DECODER) {
 			logit ("New IO stream tags, ignored because there are "
 					"decoder tags present");
 			free (stream_title);
 		}
 		else {
-			tags_clear (curr_tags);
+			delete curr_tags; curr_tags = new file_tags();
 			curr_tags->title = stream_title;
 			show_tags (curr_tags);
 			tags_changed = 1;
@@ -404,8 +401,6 @@ static void update_tags (const struct decoder *f, void *decoder_data,
 
 	if (tags_changed)
 		tags_change ();
-
-	tags_free (new_tags);
 
 	UNLOCK (curr_tags_mtx);
 }
@@ -439,7 +434,7 @@ static void decode_loop (const struct decoder *f, void *decoder_data,
 	out_buf_set_free_callback (out_buf, buf_free_cb);
 
 	LOCK (curr_tags_mtx);
-	curr_tags = tags_new ();
+	curr_tags = new file_tags ();
 	UNLOCK (curr_tags_mtx);
 
 	if (f->get_stream) {
@@ -506,7 +501,7 @@ static void decode_loop (const struct decoder *f, void *decoder_data,
 					|| (eof && out_buf_get_fill(out_buf))) {
 			debug ("waiting...");
 			if (eof && !precache.file && next_file
-					&& file_type(next_file) == F_SOUND
+					&& plist_item::ftype(next_file) == F_SOUND
 					&& options::AutoNext)
 				start_precache (&precache, next_file);
 			pthread_cond_wait (&request_cond, &request_cond_mtx);
@@ -587,10 +582,8 @@ static void decode_loop (const struct decoder *f, void *decoder_data,
 	bitrate_list_destroy (&bitrate_list);
 
 	LOCK (curr_tags_mtx);
-	if (curr_tags) {
-		tags_free (curr_tags);
-		curr_tags = NULL;
-	}
+	delete curr_tags;
+	curr_tags = NULL;
 	UNLOCK (curr_tags_mtx);
 
 	out_buf_wait (out_buf);
@@ -740,7 +733,7 @@ void player (const char *file, const char *next_file, struct out_buf *out_buf)
 {
 	struct decoder *f;
 
-	if (file_type(file) == F_URL) {
+	if (is_url(file)) {
 		status_msg ("Connecting...");
 
 		LOCK (decoder_stream_mtx);
@@ -883,13 +876,13 @@ void player_unpause ()
 
 /* Return tags for the currently played file or NULL if there are no tags.
  * Tags are duplicated. */
-struct file_tags *player_get_curr_tags ()
+file_tags* player_get_curr_tags ()
 {
-	struct file_tags *tags = NULL;
+	file_tags *tags = NULL;
 
 	LOCK (curr_tags_mtx);
 	if (curr_tags)
-		tags = tags_dup (curr_tags);
+		tags = new file_tags(*curr_tags);
 	UNLOCK (curr_tags_mtx);
 
 	return tags;

@@ -83,7 +83,7 @@ static struct {
 	-1
 };
 
-static struct tags_cache *tags_cache;
+static tags_cache *tc;
 
 extern char **environ;
 
@@ -180,7 +180,7 @@ static int add_client (int sock)
 			clients[i].requests_plist = 0;
 			clients[i].can_send_plist = 0;
 			clients[i].lock = 0;
-			tags_cache_clear_queue (tags_cache, i);
+			tc->clear_queue(i);
 			return 1;
 		}
 
@@ -249,7 +249,7 @@ static void del_client (struct client *cli)
 	cli->socket = -1;
 	LOCK (cli->events_mtx);
 	event_queue_free (&cli->events);
-	tags_cache_clear_queue (tags_cache, client_index(cli));
+	tc->clear_queue (client_index(cli));
 	UNLOCK (cli->events_mtx);
 }
 
@@ -374,8 +374,8 @@ void server_init (int debugging, int foreground)
 
 	clients_init ();
 	audio_initialize ();
-	tags_cache = tags_cache_new (options::TagsCacheSize);
-	tags_cache_load (tags_cache, create_file_name("cache"));
+	tc = new tags_cache();
+	tc->load (create_file_name("cache"));
 
 	server_tid = pthread_self ();
 	xsignal (SIGTERM, sig_exit);
@@ -435,127 +435,6 @@ static void add_event (struct client *cli, const int event, void *data)
 	UNLOCK (cli->events_mtx);
 }
 
-static void on_song_change ()
-{
-	static char *last_file = NULL;
-	static stringlist on_song_change;
-	static bool init = false;
-
-	int ix;
-	bool same_file, unpaused;
-	char *curr_file, **args;
-	struct file_tags *curr_tags;
-
-	/* We only need to do OnSongChange tokenisation once. */
-	if (!init) {
-		init = true;
-		on_song_change = split(options::OnSongChange);
-	}
-
-	if (on_song_change.empty())
-		return;
-
-	curr_file = audio_get_sname ();
-
-	if (curr_file == NULL)
-		return;
-
-	same_file = (last_file && !strcmp (last_file, curr_file));
-	unpaused = (audio_get_prev_state () == STATE_PAUSE);
-	if (same_file && (unpaused || !options::RepeatSongChange)) {
-		free (curr_file);
-		return;
-	}
-
-	curr_tags = tags_cache_get_immediate (tags_cache, curr_file,
-	                                      TAGS_COMMENTS | TAGS_TIME);
-	stringlist arg_list;
-	for (auto &arg : on_song_change)
-	{
-		if (arg[0] != '%')
-			arg_list.push_back(arg);
-		else if (!curr_tags)
-			arg_list.push_back("");
-		else {
-			switch (arg[1]) {
-			case 'a': arg_list.push_back(curr_tags->artist ? curr_tags->artist : ""); break;
-			case 'r': arg_list.push_back(curr_tags->album ? curr_tags->album : ""); break;
-			case 't': arg_list.push_back(curr_tags->title ? curr_tags->title : ""); break;
-			case 'n':
-				if (curr_tags->track >= 0)
-					arg_list.push_back(format("%d", curr_tags->track));
-				else
-					arg_list.push_back("");
-				break;
-			case 'f':
-				arg_list.push_back(curr_file);
-				break;
-			case 'D':
-				if (curr_tags->time >= 0)
-					arg_list.push_back(format("%d", curr_tags->time));
-				else
-					arg_list.push_back("");
-				break;
-			case 'd':
-				if (curr_tags->time >= 0) {
-					char *str = (char *) xmalloc (sizeof (char) * 12);
-					sec_to_min (str, curr_tags->time);
-					arg_list.push_back(str);
-					free(str);
-				}
-				else
-					arg_list.push_back("");
-				break;
-			default:
-				arg_list.push_back(arg);
-			}
-		}
-	}
-	tags_free (curr_tags);
-
-	switch (fork ()) {
-	case 0:
-		args = pack(arg_list);
-		execve (args[0], args, environ);
-		exit (EXIT_FAILURE);
-	case -1:
-		log_errno ("Failed to fork()", errno);
-	}
-
-	free (last_file);
-	last_file = curr_file;
-}
-
-/* Handle running external command on Stop event. */
-static void on_stop ()
-{
-	char *command;
-
-	command = xstrdup (options::OnStop.c_str());
-
-	if (command) {
-		char *args[2], *err;
-
-		args[0] = xstrdup (command);
-		args[1] = NULL;
-
-		switch (fork()) {
-			case 0:
-				execve (command, args, environ);
-				exit (EXIT_FAILURE);
-			case -1:
-				err = xstrerror (errno);
-				logit ("Error when running OnStop command '%s': %s",
-				        command, err);
-				free (err);
-				break;
-		}
-
-		free (command);
-		free (args[0]);
-	}
-}
-
 /* Return true iff 'event' is a playlist event. */
 static inline bool is_plist_event (const int event)
 {
@@ -577,17 +456,6 @@ static void add_event_all (const int event, const void *data)
 	int i;
 	int added = 0;
 
-	if (event == EV_STATE) {
-		switch (audio_get_state()) {
-			case STATE_PLAY:
-				on_song_change ();
-				break;
-			case STATE_STOP:
-				on_stop ();
-				break;
-		}
-	}
-
 	for (i = 0; i < CLIENTS_MAX; i++) {
 		void *data_copy = NULL;
 
@@ -598,25 +466,25 @@ static void add_event_all (const int event, const void *data)
 			continue;
 
 		if (data) {
-			if (event == EV_PLIST_ADD
-			 || event == EV_QUEUE_ADD) {
-				data_copy = plist_new_item ();
-				plist_item_copy ((plist_item*)data_copy, (plist_item*)data);
+			if (event == EV_PLIST_ADD) {
+				data_copy = new plist_item(*(plist_item*)data);
 			}
 			else if (event == EV_PLIST_DEL
-			      || event == EV_QUEUE_DEL
 			      || event == EV_STATUS_MSG
 			      || event == EV_SRV_ERROR) {
 				data_copy = xstrdup ((const char *)data);
 			}
-			else if (event == EV_PLIST_MOVE
-			      || event == EV_QUEUE_MOVE)
+			else if (event == EV_PLIST_MOVE)
 				data_copy = move_ev_data_dup (
 						(struct move_ev_data *)
 						data);
 			else if (event == EV_FILE_TAGS)
 				data_copy = tag_ev_data_dup (
 						(struct tag_ev_response *)
+						data);
+			else if (event == EV_FILE_RATING)
+				data_copy = rating_ev_data_dup (
+						(struct rating_ev_response *)
 						data);
 			else
 				logit ("Unhandled data!");
@@ -668,8 +536,7 @@ static void server_shutdown ()
 {
 	logit ("Server exiting...");
 	audio_exit ();
-	tags_cache_free (tags_cache);
-	tags_cache = NULL;
+	delete tc; tc = NULL;
 	unlink (socket_name());
 	unlink (create_file_name(PID_FILE));
 	close (wake_up_pipe[0]);
@@ -698,41 +565,6 @@ static int req_list_add (struct client *cli)
 	logit ("Adding '%s' to the list", file);
 
 	audio_plist_add (file);
-	free (file);
-
-	return 1;
-}
-
-/* Handle CMD_QUEUE_ADD, return 1 if ok or 0 on error. */
-static int req_queue_add (const struct client *cli)
-{
-	char *file;
-	struct plist_item *item;
-
-	file = get_str (cli->socket);
-	if (!file)
-		return 0;
-
-	logit ("Adding '%s' to the queue", file);
-
-	audio_queue_add (file);
-
-	/* Wrap the filename in struct plist_item.
-	 * We don't need tags, because the player gets them
-	 * when playing the file. This may change if there is
-	 * support for viewing/reordering the queue and here
-	 * is the place to read the tags and fill them into
-	 * the item. */
-
-	item = plist_new_item ();
-	item->file = xstrdup (file);
-	item->type = file_type (file);
-	item->mtime = get_mtime (file);
-
-	add_event_all (EV_QUEUE_ADD, item);
-
-	plist_free_item_fields (item);
-	free (item);
 	free (file);
 
 	return 1;
@@ -782,20 +614,16 @@ static int req_set_rating (struct client *cli)
 	
 	if (ratings_write_file (file, rating))
 	{
+		tc->ratings_changed(file, rating);
 
-		struct file_tags *tags;
-		struct tag_ev_response *data;
-
-		// TODO: is this enough?
-		tags = tags_cache_get_immediate (tags_cache, file, TAGS_RATING);
-
-		data = (struct tag_ev_response *)xmalloc (sizeof(struct tag_ev_response));
+		struct rating_ev_response *data;
+		data = (struct rating_ev_response *)xmalloc (sizeof(struct rating_ev_response));
 		data->file = file;
-		data->tags = tags;
+		data->rating = rating;
 
-		add_event_all (EV_FILE_TAGS, data);
+		add_event_all (EV_FILE_RATING, data);
 
-		free_tag_ev_data (data); /* frees file as well */
+		free_rating_ev_data (data); /* frees file as well */
 	}
 	else
 	{
@@ -839,12 +667,9 @@ static int req_jump_to (struct client *cli)
 			return 0;
 		}
 	
-		struct file_tags *tags;
-		tags = tags_cache_get_immediate (tags_cache, file, TAGS_TIME);
-		assert (tags && tags->filled & TAGS_TIME);
+		struct file_tags tags = tc->get_immediate (file);
 
-		sec = (tags->time * sec)/100;
-		tags_free (tags);
+		sec = (tags.time * sec)/100;
 		free (file);
 	}
 
@@ -899,22 +724,6 @@ static int delete_item (struct client *cli)
 
 	audio_plist_delete (file);
 	free (file);
-	return 1;
-}
-
-static int req_queue_del (const struct client *cli)
-{
-	char *file;
-
-	if (!(file = get_str(cli->socket)))
-		return 0;
-
-	debug ("Deleting '%s' from queue", file);
-
-	audio_queue_delete (file);
-	add_event_all (EV_QUEUE_DEL, file);
-	free (file);
-
 	return 1;
 }
 
@@ -978,7 +787,7 @@ static int req_send_plist (struct client *cli)
 {
 	int requesting = find_cli_requesting_plist ();
 	int send_fd;
-	struct plist_item *item;
+	plist_item *item;
 	int serial;
 
 	debug ("Client with fd %d wants to send its playlists", cli->socket);
@@ -1011,20 +820,18 @@ static int req_send_plist (struct client *cli)
 
 	/* Even if no clients are requesting the playlist, we must read it,
 	 * because there is no way to say that we don't need it. */
-	while ((item = recv_item(cli->socket)) && item->file[0]) {
+	while ((item = recv_item(cli->socket)) && !item->path.empty()) {
 		if (send_fd != -1 && !send_item(send_fd, item)) {
 			logit ("Error while sending item; disconnecting the client");
 			close (send_fd);
 			del_client (&clients[requesting]);
 			send_fd = -1;
 		}
-		plist_free_item_fields (item);
-		free (item);
+		delete item;
 	}
 
 	if (item) {
-		plist_free_item_fields (item);
-		free (item);
+		delete item;
 		logit ("Playlist sent");
 	}
 	else
@@ -1044,50 +851,6 @@ static int req_send_plist (struct client *cli)
 	return item ? 1 : 0;
 }
 
-/* Client requested we send the queue so we get it from audio.c and
- * send it to the client. */
-static int req_send_queue (struct client *cli)
-{
-	int i;
-	struct plist *queue;
-
-	logit ("Client with fd %d wants queue... sending it", cli->socket);
-
-	if (!send_int(cli->socket, EV_DATA)) {
-		logit ("Error while sending response; disconnecting the client");
-		close (cli->socket);
-		del_client (cli);
-		return 0;
-	}
-
-	queue = audio_queue_get_contents ();
-
-	for (i = 0; i < queue->num; i++)
-		if (!plist_deleted(queue, i)) {
-			if(!send_item(cli->socket, &queue->items[i])){
-				logit ("Error sending queue; disconnecting the client");
-				close (cli->socket);
-				del_client (cli);
-				free (queue);
-				return 0;
-			}
-		}
-
-	plist_free (queue);
-	free (queue);
-
-	if (!send_item (cli->socket, NULL)) {
-		logit ("Error while sending end of playlist mark; "
-		       "disconnecting the client");
-		close (cli->socket);
-		del_client (cli);
-		return 0;
-	}
-
-	logit ("Queue sent");
-	return 1;
-}
-
 /* Handle command that synchronises the playlists between interfaces
  * (except forwarding the whole list). Return 0 on error. */
 static int plist_sync_cmd (struct client *cli, const int cmd)
@@ -1103,8 +866,7 @@ static int plist_sync_cmd (struct client *cli, const int cmd)
 		}
 
 		add_event_all (EV_PLIST_ADD, item);
-		plist_free_item_fields (item);
-		free (item);
+		delete item;
 	}
 	else if (cmd == CMD_CLI_PLIST_DEL) {
 		char *file;
@@ -1218,9 +980,7 @@ static int req_get_tags (struct client *cli)
 		logit ("Error when sending tags");
 		res = 0;
 	}
-
-	if (tags)
-		tags_free (tags);
+	delete tags;
 
 	return res;
 }
@@ -1326,16 +1086,11 @@ void req_toggle_make_mono()
 static int get_file_tags (const int cli_id)
 {
 	char *file;
-	int tags_sel;
 
 	if (!(file = get_str(clients[cli_id].socket)))
 		return 0;
-	if (!get_int(clients[cli_id].socket, &tags_sel)) {
-		free (file);
-		return 0;
-	}
 
-	tags_cache_add_request (tags_cache, file, tags_sel, cli_id);
+	tc->add_request (file, cli_id);
 	free (file);
 
 	return 1;
@@ -1348,7 +1103,7 @@ static int abort_tags_requests (const int cli_id)
 	if (!(file = get_str(clients[cli_id].socket)))
 		return 0;
 
-	tags_cache_clear_up_to (tags_cache, file, cli_id);
+	tc->clear_up_to (file, cli_id);
 	free (file);
 
 	return 1;
@@ -1371,31 +1126,6 @@ static int req_list_move (struct client *cli)
 
 	free (from);
 	free (to);
-
-	return 1;
-}
-
-/* Handle CMD_QUEUE_MOVE. Return 0 on error. */
-static int req_queue_move (const struct client *cli)
-{
-	struct move_ev_data m;
-
-	if (!(m.from = get_str(cli->socket)))
-		return 0;
-	if (!(m.to = get_str(cli->socket))) {
-		free (m.from);
-		return 0;
-	}
-
-	audio_queue_move (m.from, m.to);
-
-	logit ("Swapping %s with %s in the queue", m.from, m.to);
-
-	/* Broadcast the event to clients */
-	add_event_all (EV_QUEUE_MOVE, &m);
-
-	free (m.from);
-	free (m.to);
 
 	return 1;
 }
@@ -1642,27 +1372,6 @@ static void handle_command (const int client_id)
 		case CMD_TOGGLE_MAKE_MONO:
 			req_toggle_make_mono();
 			break;
-		case CMD_QUEUE_ADD:
-			if (!req_queue_add(cli))
-				err = 1;
-			break;
-		case CMD_QUEUE_DEL:
-			if (!req_queue_del(cli))
-				err = 1;
-			break;
-		case CMD_QUEUE_CLEAR:
-			logit ("Clearing the queue");
-			audio_queue_clear ();
-			add_event_all (EV_QUEUE_CLEAR, NULL);
-			break;
-		case CMD_QUEUE_MOVE:
-			if (!req_queue_move(cli))
-				err = 1;
-			break;
-		case CMD_GET_QUEUE:
-			if (!req_send_queue(cli))
-				err = 1;
-			break;
 		case CMD_SET_RATING:
 			if (!req_set_rating(cli))
 				err = 1;
@@ -1868,7 +1577,7 @@ void tags_response (const int client_id, const char *file,
 					sizeof(struct tag_ev_response));
 
 		data->file = xstrdup (file);
-		data->tags = tags_dup (tags);
+		data->tags = (tags ? new file_tags(*tags) : NULL);
 
 		add_event (&clients[client_id], EV_FILE_TAGS, data);
 		wake_up_server ();
@@ -1883,15 +1592,4 @@ void ev_audio_start ()
 void ev_audio_stop ()
 {
 	add_event_all (EV_AUDIO_STOP, NULL);
-}
-
-/* Announce to clients that first file from the queue is being played
- * and therefore needs to be removed from it */
-/* XXX: this function is called from player thread and add_event_all
- *      imho doesn't properly lock all shared variables -- possible
- *      race condition??? */
-void server_queue_pop (const char *filename)
-{
-	debug ("Queue pop -- broadcasting EV_QUEUE_DEL");
-	add_event_all (EV_QUEUE_DEL, filename);
 }

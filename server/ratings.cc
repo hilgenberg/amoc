@@ -13,9 +13,7 @@
 #include <string.h>
 #include <assert.h>
 
-#include "../playlist.h"
-#include "../client/interface.h" /* for user_wants_interrupt() */
-#include "server.h" /* for server_error */
+#include "server.h" /* for server_error in write method */
 
 /* Ratings files should contain lines in this format:
  * [0-5] <filename>\n
@@ -181,9 +179,9 @@ static FILE *open_ratings_file (const char *fn, const char *mode)
 }
 
 /* read rating for a file into file_tags */
-void ratings_read_file (const char *fn, struct file_tags *tags)
+int ratings_read_file (const char *fn)
 {
-	assert(fn && tags);
+	assert(fn);
 
 	int rating = 0;
 
@@ -204,8 +202,7 @@ void ratings_read_file (const char *fn, struct file_tags *tags)
 	}
 
 	/* store the rating */
-	tags->rating = rating;
-	tags->filled |= TAGS_RATING;
+	return rating;
 }
 
 /* update ratings file for given file path and rating */

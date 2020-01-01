@@ -2,6 +2,9 @@
 #define AUDIO_H
 
 #include <stdlib.h>
+#include "../playlist.h"
+
+// TODO: use indices a lot more and support the same file being in a playlist more than once
 
 /** Sound formats.
  *
@@ -244,19 +247,13 @@ char *audio_get_sname ();
 void audio_set_mixer (const int val);
 int audio_get_mixer ();
 void audio_plist_delete (const char *file);
-int audio_get_ftime (const char *file);
 void audio_plist_set_time (const char *file, const int time);
 void audio_state_started_playing ();
 int audio_plist_get_serial ();
 void audio_plist_set_serial (const int serial);
-struct file_tags *audio_get_curr_tags ();
+file_tags* audio_get_curr_tags ();
 char *audio_get_mixer_channel_name ();
 void audio_toggle_mixer_channel ();
 void audio_plist_move (const char *file1, const char *file2);
-void audio_queue_add (const char *file);
-void audio_queue_delete (const char *file);
-void audio_queue_clear ();
-void audio_queue_move (const char *file1, const char *file2);
-struct plist* audio_queue_get_contents ();
 
 #endif

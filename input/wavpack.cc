@@ -160,25 +160,27 @@ static void wav_info (const char *file_name, struct file_tags *info,
 
 	if(tags_sel & TAGS_COMMENTS) {
 		if ((tag_len = WavpackGetTagItem (wpc, "title", NULL, 0)) > 0) {
-			info->title = (char *)xmalloc (++tag_len);
-			WavpackGetTagItem (wpc, "title", info->title, tag_len);
+			std::vector<char> buf(++tag_len); char *s = (char*)buf.data();
+			WavpackGetTagItem (wpc, "title", s, tag_len);
+			info->title = s;
 		}
 
 		if ((tag_len = WavpackGetTagItem (wpc, "artist", NULL, 0)) > 0) {
-			info->artist = (char *)xmalloc (++tag_len);
-			WavpackGetTagItem (wpc, "artist", info->artist, tag_len);
+			std::vector<char> buf(++tag_len); char *s = (char*)buf.data();
+			WavpackGetTagItem (wpc, "artist", s, tag_len);
+			info->artist = s;
 		}
 
 		if ((tag_len = WavpackGetTagItem (wpc, "album", NULL, 0)) > 0) {
-			info->album = (char *)xmalloc (++tag_len);
-			WavpackGetTagItem (wpc, "album", info->album, tag_len);
+			std::vector<char> buf(++tag_len); char *s = (char*)buf.data();
+			WavpackGetTagItem (wpc, "album", s, tag_len);
+			info->album = s;
 		}
 
 		if ((tag_len = WavpackGetTagItem (wpc, "track", NULL, 0)) > 0) {
-			tag = (char *)xmalloc (++tag_len);
-			WavpackGetTagItem (wpc, "track", tag, tag_len);
-			info->track = atoi (tag);
-			free (tag);
+			std::vector<char> buf(++tag_len); char *s = (char*)buf.data();
+			WavpackGetTagItem (wpc, "track", s, tag_len);
+			info->track = atoi (s);
 		}
 
 		info->filled |= TAGS_COMMENTS;

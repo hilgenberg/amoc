@@ -31,7 +31,7 @@
 #endif
 
 void internal_logit (const char *file, const int line, const char *function,
-		const char *format, ...) ATTR_PRINTF(4, 5);
+		const char *format, ...);
 
 #ifndef NDEBUG
 # define LOGIT_ONLY

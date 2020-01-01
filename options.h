@@ -73,7 +73,6 @@ namespace options
 	extern int  ForceSampleRate;
 	extern bool Allow24bitOutput;
 	extern bool UseRealtimePriority;
-	extern int  TagsCacheSize;
 	extern bool PlaylistNumbering;
 
 	extern bool FollowPlayedFile;
