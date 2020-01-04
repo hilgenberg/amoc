@@ -40,13 +40,13 @@ private:
 	void get_server_options();
 	int get_server_plist_serial();
 	int get_mixer_value();
-	int get_state();
 	int get_channels();
 	int get_rate();
 	int get_bitrate();
 	int get_avg_bitrate();
 	int get_curr_time();
 	str get_curr_file();
+	PlayState get_state();
 	void update_mixer_name();
 	
 	void set_cwd(const str &path);

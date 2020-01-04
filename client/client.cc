@@ -91,13 +91,13 @@ void Client::get_server_options ()
 
 int Client::get_server_plist_serial() { srv.send(CMD_PLIST_GET_SERIAL); return get_data_int (); }
 int Client::get_mixer_value() { srv.send(CMD_GET_MIXER); return get_data_int (); }
-int Client::get_state() { srv.send(CMD_GET_STATE); return get_data_int (); }
 int Client::get_channels() { srv.send(CMD_GET_CHANNELS); return get_data_int (); }
 int Client::get_rate() { srv.send(CMD_GET_RATE); return get_data_int (); }
 int Client::get_bitrate() { srv.send(CMD_GET_BITRATE); return get_data_int (); }
 int Client::get_avg_bitrate() { srv.send(CMD_GET_AVG_BITRATE); return get_data_int (); }
 int Client::get_curr_time() { srv.send(CMD_GET_CTIME); return get_data_int (); }
 str Client::get_curr_file() { srv.send(CMD_GET_SNAME); return get_data_str (); }
+PlayState Client::get_state() { srv.send(CMD_GET_STATE); return (PlayState)get_data_int (); }
 void Client::update_mixer_name ()
 {
 	srv.send(CMD_GET_MIXER_CHANNEL_NAME);
@@ -194,8 +194,8 @@ void Client::update_curr_tags ()
 /* Get and show the server state. */
 void Client::update_state ()
 {
-	int old_state = iface->get_state();
-	int new_state = get_state ();
+	auto old_state = iface->get_state();
+	auto new_state = get_state ();
 	iface->update_state(new_state);
 
 	/* Silent seeking makes no sense if the state has changed. */

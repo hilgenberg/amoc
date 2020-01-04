@@ -7,7 +7,7 @@
 #define EV_CTIME	0x02 /* current time of the song has changed */
 #define EV_SRV_ERROR	0x04 /* an error occurred */
 #define EV_BUSY		0x05 /* too many clients are connected to the server */
-#define EV_DATA		0x06 /* data in response to a request will arrive */
+#define EV_DATA		0x06 /* data in response to a request follows */
 #define EV_BITRATE	0x07 /* the bitrate has changed */
 #define EV_RATE		0x08 /* the rate has changed */
 #define EV_CHANNELS	0x09 /* the number of channels has changed */
@@ -29,12 +29,7 @@
 #define EV_PLIST_ADD	0x50 /* add an item, followed by the file name */
 #define EV_PLIST_DEL	0x51 /* delete an item, followed by the file name */
 #define EV_PLIST_MOVE	0x52 /* move an item, followed by 2 file names */
-#define EV_PLIST_CLEAR	0x53 /* clear the playlist */
-
-/* State of the server. */
-#define STATE_PLAY	0x01
-#define STATE_STOP	0x02
-#define STATE_PAUSE	0x03
+#define EV_PLIST_CLEAR	0x53 /* replace the playlist */
 
 /* Definition of server commands. */
 #define CMD_PLAY	0x00 /* play the first element on the list */

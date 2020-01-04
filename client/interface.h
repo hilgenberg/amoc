@@ -10,6 +10,7 @@
 #include "../playlist.h"
 #include "menu.h"
 #include "Rect.h"
+#include "../server/server.h" // PlayState
 class Client;
 class plist;
 
@@ -51,7 +52,7 @@ public:
 	UPD(int, curr_time)
 	UPD(int, total_time)
 	UPD(int, channels)
-	UPD(int, state)
+	UPD(PlayState, state)
 	UPD(str, mixer_name)
 	UPD(int, mixer_value)
 	#undef UPD
@@ -65,7 +66,7 @@ private:
 	int rate;		  // in kHz
 	int curr_time, total_time;
 	int channels;
-	int state; // STATE_(PLAY | STOP | PAUSE)
+	PlayState state; // STATE_(PLAY | STOP | PAUSE)
 	str mixer_name;
 	int mixer_value;
 

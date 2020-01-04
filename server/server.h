@@ -5,6 +5,13 @@
 
 #define CLIENTS_MAX 3
 
+enum PlayState : int
+{
+	STATE_PLAY,
+	STATE_STOP,
+	STATE_PAUSE
+};
+
 void server_init (int debug, int foreground);
 void server_loop ();
 void server_error (const char *file, int line, const char *function,
