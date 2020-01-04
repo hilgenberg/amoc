@@ -9,10 +9,6 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -106,8 +102,11 @@ static void locked_logit (const char *file, const int line,
 	strftime (time_str, sizeof (time_str), "%b %e %T", &tm_time);
 
 	if (logfp) {
-		fprintf (logfp, fmt, time_str, utc_time.tv_nsec / 1000L,
+		
+		fprintf (logfp, "%s:%d %s(): %s\n", 
 		                     file, line, function, msg);
+
+		//fprintf (logfp, fmt, time_str, utc_time.tv_nsec / 1000L, file, line, function, msg);
 	}
 	else if (logging_state == BUFFERING)
 		buffered_log.push_back(

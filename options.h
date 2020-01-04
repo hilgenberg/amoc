@@ -18,6 +18,7 @@ namespace options
 	extern bool Repeat;
 	extern bool Shuffle;
 	extern bool AutoNext;
+	extern bool ASCIILines;
 	//str  ("FormatString", "%(n:%n :)%(a:%a - :)%(t:%t:)%(A: \\(%A\\):)", CHECK_NONE);
 	extern int InputBuffer;
 	extern int OutputBuffer;

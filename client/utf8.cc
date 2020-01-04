@@ -12,6 +12,8 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+#define WIDTH_MAX 2048*1024
+
 #ifdef HAVE_ICONV
 # include <iconv.h>
 #endif
@@ -30,6 +32,7 @@
 
 #include "utf8.h"
 #include "../rcc.h"
+#include "themes.h"
 
 static char *terminal_charset = NULL;
 static int using_utf8 = 0;
@@ -298,6 +301,58 @@ int xwprintw (WINDOW *win, const char *fmt, ...)
 	return res;
 }
 
+void xwprintfield(WINDOW *win, const str &s, int W, char ellipsis)
+{
+	int w = strwidth(s);
+	if (w <= W)
+	{
+		xwaddstr(win, s.c_str());
+		while (w++ < W) waddch (win, ' ');
+		return;
+	}
+	
+	if (W < 3)
+	{
+		xwaddnstr(win, s.c_str(), W);
+		return;
+	}
+
+	switch (ellipsis)
+	{
+		case 'r':
+			xwaddnstr(win, s.c_str(), W-3);
+			xwaddstr(win, "...");
+			break;
+		case 'l':
+		{
+			char *t = xstrtail(s.c_str(), W-3);
+			xwaddstr(win, "...");
+			xwaddstr(win, t);
+			free(t);
+			break;
+		}
+		case 'm':
+		{
+			int l = (W-3)/2;
+			xwaddnstr(win, s.c_str(), l);
+			xwaddstr(win, "...");
+			char *t = xstrtail(s.c_str(), W-3-l);
+			xwaddstr(win, t);
+			free(t);
+			break;
+		}
+		default: assert(false);
+	}
+}
+
+void clear_area (WINDOW *win, const Rect &r)
+{
+	str line = spaces(r.w);
+	wattrset (win, get_color(CLR_BACKGROUND));
+	for (int i = 0; i < r.h; ++i)
+		xmvwaddstr(win, r.y+i, r.x, line.c_str());
+}
+
 static void iconv_cleanup ()
 {
 	if (iconv_desc != (iconv_t)(-1)
@@ -344,19 +399,68 @@ void utf8_cleanup ()
 /* Return the number of columns the string occupies when displayed. */
 size_t strwidth (const char *s)
 {
-	wchar_t *ucs;
-	size_t size;
-	size_t width;
-
 	assert (s != NULL);
 
-	size = xmbstowcs (NULL, s, -1, NULL) + 1;
-	ucs = (wchar_t *)xmalloc (sizeof(wchar_t) * size);
+	size_t size = xmbstowcs (NULL, s, -1, NULL) + 1;
+	wchar_t *ucs = (wchar_t *)xmalloc (sizeof(wchar_t) * size);
 	xmbstowcs (ucs, s, size, NULL);
-	width = wcswidth (ucs, WIDTH_MAX);
+	size_t width = wcswidth (ucs, WIDTH_MAX);
 	free (ucs);
 
 	return width;
+}
+size_t strwidth (const str &s)
+{
+	size_t size = xmbstowcs (NULL, s.c_str(), -1, NULL) + 1;
+	std::vector<wchar_t> ucs(size);
+	xmbstowcs (ucs.data(), s.c_str(), size, NULL);
+	return wcswidth (ucs.data(), WIDTH_MAX);
+}
+
+void strdel(str &s, int i, int n)
+{
+	if (i < 0) { n += i; i = 0; }
+	if (n <= 0) return;
+
+	size_t size = xmbstowcs (NULL, s.c_str(), -1, NULL) + 1;
+	std::vector<wchar_t> ucs(size);
+	xmbstowcs (ucs.data(), s.c_str(), size, NULL);
+	int N = wcswidth (ucs.data(), WIDTH_MAX);
+	if (i >= N) return;
+	if (i + n > N) n = N-i;
+	if (n <= 0) return;
+
+	// TODO - horrible hack for now
+	int k = 0; // initial part to keep
+	if (i > 0) while (wcswidth(ucs.data()+k, WIDTH_MAX) > N-i) ++k;
+	int l = k+1; while (wcswidth(ucs.data()+l, WIDTH_MAX) > N-i-n) ++l;
+	ucs.erase(ucs.begin()+k, ucs.begin()+l);
+	wcstombs((char*)s.data(), ucs.data(), s.length()+1);
+}
+int strins(str &s, int i, wchar_t c)
+{
+	size_t size = xmbstowcs (NULL, s.c_str(), -1, NULL) + 1;
+	std::vector<wchar_t> ucs(size);
+	xmbstowcs (ucs.data(), s.c_str(), size, NULL);
+	int N = wcswidth (ucs.data(), WIDTH_MAX);
+	if (i >= N)
+	{
+		ucs.push_back(c);
+	}
+	else if (i <= 0)
+	{
+		ucs.insert(ucs.begin(), c);
+	}
+	else
+	{
+		int k = 0; // initial part to keep
+		while (wcswidth(ucs.data()+k, WIDTH_MAX) > N-i) ++k;
+		ucs.insert(ucs.begin()+k, c);
+	}
+	s.resize(s.length() + 16); // TODO
+	wcstombs((char*)s.data(), ucs.data(), s.length());
+	s.shrink_to_fit();
+	return wcwidth(c);
 }
 
 /* Return a malloc()ed string containing the tail of 'str' up to a
@@ -390,4 +494,11 @@ char *xstrtail (const char *str, const int len)
 	free (ucs);
 
 	return tail;
+}
+
+str xstrtail (const str &s, int len)
+{
+	char *t = xstrtail(s.c_str(), len);
+	str tt(t); free(t);
+	return tt;
 }

@@ -110,7 +110,7 @@ enum key_context
 #define CTRL_KEY_CODE	0x1F
 
 struct iface_key;
-enum key_cmd get_key_cmd (const enum key_context context, const struct iface_key *key);
+enum key_cmd get_key_cmd (const enum key_context context, wchar_t c, int f); // c: regular key, f: Fkey, arrow, ...
 void keys_init ();
 
 #endif

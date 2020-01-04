@@ -1,10 +1,8 @@
-#ifndef MENU_H
-#define MENU_H
+#pragma once
 
-# include <ncurses.h>
-#include "../files.h"
-#include "../rbtree.h"
+#include <ncurses.h>
 #include "../playlist.h"
+#include "Rect.h"
 
 enum menu_request
 {
@@ -16,124 +14,70 @@ enum menu_request
 	REQ_BOTTOM
 };
 
-enum menu_align
-{
-	MENU_ALIGN_RIGHT,
-	MENU_ALIGN_LEFT
-};
-
-#define FILE_TIME_STR_SZ        6
-#define FILE_RATING_STR_SZ     20
-#define FILE_FORMAT_SZ          4
-
-struct menu_item
-{
-	char *title;		/* Title of the item */
-	enum menu_align align;	/* Align of the title */
-	int num;		/* Position of the item starting from 0. */
-
-	/* Curses attributes in different states: */
-	int attr_normal;
-	int attr_sel;
-	int attr_marked;
-	int attr_sel_marked;
-
-	/* Associated file: */
-	char *file;
-	enum file_type type;
-
-	/* Additional information shown: */
-	char time[FILE_TIME_STR_SZ];		/* File time string */
-	char rating[FILE_RATING_STR_SZ];	/* File rating string */
-	char format[FILE_FORMAT_SZ];		/* File format */
-
-	struct menu_item *next;
-	struct menu_item *prev;
-};
+class Interface;
 
 struct menu
 {
-	WINDOW *win;
-	struct menu_item *items;
-	int nitems;		/* number of present items */
-	struct menu_item *top;	/* first visible item */
-	struct menu_item *last;	/* last item in the menu */
+	// c'tor gets  called before the interface is running!
+	menu(Interface *iface, plist &items) : iface(iface), items(items), top(0), sel(-1), mark(-1) {}
 
-	/* position and size */
-	int posx;
-	int posy;
-	int width;
-	int height;
+	void draw(bool active) const; // no frame, draws just the inside
 
-	struct menu_item *selected;	/* selected item */
-	struct menu_item *marked;	/* index of the marked item or -1 */
+	void move(menu_request req) // move selection
+	{
+		const int N = items.size();
+		if (!N) return;
+		if (sel < 0 && mark >= 0 && mark < N) sel = mark;
+		switch (req)
+		{
+			case REQ_UP:     sel = (sel < 0 ? N-1 : sel - 1); break;
+			case REQ_DOWN:   sel = (sel < 0 ? 0 : sel + 1); break;
+			case REQ_PGUP:   sel = (sel < 0 ? N-1 : sel) - (bounds.h - 1); break;
+			case REQ_PGDOWN: sel = (sel < 0 ? 0 : sel) + (bounds.h - 1); break;
+			case REQ_TOP:    sel = 0; break;
+			case REQ_BOTTOM: sel = N-1; break;
+		}
+		if (sel <  0) sel = 0;
+		if (sel >= N) sel = N-1;
+		make_visible(sel);
+	}
 
-	/* Flags for displaying information about the file. */
-	int show_time;
-	bool show_rating;
-	bool show_format;
+	plist_item *current_item () const // selected (or marked if none) item
+	{
+		const auto N = items.size();
+		if (sel >= 0 && sel < N) return items.items[sel].get();
+		if (mark >= 0 && mark < N) return items.items[mark].get();
+		return NULL;
+	}
+	bool mark_path(const str &f); // or unmark if not found
+	bool select_path(const str &f); // leave selection as is if not found
 
-	int info_attr_normal;	/* attributes for information about the file */
-	int info_attr_sel;
-	int info_attr_marked;
-	int info_attr_sel_marked;
-	int number_items; /* display item number (position) */
+	void update() // call after resize or when number/position of items change
+	{
+		const int N = items.size();
+		if (!N)
+		{
+			top = 0; sel = mark = -1;
+			return;
+		}
+		if (top + bounds.h > N) top = std::max(0, N - bounds.h);
 
-	struct rb_tree *search_tree; /* RB tree for searching by file name */
+		if (sel >= N) sel = N-1;
+		make_visible(sel);
+	}
+
+	bool item_visible (int i) const { return i >= top && i < top + bounds.h; };
+	void make_visible (int i)
+	{
+		if (i < 0) return;
+		int N = items.size();
+		if (i < top) top = i;
+		if (i >= top + bounds.h) top = i - bounds.h;
+	}
+
+	Interface *iface;
+	plist  &items;
+	Rect    bounds;
+	int     top; // first visible item
+	int     sel, mark; // selected and marked items, -1 if none
 };
-
-/* Menu state: relative (to the first item) positions of the top and selected
- * items. */
-struct menu_state
-{
-	int top_item;
-	int selected_item;
-};
-
-struct menu *menu_new (WINDOW *win, const int posx, const int posy,
-		const int width, const int height);
-struct menu_item *menu_add (struct menu *menu, const plist_item &item);
-void menu_item_update (struct menu_item *mi, const plist_item &item);
-
-void menu_item_set_attr_normal (struct menu_item *mi, const int attr);
-void menu_item_set_attr_sel (struct menu_item *mi, const int attr);
-void menu_item_set_attr_sel_marked (struct menu_item *mi, const int attr);
-void menu_item_set_attr_marked (struct menu_item *mi, const int attr);
-
-void menu_item_set_time (struct menu_item *mi, const char *time);
-void menu_item_set_rating (struct menu_item *mi, const char *rating);
-void menu_item_set_format (struct menu_item *mi, const char *format);
-
-void menu_free (struct menu *menu);
-void menu_driver (struct menu *menu, const enum menu_request req);
-void menu_setcurritem_title (struct menu *menu, const char *title);
-void menu_setcurritem_file (struct menu *menu, const char *file);
-void menu_draw (const struct menu *menu, const int active);
-void menu_mark_item (struct menu *menu, const char *file);
-void menu_set_state (struct menu *menu, const struct menu_state *st);
-void menu_get_state (const struct menu *menu, struct menu_state *st);
-void menu_update_size (struct menu *menu, const int posx, const int posy,
-		const int width, const int height);
-void menu_unmark_item (struct menu *menu);
-void menu_set_show_time (struct menu *menu, const int t);
-void menu_set_show_rating (struct menu *menu, const bool t);
-void menu_set_show_format (struct menu *menu, const bool t);
-void menu_set_info_attr_normal (struct menu *menu, const int attr);
-void menu_set_info_attr_sel (struct menu *menu, const int attr);
-void menu_set_info_attr_marked (struct menu *menu, const int attr);
-void menu_set_info_attr_sel_marked (struct menu *menu, const int attr);
-void menu_set_items_numbering (struct menu *menu, const int number);
-enum file_type menu_item_get_type (const struct menu_item *mi);
-char *menu_item_get_file (const struct menu_item *mi);
-struct menu_item *menu_curritem (struct menu *menu);
-void menu_item_set_title (struct menu_item *mi, const char *title);
-int menu_nitems (const struct menu *menu);
-struct menu_item *menu_find (struct menu *menu, const char *fname);
-void menu_del_item (struct menu *menu, const char *fname);
-void menu_item_set_align (struct menu_item *mi, const enum menu_align align);
-int menu_is_visible (const struct menu *menu, const struct menu_item *mi);
-void menu_swap_items (struct menu *menu, const char *file1, const char *file2);
-void menu_make_visible (struct menu *menu, const char *file);
-void menu_set_cursor (const struct menu *m);
-
-#endif

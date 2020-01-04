@@ -18,7 +18,6 @@
 
 #include "keys.h"
 #include "interface.h"
-#include "interface_elements.h"
 #include "../files.h"
 
 /* ^c version of c */
@@ -603,13 +602,12 @@ static struct special_keys
 #define COMMANDS_NUM		(ARRAY_SIZE(commands))
 #define SPECIAL_KEYS_NUM	(ARRAY_SIZE(special_keys))
 
-enum key_cmd get_key_cmd (const enum key_context context,
-                          const struct iface_key *key)
+enum key_cmd get_key_cmd (const enum key_context context, wchar_t c, int f)
 {
 	int k;
 	size_t i;
 
-	k = (key->type == IFACE_KEY_CHAR) ? key->key.ucs : key->key.func;
+	k = (c ? (int)c : f);
 
 	for (i = 0; i < COMMANDS_NUM; i += 1) {
 		if (commands[i].context == context) {

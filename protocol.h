@@ -2,61 +2,18 @@
 
 #include "playlist.h"
 
-struct event
-{
-	int type;	/* type of the event (one of EV_*) */
-	void *data;	/* optional data associated with the event */
-	struct event *next;
-};
-
-struct event_queue
-{
-	struct event *head;
-	struct event *tail;
-};
-
-/* Used as data field in the event queue for EV_FILE_TAGS. */
-struct tag_ev_response
-{
-	char *file;
-	file_tags *tags;
-};
-
-/* Used as data field in the event queue for EV_FILE_RATING. */
-struct rating_ev_response
-{
-	char *file;
-	int rating;
-};
-
-/* Used as data field in the event queue for EV_PLIST_MOVE. */
-struct move_ev_data
-{
-	/* Two files that are to be exchanged. */
-	char *from;
-	char *to;
-};
-
-/* Status of nonblock sending/receiving function. */
-enum noblock_io_status
-{
-	NB_IO_OK,
-	NB_IO_BLOCK,
-	NB_IO_ERR
-};
-
 /* Definition of events sent by server to the client. */
-#define EV_STATE	0x01 /* server has changed the state */
+#define EV_STATE	0x01 /* server has changed the play/pause/stopped state */
 #define EV_CTIME	0x02 /* current time of the song has changed */
 #define EV_SRV_ERROR	0x04 /* an error occurred */
-#define EV_BUSY		0x05 /* another client is connected to the server */
+#define EV_BUSY		0x05 /* too many clients are connected to the server */
 #define EV_DATA		0x06 /* data in response to a request will arrive */
 #define EV_BITRATE	0x07 /* the bitrate has changed */
 #define EV_RATE		0x08 /* the rate has changed */
 #define EV_CHANNELS	0x09 /* the number of channels has changed */
 #define EV_EXIT		0x0a /* the server is about to exit */
 #define EV_PONG		0x0b /* response for CMD_PING */
-#define EV_OPTIONS	0x0c /* the options has changed */
+#define EV_OPTIONS	0x0c /* the options (repeat, shuffle, autonext) have changed */
 #define EV_SEND_PLIST	0x0d /* request for sending the playlist */
 #define EV_TAGS		0x0e /* tags for the current file have changed */
 #define EV_STATUS_MSG	0x0f /* followed by a status message */
@@ -137,38 +94,81 @@ enum noblock_io_status
 #define CMD_JUMP_TO	0x3a /* jumps to a some position in the current stream */
 #define CMD_SET_RATING	0x40 /* change rating for a file */
 
-#define CMD_GET_OPTION_SHUFFLE	0x50
-#define CMD_SET_OPTION_SHUFFLE	0x51
-#define CMD_GET_OPTION_REPEAT	0x52
-#define CMD_SET_OPTION_REPEAT	0x53
-#define CMD_GET_OPTION_AUTONEXT	0x54
-#define CMD_SET_OPTION_AUTONEXT	0x55
+#define CMD_GET_OPTION_SHUFFLE	0x60
+#define CMD_SET_OPTION_SHUFFLE	0x61
+#define CMD_GET_OPTION_REPEAT	0x62
+#define CMD_SET_OPTION_REPEAT	0x63
+#define CMD_GET_OPTION_AUTONEXT	0x64
+#define CMD_SET_OPTION_AUTONEXT	0x65
 
 char *socket_name ();
-int get_int (int sock, int *i);
-enum noblock_io_status get_int_noblock (int sock, int *i);
-int send_int (int sock, int i);
-char *get_str (int sock);
-int send_str (int sock, const char *str);
-int get_time (int sock, time_t *i);
-int send_time (int sock, time_t i);
-int send_item (int sock, const plist_item *item);
-plist_item *recv_item (int sock);
-file_tags *recv_tags (int sock);
-int send_tags (int sock, const file_tags *tags);
 
-void event_queue_init (struct event_queue *q);
-void event_queue_free (struct event_queue *q);
-void free_event_data (const int type, void *data);
-struct event *event_get_first (struct event_queue *q);
-void event_pop (struct event_queue *q);
-void event_push (struct event_queue *q, const int event, void *data);
-int event_queue_empty (const struct event_queue *q);
-enum noblock_io_status event_send_noblock (int sock, struct event_queue *q);
-struct tag_ev_response *tag_ev_data_dup (const struct tag_ev_response *d);
-struct rating_ev_response *rating_ev_data_dup (const struct rating_ev_response *d);
-void free_tag_ev_data (struct tag_ev_response *d);
-void free_rating_ev_data (struct rating_ev_response *d);
-void free_move_ev_data (struct move_ev_data *m);
-struct move_ev_data *move_ev_data_dup (const struct move_ev_data *m);
-struct move_ev_data *recv_move_ev_data (int sock);
+
+class Socket
+{
+public:
+	Socket(int sock, bool fatal_errors) : s(sock), f(fatal_errors), buffering(0)
+	{ assert(sock >= 0); }
+
+	int fd() const { return s; }
+
+	void buffer() { ++buffering; }
+	bool flush(); // send everything that was buffered
+	bool is_buffering() const { return buffering; }
+
+	void packet(int type)
+	{
+		logit ("packaging %X", type);
+		assert(!buffering); buffer(); send(type); }
+	void finish()
+	{
+		assert(buffering == 1);
+		if (!buf.empty())
+		{
+			packets.emplace(std::move(buf));
+			buf.clear();
+		}
+		buffering = 0;
+	}
+	int send_next_packet_noblock(); // 0:error, 1:packet sent, -1:would block
+	std::queue<std::vector<char>> packets;
+
+	template<typename T> bool send(T* x) { return send((const T*)x); }
+
+	template<typename T> bool send(const T x) {
+		static_assert(std::is_integral<T>::value, "Integral required.");
+		logit("sending %d = 0x%X", (int)x, (int)x);
+		return send(&x, sizeof(T)); }
+	bool send(const str &s) { return send((size_t)s.length()) && send(s.data(), s.length()); }
+	bool send(const char *s) { size_t n = s ? strlen(s) : 0; return send(n) && send(s, n); }
+	bool send(const plist_item *i) { return send(i ? i->path : str()); }
+	bool send(const plist &pl) { for (auto &i : pl.items) if (!send(CMD_CLI_PLIST_ADD) || !send(i.get())) return false; return true; }
+	bool send(const file_tags *tags);
+
+	template<typename T> bool get(T &x) {
+		static_assert(std::is_integral<T>::value, "Integral required.");
+		bool ok =read(&x, sizeof(T));
+		logit("getting %d = 0x%X", (int)x, (int)x);
+		return ok;
+	}
+	bool get(str &x)
+	{
+		size_t n; if (!get(n)) return false;
+		x.resize(n); return read(&x[0], n);
+	}
+	int get_int() { int x; if (!get(x)) fatal ("Can't receive int value from socket!"); return x; }
+	bool get_bool() { bool x; if (!get(x)) fatal ("Can't receive bool value from socket!"); return x; }
+	str get_str() { str x; if (!get(x)) fatal ("Can't receive string from socket!"); return x; }
+	file_tags *get_tags();
+
+	bool get_int_noblock (int &i);
+
+private:
+	bool send(const void *data, size_t n);
+	bool read(void *data, size_t n);
+
+	int  s; // the actual socket handle
+	bool f; // call fatal() on any send/recv error?
+	int  buffering;
+	std::vector<char> buf;
+};

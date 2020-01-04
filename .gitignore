@@ -6,3 +6,5 @@ __pycache__/
 *.swp
 *~
 /.vscode/
+mocp_client_log
+mocp_server_log

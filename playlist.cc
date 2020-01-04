@@ -22,6 +22,7 @@
 #include "input/decoder.h"
 #include "client/utf8.h"
 #include "server/ratings.h"
+#include "client/client.h"
 
 file_type plist_item::ftype (const str &file)
 {
@@ -84,40 +85,6 @@ void plist::shuffle ()
 	}
 }
 
-str plist_item::title() const
-{
-	if (!tags || !options::ReadTags)
-	{
-		if (type == F_URL) return path;
-
-		str s = path;
-		if (!options::PlaylistFullPaths)
-		{
-			auto i = path.rfind('/', path.length()-2);
-			if (i != str::npos) s = s.substr(i+1);
-		}
-		if (options::HideFileExtension)
-		{
-			const char *file = path.c_str(), *ext = ext_pos (file);
-			if (ext) s = s.substr(0, ext-1-file);
-		}
-		if (options::FileNamesIconv)
-			s = files_iconv_str (s);
-		#ifdef  HAVE_RCC
-		if (options::UseRCCForFilesystem)
-			return rcc_reencode(s);
-		#endif
-		return s;
-	}
-	
-	str s;
-	if (tags->track != -1) s += format("%2d   ", tags->track);
-	if (!tags->artist.empty()) { s += tags->artist; s += "   "; }
-	if (!tags->album.empty()) { s += tags->album; s += "   "; }
-	s += tags->title;
-	return s;
-}
-
 bool operator< (const plist_item &a, const plist_item &b)
 {
 	if (a.type != b.type)
@@ -166,7 +133,7 @@ bool plist::load_directory(const char *directory)
 {
 	assert (directory && *directory == '/');
 	assert (directory[strlen(directory)-1] != '/');
-
+	
 	DIR *dir = opendir(directory);
 	if (!dir) {
 		error_errno ("Can't read directory", errno);
@@ -174,6 +141,8 @@ bool plist::load_directory(const char *directory)
 	}
 
 	items.clear();
+	is_dir = true;
+	cwd = directory;
 
 	const bool root = !strcmp(directory, "/");
 	const char *prefix = (root ? "" : directory);
@@ -200,6 +169,8 @@ bool plist::load_directory(const char *directory)
 
 bool plist::add_directory (const char *directory, bool recursive)
 {
+	is_dir = false;
+
 	std::stack<str> todo;
 	std::set<ino_t> done;
 	todo.push(directory);
@@ -266,6 +237,9 @@ bool plist::load_m3u (const char *fname)
 		log_errno ("Can't lock the playlist file", errno);
 	
 	items.clear();
+	is_dir = false;
+	cwd = fname;
+
 	str base(fname);
 	size_t i = base.rfind('/');
 	if (i != std::string::npos) base.erase(i+1); else base = "";
@@ -319,7 +293,8 @@ bool plist::save (const char *fname) const
 	for (auto &i : items)
 	{
 		int ret = 0;
-		if (i->tags) ret = fprintf (file, "#EXTINF:%d,%s\r\n", i->tags->time, i->title().c_str());
+		if (i->tags && !i->tags->title.empty())
+			ret = fprintf (file, "#EXTINF:%d,%s\r\n", i->tags->time, i->tags->title.c_str());
 		if (ret >= 0) ret = fprintf (file, "%s\r\n", i->path.c_str());
 		if (ret < 0) {
 			error_errno ("Error writing playlist", errno);

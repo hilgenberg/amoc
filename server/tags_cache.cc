@@ -64,7 +64,7 @@ static void db_panic_cb (DB_ENV *unused ATTR_UNUSED, int errval)
  * temporarily set it to zero to disable cache activity during structural
  * changes which require multiple commits.
  */
-#define CACHE_DB_FORMAT_VERSION	3
+#define CACHE_DB_FORMAT_VERSION	4
 
 /* How frequently to flush the tags database to disk.  A value of zero
  * disables flushing. */
@@ -73,12 +73,12 @@ static void db_panic_cb (DB_ENV *unused ATTR_UNUSED, int errval)
 static std::vector<char> cache_record_serialize (const cache_record &rec)
 {
 	const auto &tags = rec.tags;
-	size_t artist_len = tags.artist.length();
-	size_t album_len = tags.album.length();
-	size_t title_len = tags.title.length();
+	size_t artist_len = tags.artist.length()+1;
+	size_t album_len = tags.album.length()+1;
+	size_t title_len = tags.title.length()+1;
 
 	size_t len = sizeof(rec.mod_time)
-		+ artist_len + album_len + title_len + 3 /* null bytes */
+		+ artist_len + album_len + title_len
 		+ sizeof(tags.track)
 		+ 1 /* rating */
 		+ sizeof(tags.time);
@@ -86,9 +86,9 @@ static std::vector<char> cache_record_serialize (const cache_record &rec)
 	char *p = (char*)buf.data();
 
 	memcpy (p, &rec.mod_time, sizeof(rec.mod_time)); p += sizeof(rec.mod_time);
-	strcpy (p, tags.artist.c_str()); p += artist_len;
-	strcpy (p, tags.album.c_str()); p += album_len;
-	strcpy (p, tags.title.c_str()); p += title_len;
+	memcpy (p, tags.artist.c_str(), artist_len); p += artist_len;
+	memcpy (p, tags.album.c_str(), album_len); p += album_len;
+	memcpy (p, tags.title.c_str(), title_len); p += title_len;
 	memcpy (p, &tags.track, sizeof(tags.track)); p += sizeof(tags.track);
 	memcpy (p, &tags.time, sizeof(tags.time)); p += sizeof(tags.time);
 	*p++ = (char)tags.rating;
@@ -115,12 +115,12 @@ static bool cache_record_deserialize (cache_record &rec, const char *buf, size_t
 		assert(var.length() == len-1); \
 	} while (0)
 
-	extract_num (rec.mod_time);
-	extract_str (tags.artist);
-	extract_str (tags.album);
-	extract_str (tags.title);
-	extract_num (tags.track);
-	extract_num (tags.time);
+	extract_num (rec.mod_time); logit("   ds1");
+	extract_str (tags.artist); logit("   ds2 %s", tags.artist.c_str());
+	extract_str (tags.album); logit("   ds3");
+	extract_str (tags.title); logit("   ds4");
+	extract_num (tags.track); logit("   ds5");
+	extract_num (tags.time); logit("   ds6");
 
 	if (!bytes_left) goto err;
 	tags.rating = *p++;

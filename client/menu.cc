@@ -9,907 +9,235 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
 
 #include "menu.h"
+#include "../rcc.h"
 #include "../files.h"
-#include "../rbtree.h"
 #include "utf8.h"
 #include "../input/decoder.h"
 #include "themes.h"
+#include "interface.h"
 
-/* Draw menu item on a given position from the top of the menu. */
-static void draw_item (const struct menu *menu, const struct menu_item *mi,
-		const int pos, const int item_info_pos, int title_space,
-		const int number_space, const int draw_selected)
+static str sanitize(const str &s_)
 {
-	int title_width;
-	int ix, x;
-	int y ATTR_UNUSED;		/* OpenBSD flags this as unused. */
-	char buf[32];
-
-	assert (menu != NULL);
-	assert (mi != NULL);
-	assert (pos >= 0);
-	assert (item_info_pos > menu->posx
-			|| (!menu->show_time && !menu->show_rating && !menu->show_format));
-	assert (title_space > 0);
-	assert (number_space == 0 || number_space >= 2);
-
-	wmove (menu->win, pos, menu->posx);
-
-	if (number_space) {
-		if (draw_selected && mi == menu->selected && mi == menu->marked)
-			wattrset (menu->win, menu->info_attr_sel_marked);
-		else if (draw_selected && mi == menu->selected)
-			wattrset (menu->win, menu->info_attr_sel);
-		else if (mi == menu->marked)
-			wattrset (menu->win, menu->info_attr_marked);
-		else
-			wattrset (menu->win, menu->info_attr_normal);
-		xwprintw (menu->win, "%*d ", number_space - 1, mi->num + 1);
-	}
-
-	/* Set attributes */
-	if (draw_selected && mi == menu->selected && mi == menu->marked)
-		wattrset (menu->win, mi->attr_sel_marked);
-	else if (draw_selected && mi == menu->selected)
-		wattrset (menu->win, mi->attr_sel);
-	else if (mi == menu->marked)
-		wattrset (menu->win, mi->attr_marked);
-	else
-		wattrset (menu->win, mi->attr_normal);
-
-	title_width = strwidth (mi->title);
-
-	getyx (menu->win, y, x);
-	if (title_width <= title_space || mi->align == MENU_ALIGN_LEFT)
-		xwaddnstr (menu->win, mi->title, title_space);
-	else {
-		char *ptr;
-
-		ptr = xstrtail (mi->title, title_space);
-		xwaddstr (menu->win, ptr);
-		free (ptr);
-	}
-
-	/* Fill the remainder of the title field with spaces. */
-	if (mi == menu->selected) {
-		getyx (menu->win, y, ix);
-		while (ix < x + title_space) {
-			waddch (menu->win, ' ');
-			ix += 1;
-		}
-	}
-
-	/* Rating - keep the "theme", but not selected nor bold.
-	   Some utf8 chars do not have bold versions. */
-	if (menu->show_rating) {
-		wmove (menu->win, pos, item_info_pos + 1);
-		if (mi == menu->marked)
-			wattrset (menu->win, mi->attr_marked);
-		else
-			wattrset (menu->win, mi->attr_normal);
-		wattroff (menu->win, A_BOLD);
-
-		mvwaddstr (menu->win, pos, item_info_pos + 1,
-				*mi->rating ? mi->rating : "     ");
-	}
-
-	/* Description. */
-	if (draw_selected && mi == menu->selected && mi == menu->marked)
-		wattrset (menu->win, menu->info_attr_sel_marked);
-	else if (draw_selected && mi == menu->selected)
-		wattrset (menu->win, menu->info_attr_sel);
-	else if (mi == menu->marked)
-		wattrset (menu->win, menu->info_attr_marked);
-	else
-		wattrset (menu->win, menu->info_attr_normal);
-	wmove (menu->win, pos, item_info_pos);
-
-	if ((menu->show_time && *mi->time) ||
-	    (menu->show_rating && *mi->rating) ||
-	    (menu->show_format && *mi->format))
+	str s(s_);
+	for (int i = 0, n = (int)s.length(); i < n; ++i)
 	{
-		bool first = 1;
-		xwprintw (menu->win, "[");
-
-		if (menu->show_rating) {
-			wmove (menu->win, pos, item_info_pos + 6); /* Already printed. */
-			first = 0;
-		}
-		if (menu->show_time) {
-			if (!first) xwprintw (menu->win, "|");
-			xwprintw (menu->win, "%5s", mi->time ? mi->time : "  ");
-			first = 0;
-		}
-		if (menu->show_format && *mi->format)
+		if (s[i] != ' ' && isspace (s[i]))
 		{
-			if (!first) xwprintw (menu->win, "|");
-			xwprintw (menu->win, "%3s", mi->format);
+			s[i] = ' ';
 		}
-		xwprintw (menu->win, "]");
 	}
+	return s;
 }
 
-void menu_draw (const struct menu *menu, const int active)
+bool menu::mark_path(const str &f)
 {
-	struct menu_item *mi;
-	int title_width;
-	int info_pos;
-	int number_space = 0;
-	int number_details = 0;
+	mark = items.find(f);
+	return mark >= 0;
+}
+bool menu::select_path(const str &f)
+{
+	int i = items.find(f);
+	if (i >= 0)
+	{
+		sel = i;
+		return true;
+	}
+	return false;
+}
 
-	assert (menu != NULL);
+void menu::draw(bool active) const
+{
+	auto *win = iface->window();
+	if (!win) return;
 
-	if (menu->number_items) {
-		int count = menu->nitems / 10;
+	const int N = items.size();
+	const int asel = active ? sel : -1;
 
-		number_space = 2; /* begin from 1 digit and a space char */
-		while (count) {
-			count /= 10;
-			number_space++;
+	// gather layout data: widths for three columns (artist, album, title)
+	// and maximum track number
+	const int extra = 5 /*rating*/ + 5 /*time*/ + 3 /*[|]*/ + 3*2 /*spacing*/;
+	int c0 = 0, c1 = 0, c2 = 0, M = -1;
+	bool readtags = options::ReadTags;
+	int avail = bounds.w - extra;
+	if (avail-2 < 3*4) readtags = false;
+	if (readtags) for (const auto &ip : items.items)
+	{
+		const auto &it = *ip;
+		if (!it.tags) continue;
+		auto &tags = *it.tags;
+
+		if (tags.title.empty())
+		{
+			continue;
+		}
+		else
+		{
+			M  = std::max(M,  tags.track);
+			c0 = std::max(c0, (int)strwidth(sanitize(tags.artist)));
+			c1 = std::max(c1, (int)strwidth(sanitize(tags.album)));
+			c2 = std::max(c2, (int)strwidth(sanitize(tags.title)));
 		}
 	}
-	else
-		number_space = 0;
+	int cn = 0;
+	if (!items.is_dir)
+	{
+		M = N;
+		for (cn = 2, M /= 10; M > 0; M /= 10) ++cn;
+	}
+	else if (M > 0)
+	{
+		for (cn = 2, M /= 10; M > 0; M /= 10) ++cn;
+	}
+	avail -= cn;
+	if (avail < 3*4) { readtags = false; c0 = c1 = c2 = 0; avail = bounds.w - extra - (items.is_dir ? cn : 0);}
+	if (avail < 3) return;
 
-	title_width = menu->width;
+	// distribute bounds.w to the columns
+	if (readtags && avail < c0+c1+c2)
+	{
+		int w0 = avail/3, w1 = w0, w2 = avail-w0-w1;
+		int o0 = c0-w0, o1 = c1-w1, o2 = c2-w2;
+		// reclaim empty space
+		if (o0 < 0 || o1 < 0 || o2 < 0)
+		{
+			assert(o0 >= 0 || o1 >= 0 || o2 >= 0);
+			if (o0 < 0) { w0 = c0; avail -= c0; }
+			if (o1 < 0) { w1 = c1; avail -= c1; }
+			if (o2 < 0) { w2 = c2; avail -= c2; }
+			if      (o0 < 0 && o1 < 0) { w2 = avail; }
+			else if (o0 < 0 && o2 < 0) { w1 = avail; }
+			else if (o1 < 0 && o2 < 0) { w0 = avail; }
+			else if (o0 < 0)
+			{
+				w1 = avail/2, w2 = avail-w1;
+				o1 = c1-w1; o2 = c2-w2;
+				if      (o1 < 0) { w1 = c1; w2 = avail; }
+				else if (o2 < 0) { w2 = c2; w1 = avail; }
+			}
+			else if (o1 < 0)
+			{
+				w0 = avail/2, w2 = avail-w0;
+				o0 = c0-w0; o2 = c2-w2;
+				if      (o0 < 0) { w0 = c0; w2 = avail; }
+				else if (o2 < 0) { w2 = c2; w0 = avail; }
+			}
+			else if (o2 < 0)
+			{
+				w0 = avail/2, w1 = avail-w0;
+				o0 = c0-w0; o1 = c1-w1;
+				if      (o0 < 0) { w0 = c0; w1 = avail; }
+				else if (o1 < 0) { w1 = c1; w0 = avail; }
+			}
+		}
+		c0 = w0; c1 = w1; c2 = w2;
+	}
+	assert(c0+c1+c2+cn+extra <= bounds.w);
 	
-	if (menu->show_time) {
-		++number_details;
-		title_width -= 5; /* 00:00 */
-	}
-	if (menu->show_format) {
-		++number_details;
-		title_width -= 3; /* MP3 */
-	}
-	if (menu->show_rating) {
-		++number_details;
-		title_width -= 5;
-	}
-	if (number_details) {
-		title_width -= 2 /* brackets */ +
-		               number_details - 1 /* separators */;
-	}
-	
-	info_pos = title_width;
+	// draw the visible items
+	for (int i = top, n = std::min(top + bounds.h, N); i < n; ++i)
+	{
+		const auto &it = *items.items[i];
+		int y = bounds.y + i-top, x0 = bounds.x, x1 = bounds.x + bounds.w-1;
 
-	title_width -= number_space;
+		int info_color = get_color(
+			i == asel && i == mark ? CLR_MENU_ITEM_INFO_MARKED_SELECTED :
+			i == asel ? CLR_MENU_ITEM_INFO_SELECTED :
+			i == mark ? CLR_MENU_ITEM_INFO_MARKED :
+			CLR_MENU_ITEM_INFO);
+		int file_color = get_color(
+			i == asel && i == mark ? CLR_MENU_ITEM_FILE_MARKED_SELECTED :
+			i == mark ? CLR_MENU_ITEM_FILE_MARKED :
+			it.type == F_DIR ? (i == asel ? CLR_MENU_ITEM_DIR_SELECTED : CLR_MENU_ITEM_DIR) :
+			it.type == F_PLAYLIST ? (i == asel ? CLR_MENU_ITEM_PLAYLIST_SELECTED : CLR_MENU_ITEM_PLAYLIST) :
+			i == asel ? CLR_MENU_ITEM_FILE_SELECTED : CLR_MENU_ITEM_FILE);
+		
+		wattrset (win, info_color);
 
-	for (mi = menu->top; mi && mi->num - menu->top->num < menu->height;
-			mi = mi->next)
-		draw_item (menu, mi, mi->num - menu->top->num + menu->posy,
-				menu->posx + info_pos, title_width,
-				number_space, active);
-}
-
-/* Move the cursor to the selected file. */
-void menu_set_cursor (const struct menu *m)
-{
-	assert (m != NULL);
-
-	if (m->selected)
-		wmove (m->win, m->selected->num - m->top->num + m->posy, m->posx);
-}
-
-static int rb_compare (const void *a, const void *b,
-                       const void *unused ATTR_UNUSED)
-{
-	struct menu_item *mia = (struct menu_item *)a;
-	struct menu_item *mib = (struct menu_item *)b;
-
-	return strcmp (mia->file, mib->file);
-}
-
-static int rb_fname_compare (const void *key, const void *data,
-                             const void *unused ATTR_UNUSED)
-{
-	const char *fname = (const char *)key;
-	const struct menu_item *mi = (const struct menu_item *)data;
-
-	return strcmp (fname, mi->file);
-}
-
-/* menu_items must be malloc()ed memory! */
-struct menu *menu_new (WINDOW *win, const int posx, const int posy,
-		const int width, const int height)
-{
-	struct menu *menu;
-
-	assert (win != NULL);
-	assert (posx >= 0);
-	assert (posy >= 0);
-	assert (width > 0);
-	assert (height > 0);
-
-	menu = (struct menu *)xmalloc (sizeof(struct menu));
-
-	menu->win = win;
-	menu->items = NULL;
-	menu->nitems = 0;
-	menu->top = NULL;
-	menu->last = NULL;
-	menu->selected = NULL;
-	menu->posx = posx;
-	menu->posy = posy;
-	menu->width = width;
-	menu->height = height;
-	menu->marked = NULL;
-	menu->show_time = 0;
-	menu->show_rating = 0;
-	menu->show_format = false;
-	menu->info_attr_normal = A_NORMAL;
-	menu->info_attr_sel = A_NORMAL;
-	menu->info_attr_marked = A_NORMAL;
-	menu->info_attr_sel_marked = A_NORMAL;
-	menu->number_items = 0;
-
-	menu->search_tree = rb_tree_new (rb_compare, rb_fname_compare, NULL);
-
-	return menu;
-}
-
-struct menu_item *menu_add (struct menu *menu, const plist_item &item)
-{
-	struct menu_item *mi;
-
-	assert (menu != NULL);
-
-	mi = (struct menu_item *)xmalloc (sizeof(struct menu_item));
-
-	mi->title = xstrdup (item.title().c_str());
-	mi->type = item.type;
-	mi->file = xstrdup (item.path.c_str());
-	mi->num = menu->nitems;
-
-	mi->attr_normal = A_NORMAL;
-	mi->attr_sel = A_NORMAL;
-	mi->attr_marked = A_NORMAL;
-	mi->attr_sel_marked = A_NORMAL;
-	mi->align = MENU_ALIGN_LEFT;
-
-	mi->time[0] = 0;
-	mi->rating[0] = 0;
-	mi->format[0] = 0;
-
-	mi->next = NULL;
-	mi->prev = menu->last;
-	if (menu->last)
-		menu->last->next = mi;
-
-	if (!menu->items) menu->items = mi;
-	if (!menu->top) menu->top = menu->items;
-	if (!menu->selected) menu->selected = menu->items;
-
-	if (mi->file) rb_insert (menu->search_tree, (void *)mi);
-
-	menu->last = mi;
-	menu->nitems++;
-
-	if (item.tags && item.tags->time != -1) {
-		char time_str[6];
-		sec_to_min (time_str, item.tags->time);
-		menu_item_set_time (mi, time_str);
-	}
-	const char *type_name;
-	if (!(type_name = file_type_name(item.path.c_str())))
-		type_name = "";
-	menu_item_set_format (mi, type_name);
-
-	menu_item_set_attr_normal (mi, get_color(CLR_MENU_ITEM_FILE));
-	menu_item_set_attr_sel (mi, get_color(CLR_MENU_ITEM_FILE_SELECTED));
-	menu_item_set_attr_marked (mi, get_color(CLR_MENU_ITEM_FILE_MARKED));
-	menu_item_set_attr_sel_marked (mi, get_color(CLR_MENU_ITEM_FILE_MARKED_SELECTED));
-
-	return mi;
-}
-void menu_item_update (struct menu_item *mi, const plist_item &item)
-{
-	assert (mi != NULL);
-
-	if (item.tags && item.tags->time != -1) {
-		char time_str[6];
-		sec_to_min (time_str, item.tags->time);
-		menu_item_set_time (mi, time_str);
-	}
-	else
-		menu_item_set_time (mi, "");
-
-	int r = (item.tags ? item.tags->rating : 0);
-	if (r < 0) r = 0;
-	if (r > 5) r = 5;
-	menu_item_set_rating (mi, options::rating_strings[r]);
-
-	free(mi->title); mi->title = xstrdup (item.title().c_str());
-}
-
-static struct menu_item *get_item_relative (struct menu_item *mi,
-		int to_move)
-{
-	assert (mi != NULL);
-
-	while (to_move) {
-		struct menu_item *prev = mi;
-
-		if (to_move > 0) {
-			mi = mi->next;
-			to_move--;
-		}
-		else {
-			mi = mi->prev;
-			to_move++;
+		if (!items.is_dir && cn)
+		{
+			wmove (win, y, x0);
+			xwprintw(win, "%* d ", cn-1, i+1);
+			x0 += cn;
 		}
 
-		if (!mi) {
-			mi = prev;
-			break;
+		if (readtags && it.type != F_DIR)
+		{
+			x1 -= 13;
+			mvwaddstr(win, y, x1+1, "[");
+		
+			wattrset (win, file_color);
+			wattroff(win, A_BOLD); // some utf8 chars do not have bold versions
+			int rating = (it.tags ? it.tags->rating : 0);
+			if (rating < 0) rating = 0;
+			if (rating > 5) rating = 5;
+
+			xwaddstr(win, options::rating_strings[rating]);
+
+			wattrset (win, info_color);
+			waddch(win, '|');
+			if (it.tags && it.tags->time > -1)
+			{
+				char time_str[6];
+				sec_to_min (time_str, it.tags->time);
+				xwaddstr(win, time_str);
+			}
+			else
+			{
+				xwaddstr(win, it.type == F_URL ? "--:--" : "     ");
+			}
+			waddch(win, ']');
+		}
+
+		wattrset (win, file_color);
+		wmove (win, y, x0);
+
+		if (readtags && it.tags && !it.tags->title.empty())
+		{
+			auto &tags = *it.tags;
+			xwprintfield(win, sanitize(tags.artist), c0);
+			waddstr(win, "   ");
+			xwprintfield(win, sanitize(tags.album), c1);
+			waddstr(win, "   ");
+			if (items.is_dir)
+			{
+				if (tags.track > -1)
+					xwprintw(win, "%* d ", cn-1, tags.track);
+				else
+					xwprintw(win, "%* s", cn, "");
+			}
+			xwprintfield(win, sanitize(tags.title), c2);
+		}
+		else if (it.type == F_URL)
+		{
+			xwprintfield(win, sanitize(it.path), x1-x0+1, 'c');
+		}
+		else
+		{
+			str s = sanitize(it.path);
+			if (it.type == F_DIR && s.back() != '/') s += '/';
+			if (items.is_dir || !options::PlaylistFullPaths)
+			{
+				auto i = s.rfind('/', s.length()-2);
+				if (i != str::npos) s = s.substr(i+1);
+			}
+			if (options::HideFileExtension)
+			{
+				const char *file = s.c_str(), *ext = ext_pos(file);
+				if (ext) s = s.substr(0, ext-1-file);
+			}
+			if (options::FileNamesIconv)
+				s = files_iconv_str (s);
+			#ifdef  HAVE_RCC
+			if (options::UseRCCForFilesystem)
+				s = rcc_reencode(s);
+			#endif
+			xwprintfield(win, s, x1-x0+1, 'l');
 		}
 	}
-
-	return mi;
-}
-
-void menu_update_size (struct menu *menu, const int posx, const int posy,
-		const int width, const int height)
-{
-	assert (menu != NULL);
-	assert (posx >= 0);
-	assert (posy >= 0);
-	assert (width > 0);
-	assert (height > 0);
-
-	menu->posx = posx;
-	menu->posy = posy;
-	menu->width = width;
-	menu->height = height;
-
-	if (menu->selected && menu->top
-			&& menu->selected->num >= menu->top->num + menu->height)
-		menu->selected = get_item_relative (menu->top,
-				menu->height - 1);
-}
-
-static void menu_item_free (struct menu_item *mi)
-{
-	assert (mi != NULL);
-	assert (mi->title != NULL);
-
-	free (mi->title);
-	if (mi->file)
-		free (mi->file);
-
-	free (mi);
-}
-
-void menu_free (struct menu *menu)
-{
-	struct menu_item *mi;
-
-	assert (menu != NULL);
-
-	mi = menu->items;
-	while (mi) {
-		struct menu_item *next = mi->next;
-
-		menu_item_free (mi);
-		mi = next;
-	}
-
-	rb_tree_free (menu->search_tree);
-
-	free (menu);
-}
-
-void menu_driver (struct menu *menu, const enum menu_request req)
-{
-	assert (menu != NULL);
-
-	if (menu->nitems == 0)
-		return;
-
-	if (req == REQ_DOWN && menu->selected->next) {
-		menu->selected = menu->selected->next;
-		if (menu->selected->num >= menu->top->num + menu->height) {
-			menu->top = get_item_relative (menu->selected,
-					-menu->height / 2);
-			if (menu->top->num > menu->nitems - menu->height)
-				menu->top = get_item_relative (menu->last,
-						-menu->height + 1);
-		}
-	}
-	else if (req == REQ_UP && menu->selected->prev) {
-		menu->selected = menu->selected->prev;
-		if (menu->top->num > menu->selected->num)
-			menu->top = get_item_relative (menu->selected,
-					-menu->height / 2);
-	}
-	else if (req == REQ_PGDOWN && menu->selected->num < menu->nitems - 1) {
-		if (menu->selected->num + menu->height - 1 < menu->nitems - 1) {
-			menu->selected = get_item_relative (menu->selected,
-					menu->height - 1);
-			menu->top = get_item_relative (menu->top,
-					menu->height - 1);
-			if (menu->top->num > menu->nitems - menu->height)
-				menu->top = get_item_relative (menu->last,
-						-menu->height + 1);
-		}
-		else {
-			menu->selected = menu->last;
-			menu->top = get_item_relative (menu->last,
-					-menu->height + 1);
-		}
-	}
-	else if (req == REQ_PGUP && menu->selected->prev) {
-		if (menu->selected->num - menu->height + 1 > 0) {
-			menu->selected = get_item_relative (menu->selected,
-					-menu->height + 1);
-			menu->top = get_item_relative (menu->top,
-					-menu->height + 1);
-		}
-		else {
-			menu->selected = menu->items;
-			menu->top = menu->items;
-		}
-	}
-	else if (req == REQ_TOP) {
-		menu->selected = menu->items;
-		menu->top = menu->items;
-	}
-	else if (req == REQ_BOTTOM) {
-		menu->selected = menu->last;
-		menu->top = get_item_relative (menu->selected,
-				-menu->height + 1);
-	}
-}
-
-/* Return the index of the currently selected item. */
-struct menu_item *menu_curritem (struct menu *menu)
-{
-	assert (menu != NULL);
-
-	return menu->selected;
-}
-
-static void make_item_visible (struct menu *menu, struct menu_item *mi)
-{
-	assert (menu != NULL);
-	assert (mi != NULL);
-
-	if (mi->num < menu->top->num || mi->num >= menu->top->num + menu->height) {
-		menu->top = get_item_relative(mi, -menu->height/2);
-
-		if (menu->top->num > menu->nitems - menu->height)
-			menu->top = get_item_relative (menu->last,
-					-menu->height + 1);
-	}
-
-	if (menu->selected) {
-		if (menu->selected->num < menu->top->num ||
-				menu->selected->num >= menu->top->num + menu->height)
-			menu->selected = mi;
-	}
-}
-
-/* Make this item selected */
-static void menu_setcurritem (struct menu *menu, struct menu_item *mi)
-{
-	assert (menu != NULL);
-	assert (mi != NULL);
-
-	menu->selected = mi;
-	make_item_visible (menu, mi);
-}
-
-/* Make the item with this title selected. */
-void menu_setcurritem_title (struct menu *menu, const char *title)
-{
-	struct menu_item *mi;
-
-	/* Find it */
-	for (mi = menu->top; mi; mi = mi->next)
-		if (!strcmp(mi->title, title))
-			break;
-
-	if (mi)
-		menu_setcurritem (menu, mi);
-}
-
-static struct menu_item *menu_find_by_position (struct menu *menu,
-		const int num)
-{
-	struct menu_item *mi;
-
-	assert (menu != NULL);
-
-	mi = menu->top;
-	while (mi && mi->num != num)
-		mi = mi->next;
-
-	return mi;
-}
-
-void menu_set_state (struct menu *menu, const struct menu_state *st)
-{
-	assert (menu != NULL);
-
-	if (!(menu->selected = menu_find_by_position(menu, st->selected_item)))
-		menu->selected = menu->last;
-
-	if (!(menu->top = menu_find_by_position(menu, st->top_item)))
-		menu->top = get_item_relative (menu->last, menu->height + 1);
-}
-
-void menu_set_items_numbering (struct menu *menu, const int number)
-{
-	assert (menu != NULL);
-
-	menu->number_items = number;
-}
-
-void menu_get_state (const struct menu *menu, struct menu_state *st)
-{
-	assert (menu != NULL);
-
-	st->top_item = menu->top ? menu->top->num : -1;
-	st->selected_item = menu->selected ? menu->selected->num : -1;
-}
-
-void menu_unmark_item (struct menu *menu)
-{
-	assert (menu != NULL);
-	menu->marked = NULL;
-}
-
-void menu_item_set_attr_normal (struct menu_item *mi, const int attr)
-{
-	assert (mi != NULL);
-
-	mi->attr_normal = attr;
-}
-
-void menu_item_set_attr_sel (struct menu_item *mi, const int attr)
-{
-	assert (mi != NULL);
-
-	mi->attr_sel = attr;
-}
-
-void menu_item_set_attr_sel_marked (struct menu_item *mi, const int attr)
-{
-	assert (mi != NULL);
-
-	mi->attr_sel_marked = attr;
-}
-
-void menu_item_set_attr_marked (struct menu_item *mi, const int attr)
-{
-	assert (mi != NULL);
-
-	mi->attr_marked = attr;
-}
-
-void menu_item_set_time (struct menu_item *mi, const char *time)
-{
-	assert (mi != NULL);
-
-	mi->time[sizeof(mi->time)-1] = 0;
-	strncpy (mi->time, time, sizeof(mi->time));
-	assert (mi->time[sizeof(mi->time)-1] == 0);
-}
-
-void menu_item_set_rating (struct menu_item *mi, const char *rating)
-{
-	assert (mi != NULL);
-
-	mi->rating[sizeof(mi->rating)-1] = 0;
-	strncpy (mi->rating, rating, sizeof(mi->rating));
-	assert (mi->rating[sizeof(mi->rating)-1] == 0);
-}
-
-void menu_item_set_format (struct menu_item *mi, const char *format)
-{
-	assert (mi != NULL);
-	assert (format != NULL);
-
-	mi->format[sizeof(mi->format)-1] = 0;
-	strncpy (mi->format, format,
-			sizeof(mi->format));
-	assert (mi->format[sizeof(mi->format)-1]
-			== 0);
-}
-
-void menu_set_show_time (struct menu *menu, const int t)
-{
-	assert (menu != NULL);
-
-	menu->show_time = t;
-}
-
-void menu_set_show_rating (struct menu *menu, const bool t)
-{
-	assert (menu != NULL);
-
-	menu->show_rating = t;
-}
-
-void menu_set_show_format (struct menu *menu, const bool t)
-{
-	assert (menu != NULL);
-
-	menu->show_format = t;
-}
-
-void menu_set_info_attr_normal (struct menu *menu, const int attr)
-{
-	assert (menu != NULL);
-
-	menu->info_attr_normal = attr;
-}
-
-void menu_set_info_attr_sel (struct menu *menu, const int attr)
-{
-	assert (menu != NULL);
-
-	menu->info_attr_sel = attr;
-}
-
-void menu_set_info_attr_marked (struct menu *menu, const int attr)
-{
-	assert (menu != NULL);
-
-	menu->info_attr_marked = attr;
-}
-
-void menu_set_info_attr_sel_marked (struct menu *menu, const int attr)
-{
-	assert (menu != NULL);
-
-	menu->info_attr_sel_marked = attr;
-}
-
-enum file_type menu_item_get_type (const struct menu_item *mi)
-{
-	assert (mi != NULL);
-
-	return mi->type;
-}
-
-char *menu_item_get_file (const struct menu_item *mi)
-{
-	assert (mi != NULL);
-
-	return xstrdup (mi->file);
-}
-
-void menu_item_set_title (struct menu_item *mi, const char *title)
-{
-	assert (mi != NULL);
-
-	if (mi->title)
-		free (mi->title);
-	mi->title = xstrdup (title);
-}
-
-int menu_nitems (const struct menu *menu)
-{
-	assert (menu != NULL);
-
-	return menu->nitems;
-}
-
-struct menu_item *menu_find (struct menu *menu, const char *fname)
-{
-	struct rb_node *x;
-
-	assert (menu != NULL);
-	assert (fname != NULL);
-
-	x = rb_search (menu->search_tree, fname);
-	if (rb_is_null(x))
-		return NULL;
-
-	return (struct menu_item *)rb_get_data (x);
-}
-
-void menu_mark_item (struct menu *menu, const char *file)
-{
-	struct menu_item *item;
-
-	assert (menu != NULL);
-	assert (file != NULL);
-
-	item = menu_find (menu, file);
-	if (item)
-		menu->marked = item;
-}
-
-static void menu_renumber_items (struct menu *menu)
-{
-	int i = 0;
-	struct menu_item *mi;
-
-	assert (menu != NULL);
-
-	for (mi = menu->items; mi; mi = mi->next)
-		mi->num = i++;
-
-	assert (i == menu->nitems);
-}
-
-static void menu_delete (struct menu *menu, struct menu_item *mi)
-{
-	assert (menu != NULL);
-	assert (mi != NULL);
-
-	if (mi->prev)
-		mi->prev->next = mi->next;
-	if (mi->next)
-		mi->next->prev = mi->prev;
-
-	if (menu->items == mi)
-		menu->items = mi->next;
-	if (menu->last == mi)
-		menu->last = mi->prev;
-
-	if (menu->marked == mi)
-		menu->marked = NULL;
-	if (menu->selected == mi)
-		menu->selected = mi->next ? mi->next : mi->prev;
-	if (menu->top == mi)
-		menu->top = mi->next ? mi->next : mi->prev;
-
-	if (mi->file)
-		rb_delete (menu->search_tree, mi->file);
-
-	menu->nitems--;
-	menu_renumber_items (menu);
-
-	menu_item_free (mi);
-}
-
-void menu_del_item (struct menu *menu, const char *fname)
-{
-	struct menu_item *mi;
-
-	assert (menu != NULL);
-	assert (fname != NULL);
-
-	mi = menu_find (menu, fname);
-	assert (mi != NULL);
-
-	menu_delete (menu, mi);
-}
-
-void menu_item_set_align (struct menu_item *mi, const enum menu_align align)
-{
-	assert (mi != NULL);
-
-	mi->align = align;
-}
-
-void menu_setcurritem_file (struct menu *menu, const char *file)
-{
-	struct menu_item *mi;
-
-	assert (menu != NULL);
-	assert (file != NULL);
-
-	mi = menu_find (menu, file);
-	if (mi)
-		menu_setcurritem (menu, mi);
-}
-/* Return non-zero value if the item in in the visible part of the menu. */
-int menu_is_visible (const struct menu *menu, const struct menu_item *mi)
-{
-	assert (menu != NULL);
-	assert (mi != NULL);
-
-	if (mi->num >= menu->top->num
-			&& mi->num < menu->top->num + menu->height)
-		return 1;
-
-	return 0;
-}
-
-static void menu_items_swap (struct menu *menu, struct menu_item *mi1,
-		struct menu_item *mi2)
-{
-	int t;
-
-	assert (menu != NULL);
-	assert (mi1 != NULL);
-	assert (mi2 != NULL);
-	assert (mi1 != mi2);
-
-	/* if they are next to each other, change the pointers so that mi2
-	 * is the second one */
-	if (mi2->next == mi1) {
-		struct menu_item *i = mi1;
-
-		mi1 = mi2;
-		mi2 = i;
-	}
-
-	if (mi1->next == mi2) {
-		if (mi2->next)
-			mi2->next->prev = mi1;
-		if (mi1->prev)
-			mi1->prev->next = mi2;
-
-		mi1->next = mi2->next;
-		mi2->prev = mi1->prev;
-		mi1->prev = mi2;
-		mi2->next = mi1;
-	}
-	else {
-		if (mi2->next)
-			mi2->next->prev = mi1;
-		if (mi2->prev)
-			mi2->prev->next = mi1;
-		mi2->next = mi1->next;
-		mi2->prev = mi1->prev;
-
-		if (mi1->next)
-			mi1->next->prev = mi2;
-		if (mi1->prev)
-			mi1->prev->next = mi2;
-		mi1->next = mi2->next;
-		mi1->prev = mi2->prev;
-	}
-
-	t = mi1->num;
-	mi1->num = mi2->num;
-	mi2->num = t;
-
-	if (menu->top == mi1)
-		menu->top = mi2;
-	else if (menu->top == mi2)
-		menu->top = mi1;
-
-	if (menu->last == mi1)
-		menu->last = mi2;
-	else if (menu->last == mi2)
-		menu->last = mi1;
-
-	if (menu->items == mi1)
-		menu->items = mi2;
-	else if (menu->items == mi2)
-		menu->items = mi1;
-}
-
-void menu_swap_items (struct menu *menu, const char *file1, const char *file2)
-{
-	struct menu_item *mi1, *mi2;
-
-	assert (menu != NULL);
-	assert (file1 != NULL);
-	assert (file2 != NULL);
-
-	if ((mi1 = menu_find(menu, file1)) && (mi2 = menu_find(menu, file2))
-			&& mi1 != mi2) {
-		menu_items_swap (menu, mi1, mi2);
-
-		/* make sure that the selected item is visible */
-		menu_setcurritem (menu, menu->selected);
-	}
-}
-
-/* Make sure that this file is visible in the menu. */
-void menu_make_visible (struct menu *menu, const char *file)
-{
-	struct menu_item *mi;
-
-	assert (menu != NULL);
-	assert (file != NULL);
-
-	if ((mi = menu_find(menu, file)))
-		make_item_visible (menu, mi);
 }

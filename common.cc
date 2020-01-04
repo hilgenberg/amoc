@@ -31,7 +31,6 @@
 #include "common.h"
 #include "server/server.h"
 #include "client/interface.h"
-#include "client/interface_elements.h"
 
 static int im_server = 0; /* Am I the server? */
 
@@ -49,7 +48,8 @@ void internal_error (const char *file, int line, const char *function,
 	if (im_server)
 		server_error (file, line, function, msg);
 	else
-		interface_error (msg);
+		fputs(msg, stderr);
+		//interface_error (msg); -- TODO
 
 	free (msg);
 
@@ -63,8 +63,6 @@ void internal_fatal (const char *file LOGIT_ONLY, int line LOGIT_ONLY,
 {
 	va_list va;
 	char *msg;
-
-	windows_reset ();
 
 	va_start (va, format);
 	msg = format_msg_va (format, va);

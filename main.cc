@@ -29,7 +29,7 @@
 #include <popt.h>
 
 #include "server/server.h"
-#include "client/interface.h"
+#include "client/client.h"
 #include "protocol.h"
 #include "input/decoder.h"
 #include "lists.h"
@@ -54,8 +54,6 @@ struct parameters
 	int debug;
 	int only_server;
 	int foreground;
-	int append;
-	int clear;
 	int play;
 	int allow_iface;
 	int stop;
@@ -67,14 +65,7 @@ struct parameters
 	int rate;
 	int toggle_pause;
 	int playit;
-	int seek_by;
 	int new_rating;
-	char jump_type;
-	int jump_to;
-	char *adj_volume;
-	char *toggle;
-	char *on;
-	char *off;
 };
 
 /* Connect to the server, return fd of the socket or -1 on error. */
@@ -103,14 +94,14 @@ static int server_connect ()
 
 /* Ping the server.
  * Return 1 if the server responds with EV_PONG, otherwise 0. */
-static int ping_server (int sock)
+static int ping_server (Socket &srv)
 {
 	int event;
 
-	send_int(sock, CMD_PING); /* ignore errors - the server could have
+	srv.send(CMD_PING); /* ignore errors - the server could have
 				     already closed the connection and sent
 				     EV_BUSY */
-	if (!get_int(sock, &event))
+	if (!srv.get(event))
 		fatal ("Error when receiving pong response!");
 	return event == EV_PONG ? 1 : 0;
 }
@@ -198,87 +189,104 @@ static void start_moc (const struct parameters *params, stringlist &args)
 		}
 	}
 
+	Socket srv(server_sock, false);
 	if (params->only_server)
-		send_int (server_sock, CMD_DISCONNECT);
+		srv.send(CMD_DISCONNECT);
 	else {
 		xsignal (SIGPIPE, SIG_IGN);
-		if (!ping_server (server_sock))
+		if (!ping_server (srv))
 			fatal ("Can't connect to the server!");
 
-		init_interface (server_sock, params->debug, args);
-		interface_loop ();
-		interface_end ();
+		#define CLIENT_LOG	"mocp_client_log"
+
+		FILE *logfp = NULL;
+		if (params->debug) {
+			logfp = fopen (CLIENT_LOG, "a");
+			if (!logfp) fatal ("Can't open client log file: %s", xstrerror (errno));
+		}
+		log_init_stream (logfp, CLIENT_LOG);
+
+		Client client(server_sock, args);
+		client.run();
+		log_close();
 	}
 
 	close (server_sock);
 }
 
+void interface_cmdline_play_first (Socket &srv)
+{
+	srv.send(CMD_PLAY);
+	srv.send("");
+}
+
+void interface_cmdline_playit (Socket &srv, stringlist &args)
+{
+	if (args.size() != 1) return;
+	srv.send(CMD_PLAY);
+	srv.send(args[0]);
+}
+
+void interface_cmdline_set_rating (Socket &srv, int rating)
+{
+	if (rating < 0) rating = 0;
+	if (rating > 5) rating = 5;
+
+	srv.send(CMD_SET_RATING);
+	srv.send("");
+	srv.send(rating);
+}
+
 /* Send commands requested in params to the server. */
 static void server_command (struct parameters *params, stringlist &args)
 {
-	int sock;
+	int srv_sock;
 
-	if ((sock = server_connect()) == -1)
+	if ((srv_sock = server_connect()) == -1)
 		fatal ("The server is not running!");
 
 	xsignal (SIGPIPE, SIG_IGN);
-	if (!ping_server (sock))
+	Socket srv(srv_sock, true);
+	if (!ping_server (srv))
 		fatal ("Can't connect to the server!");
 
+
 	if (params->playit)
-		interface_cmdline_playit (sock, args);
-	if (params->clear)
-		interface_cmdline_clear_plist (sock);
-	if (params->append)
-		interface_cmdline_append (sock, args);
+		interface_cmdline_playit (srv, args);
 	if (params->play)
-		interface_cmdline_play_first (sock);
-	if (params->seek_by)
-		interface_cmdline_seek_by (sock, params->seek_by);
+		interface_cmdline_play_first (srv);
 	if (params->rate)
-		interface_cmdline_set_rating (sock, params->new_rating);
-	if (params->jump_type=='%')
-		interface_cmdline_jump_to_percent (sock,params->jump_to);
-	if (params->jump_type=='s')
-		interface_cmdline_jump_to (sock,params->jump_to);
-	if (params->adj_volume)
-		interface_cmdline_adj_volume (sock, params->adj_volume);
-	if (params->toggle)
-		interface_cmdline_set (sock, params->toggle, 2);
-	if (params->on)
-		interface_cmdline_set (sock, params->on, 1);
-	if (params->off)
-		interface_cmdline_set (sock, params->off, 0);
+		interface_cmdline_set_rating (srv, params->new_rating);
 	if (params->exit) {
-		if (!send_int(sock, CMD_QUIT))
+		if (!srv.send(CMD_QUIT))
 			fatal ("Can't send command!");
 	}
 	else if (params->stop) {
-		if (!send_int(sock, CMD_STOP) || !send_int(sock, CMD_DISCONNECT))
+		if (!srv.send(CMD_STOP) || !srv.send(CMD_DISCONNECT))
 			fatal ("Can't send commands!");
 	}
 	else if (params->pause) {
-		if (!send_int(sock, CMD_PAUSE) || !send_int(sock, CMD_DISCONNECT))
+		if (!srv.send(CMD_PAUSE) || !srv.send(CMD_DISCONNECT))
 			fatal ("Can't send commands!");
 	}
 	else if (params->next) {
-		if (!send_int(sock, CMD_NEXT) || !send_int(sock, CMD_DISCONNECT))
+		if (!srv.send(CMD_NEXT) || !srv.send(CMD_DISCONNECT))
 			fatal ("Can't send commands!");
 	}
 	else if (params->previous) {
-		if (!send_int(sock, CMD_PREV) || !send_int(sock, CMD_DISCONNECT))
+		if (!srv.send(CMD_PREV) || !srv.send(CMD_DISCONNECT))
 			fatal ("Can't send commands!");
 	}
 	else if (params->unpause) {
-		if (!send_int(sock, CMD_UNPAUSE) || !send_int(sock, CMD_DISCONNECT))
+		if (!srv.send(CMD_UNPAUSE) || !srv.send(CMD_DISCONNECT))
 			fatal ("Can't send commands!");
 	}
 	else if (params->toggle_pause) {
 		int state, ev, cmd = -1;
 
-		if (!send_int(sock, CMD_GET_STATE))
+		if (!srv.send(CMD_GET_STATE))
 			fatal ("Can't send commands!");
-		if (!get_int(sock, &ev) || ev != EV_DATA || !get_int(sock, &state))
+		if (!srv.get(ev) || ev != EV_DATA || !srv.get(state))
 			fatal ("Can't get data from the server!");
 
 		if (state == STATE_PAUSE)
@@ -286,13 +294,13 @@ static void server_command (struct parameters *params, stringlist &args)
 		else if (state == STATE_PLAY)
 			cmd = CMD_PAUSE;
 
-		if (cmd != -1 && !send_int(sock, cmd))
+		if (cmd != -1 && !srv.send(cmd))
 			fatal ("Can't send commands!");
-		if (!send_int(sock, CMD_DISCONNECT))
+		if (!srv.send(CMD_DISCONNECT))
 			fatal ("Can't send commands!");
 	}
 
-	close (sock);
+	close (srv_sock);
 }
 
 static void show_version ()
@@ -409,7 +417,6 @@ static void show_misc_cb (poptContext ctx,
 enum {
 	CL_HANDLED = 0,
 	CL_NOIFACE,
-	CL_JUMP,
 	CL_RATE
 };
 
@@ -440,33 +447,14 @@ static struct poptOption server_opts[] = {
 			"Play the next song", NULL},
 	{"previous", 'r', POPT_ARG_NONE, &params.previous, CL_NOIFACE,
 			"Play the previous song", NULL},
-	{"seek", 'k', POPT_ARG_INT, &params.seek_by, CL_NOIFACE,
-			"Seek by N seconds (can be negative)", "N"},
 	{"rate", '*', POPT_ARG_INT, &params.new_rating, CL_RATE,
 			"Rate current song N stars (N=0..5)", "N"},
-	{"jump", 'j', POPT_ARG_STRING, NULL, CL_JUMP,
-			"Jump to some position in the current track", "N{%,s}"},
-	{"volume", 'v', POPT_ARG_STRING, &params.adj_volume, CL_NOIFACE,
-			"Adjust the PCM volume", "[+,-]LEVEL"},
 	{"exit", 'x', POPT_ARG_NONE, &params.exit, CL_NOIFACE,
 			"Shutdown the server", NULL},
-	{"append", 'a', POPT_ARG_NONE, &params.append, CL_NOIFACE,
-			"Append the files/directories/playlists passed in "
-			"the command line to playlist", NULL},
-	{"recursively", 'e', POPT_ARG_NONE, &params.append, CL_NOIFACE,
-			"Alias for --append", NULL},
-	{"clear", 'c', POPT_ARG_NONE, &params.clear, CL_NOIFACE,
-			"Clear the playlist", NULL},
 	{"play", 'p', POPT_ARG_NONE, &params.play, CL_NOIFACE,
 			"Start playing from the first item on the playlist", NULL},
 	{"playit", 'l', POPT_ARG_NONE, &params.playit, CL_NOIFACE,
 			"Play files given on command line without modifying the playlist", NULL},
-	{"toggle", 't', POPT_ARG_STRING, &params.toggle, CL_NOIFACE,
-			"Toggle a control (shuffle, autonext, repeat)", "CONTROL"},
-	{"on", 'o', POPT_ARG_STRING, &params.on, CL_NOIFACE,
-			"Turn on a control (shuffle, autonext, repeat)", "CONTROL"},
-	{"off", 'u', POPT_ARG_STRING, &params.off, CL_NOIFACE,
-			"Turn off a control (shuffle, autonext, repeat)", "CONTROL"},
 	POPT_TABLEEND
 };
 
@@ -537,149 +525,6 @@ static void read_popt_config (poptContext ctx)
 	read_default_poptrc (ctx);
 }
 
-/* Return a copy of the POPT option table structure which is suitable
- * for rendering the POPT expansions of the command line. */
-#ifndef OPENWRT
-struct poptOption *clone_popt_options (struct poptOption *opts)
-{
-	size_t count, ix, iy = 0;
-	struct poptOption *result;
-	const struct poptOption specials[] = {POPT_AUTOHELP
-	                                      POPT_AUTOALIAS
-	                                      POPT_TABLEEND};
-
-	assert (opts);
-
-	for (count = 1;
-	     memcmp (&opts[count - 1], &specials[2], sizeof (struct poptOption));
-	     count += 1);
-
-	result = (struct poptOption*) xcalloc (count, sizeof (struct poptOption));
-
-	for (ix = 0; ix < count; ix += 1) {
-		if (opts[ix].argInfo == POPT_ARG_CALLBACK)
-			continue;
-
-		if (!memcmp (&opts[ix], &specials[0], sizeof (struct poptOption)))
-			continue;
-
-		if (!memcmp (&opts[ix], &specials[1], sizeof (struct poptOption)))
-			continue;
-
-		memcpy (&result[iy], &opts[ix], sizeof (struct poptOption));
-
-		if (!memcmp (&opts[ix], &specials[2], sizeof (struct poptOption)))
-			continue;
-
-		if (opts[ix].argInfo == POPT_ARG_INCLUDE_TABLE) {
-			result[iy++].arg = clone_popt_options ((struct poptOption*)opts[ix].arg);
-			continue;
-		}
-
-		switch (result[iy].argInfo) {
-		case POPT_ARG_STRING:
-		case POPT_ARG_INT:
-		case POPT_ARG_LONG:
-		case POPT_ARG_FLOAT:
-		case POPT_ARG_DOUBLE:
-			result[iy].argInfo = POPT_ARG_STRING;
-			break;
-		case POPT_ARG_VAL:
-			result[iy].argInfo = POPT_ARG_NONE;
-			break;
-		case POPT_ARG_NONE:
-			break;
-		default:
-			fatal ("Unknown POPT option table argInfo type: %d",
-			                                result[iy].argInfo);
-		}
-
-		result[iy].arg = NULL;
-		result[iy++].val = popt_next_val++;
-	}
-
-	return result;
-}
-#endif
-
-/* Free a copied POPT option table structure. */
-#ifndef OPENWRT
-void free_popt_clone (struct poptOption *opts)
-{
-	int ix;
-	const struct poptOption table_end = POPT_TABLEEND;
-
-	assert (opts);
-
-	for (ix = 0; memcmp (&opts[ix], &table_end, sizeof (table_end)); ix += 1) {
-		if (opts[ix].argInfo == POPT_ARG_INCLUDE_TABLE)
-			free_popt_clone ((struct poptOption*)opts[ix].arg);
-	}
-
-	free (opts);
-}
-#endif
-
-/* Return a pointer to the copied POPT option table entry for which the
- * 'val' field matches 'wanted'.  */
-#ifndef OPENWRT
-struct poptOption *find_popt_option (struct poptOption *opts, int wanted)
-{
-	int ix = 0;
-	const struct poptOption table_end = POPT_TABLEEND;
-
-	assert (opts);
-	assert (LIMIT(wanted, popt_next_val));
-
-	while (1) {
-		struct poptOption *result;
-
-		if (!memcmp (&opts[ix], &table_end, sizeof (table_end)))
-			break;
-
-		assert (opts[ix].argInfo != POPT_ARG_CALLBACK);
-
-		if (opts[ix].val == wanted)
-			return &opts[ix];
-
-		switch (opts[ix].argInfo) {
-		case POPT_ARG_INCLUDE_TABLE:
-			result = find_popt_option ((struct poptOption*)opts[ix].arg, wanted);
-			if (result)
-				return result;
-		case POPT_ARG_STRING:
-		case POPT_ARG_INT:
-		case POPT_ARG_LONG:
-		case POPT_ARG_FLOAT:
-		case POPT_ARG_DOUBLE:
-		case POPT_ARG_VAL:
-		case POPT_ARG_NONE:
-			ix += 1;
-			break;
-		default:
-			fatal ("Unknown POPT option table argInfo type: %d",
-			                                opts[ix].argInfo);
-		}
-	}
-
-	return NULL;
-}
-#endif
-
-static long get_num_param (const char *p,const char ** last)
-{
-	char *e;
-	long val;
-
-	val = strtol (p, &e, 10);
-	if ((*e&&last==NULL)||e==p)
-		fatal ("The parameter should be a number!");
-
-	if (last)
-		*last=e;
-	return val;
-}
-
 /* Process the command line options. */
 static void process_options (poptContext ctx)
 {
@@ -694,18 +539,6 @@ static void process_options (poptContext ctx)
 		case CL_NOIFACE:
 			params.allow_iface = 0;
 			break;
-		case CL_JUMP:
-			params.jump_to = get_num_param (arg, &jump_type);
-			if (*jump_type)
-				if (!jump_type[1])
-					if (*jump_type == '%' || tolower (*jump_type) == 's') {
-						params.jump_type = tolower (*jump_type);
-						params.allow_iface = 0;
-						break;
-					}
-			//TODO: Add message explaining the error
-			show_usage (ctx);
-			exit (EXIT_FAILURE);
 		case CL_RATE:
 			params.rate = 1;
 			params.allow_iface = 0;
@@ -768,17 +601,6 @@ int main (int argc, const char *argv[])
 	mocp_argv = argv;
 
 	logit ("This is Music On Console (version %s)", PACKAGE_VERSION);
-
-#if !defined(NDEBUG)
-	{
-		int rc;
-		struct utsname uts;
-
-		rc = uname (&uts);
-		if (rc == 0)
-			logit ("Running on: %s %s %s", uts.sysname, uts.release, uts.machine);
-	}
-#endif
 
 	files_init ();
 

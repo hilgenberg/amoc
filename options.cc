@@ -160,6 +160,7 @@ void init(const char *config_file)
 		OPT(Repeat);
 		OPT(Shuffle);
 		OPT(AutoNext);
+		OPT(ASCIILines);
 		//str  ("FormatString", "%(n:%n :)%(a:%a - :)%(t:%t:)%(A: \\(%A\\):)", CHECK_NONE);
 		OPT(InputBuffer);
 		OPT(OutputBuffer);
@@ -241,6 +242,7 @@ bool StartInMusicDir = false;
 bool Repeat = false;
 bool Shuffle = false;
 bool AutoNext = true;
+bool ASCIILines = false;
 //str  ("FormatString", "%(n:%n :)%(a:%a - :)%(t:%t:)%(A: \\(%A\\):)", CHECK_NONE);
 int InputBuffer = 512;
 int OutputBuffer = 512;

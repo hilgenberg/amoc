@@ -1056,10 +1056,10 @@ void audio_plist_set_serial (const int serial)
 }
 
 /* Swap 2 files on the playlist. */
-void audio_plist_move (const char *file1, const char *file2)
+void audio_plist_move (int i1, int i2)
 {
+	assert(i1 == i2+1 || i1 == i2-1); // TODO: everything else for multi-selection!
 	LOCK (plist_mtx);
-	int i1 = playlist.find(file1), i2 = playlist.find(file2);
 	if (i1 >= 0 && i2 >= 0 && i1 != i2)
 		std::swap(playlist.items[i1], playlist.items[i2]);
 	UNLOCK (plist_mtx);

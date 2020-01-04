@@ -34,7 +34,7 @@ class plist_item
 public:
 	static file_type ftype(const str &path);
 
-	//plist_item() : type(F_OTHER) {}
+	explicit plist_item(str &&p) : path(p), type(ftype(path)) {}
 	explicit plist_item(const str &p) : path(p), type(ftype(path)) {}
 	plist_item(const str &p, file_type t) : path(p), type(t) {}
 	plist_item(const plist_item &i)
@@ -42,7 +42,6 @@ public:
 		, tags(i.tags ? new file_tags(*i.tags) : NULL)
 	{}
 
-	str title() const;
 	bool read_file_tags();
 
 	const str path; // absolute path or URL
@@ -54,9 +53,9 @@ bool operator< (const plist_item &a, const plist_item &b);
 struct plist
 {
 public:
-	plist() : serial(-1) {}
+	plist() : serial(-1), is_dir(false) {}
 	plist(const plist &) = delete;
-	plist(plist &&p) : serial(p.serial) { items.swap(p.items); }
+	plist(plist &&p) : serial(p.serial), is_dir(p.is_dir), cwd(p.cwd) { items.swap(p.items); }
 
 	void clear() { items.clear(); }
 	void remove(int i)
@@ -73,6 +72,7 @@ public:
 	plist & operator+= (plist &&other);
 	plist & operator+= (const plist_item &i);
 	plist & operator+= (str &&f) { items.emplace_back(new plist_item(f)); return *this; }
+	plist & operator+= (const str &f) { items.emplace_back(new plist_item(f)); return *this; }
 	plist & operator+= (const char *f) { items.emplace_back(new plist_item(f)); return *this; }
 
 	size_t size() const { return items.size(); }
@@ -87,12 +87,13 @@ public:
 		}
 		return sum;
 	}
-	int find(const char *file) // TODO: remove this!
+	int find(const str &file) const // TODO: remove this!
 	{
 		for (int i = 0, n = (int)items.size(); i < n; ++i)
 			if (items[i]->path == file) return i;
 		return -1;
 	}
+	int find(const char *file) const { return find(str(file)); }
 
 	void shuffle();
 	void sort()
@@ -112,15 +113,18 @@ public:
 		return false;
 	}
 
-
 	void swap(plist &other)
 	{
 		std::swap(items, other.items);
 		std::swap(serial, other.serial);
+		std::swap(is_dir, other.is_dir);
+		std::swap(cwd, other.cwd);
 	}
 
 	std::vector<std::unique_ptr<plist_item> > items;
-	int serial; /* Optional serial number of this playlist */
+	int  serial; /* Optional serial number of this playlist */
+	bool is_dir; // otherwise it's a playlist
+	str  cwd; // set for directories and on-disk playlists
 };
 
 inline void swap(plist &a, plist &b) { a.swap(b); }
