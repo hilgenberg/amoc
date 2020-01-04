@@ -44,25 +44,24 @@
 #define SERVER_LOG	"mocp_server_log"
 #define PID_FILE	"pid"
 
+plist playlist, dirlist;
+int curr_item, curr_list;
+
 struct client
 {
 	Socket *socket; 	/* NULL if inactive */
-	int wants_plist_events;	/* requested playlist events? */
 	pthread_mutex_t events_mtx;
-	int requests_plist;	/* is the client waiting for the playlist? */
-	int can_send_plist;	/* can this client send a playlist? */
-	int lock;		/* is this client locking us? */
-	int serial;		/* used for generating unique serial numbers */
 };
+static client clients[CLIENTS_MAX];
 
+// RAII lock for the client's event mutex
 struct Lock
 {
-	Lock(client *cli) : c(cli) { LOCK(c->events_mtx); assert(!c->socket->is_buffering()); }
-	~Lock() { assert(!c->socket->is_buffering()); UNLOCK(c->events_mtx); }
-	client *c;
+	Lock(client &cli) : c(cli) { LOCK(c.events_mtx); assert(!c.socket->is_buffering()); }
+	~Lock() { assert(!c.socket->is_buffering()); UNLOCK(c.events_mtx); }
+	client &c;
 };
 
-static client clients[CLIENTS_MAX];
 
 /* Thread ID of the server thread. */
 static pthread_t server_tid;
@@ -96,24 +95,22 @@ extern char **environ;
 static void write_pid_file ()
 {
 	char *fname = create_file_name (PID_FILE);
-	FILE *file;
+	FILE *file = fopen(fname, "w");
 
-	if ((file = fopen(fname, "w")) == NULL)
-		fatal ("Can't open pid file for writing: %s", xstrerror (errno));
-	fprintf (file, "%d\n", getpid());
-	fclose (file);
+	if (!file) fatal ("Can't open pid file for writing: %s", xstrerror (errno));
+	fprintf(file, "%d\n", getpid());
+	fclose(file);
 }
 
 /* Check if there is a pid file and if it is valid, return the pid, else 0 */
 static pid_t check_pid_file ()
 {
-	FILE *file;
-	pid_t pid;
 	char *fname = create_file_name (PID_FILE);
+	FILE *file = fopen(fname, "r");
+	if (!file) return 0;
 
 	/* Read the pid file */
-	if ((file = fopen(fname, "r")) == NULL)
-		return 0;
+	pid_t pid;
 	if (fscanf(file, "%d", &pid) != 1) {
 		fclose (file);
 		return 0;
@@ -161,8 +158,7 @@ static void clients_cleanup ()
 	for (int i = 0; i < CLIENTS_MAX; i++) {
 		delete clients[i].socket; clients[i].socket = NULL;
 		int rc = pthread_mutex_destroy (&clients[i].events_mtx);
-		if (rc != 0)
-			log_errno ("Can't destroy events mutex", rc);
+		if (rc != 0) log_errno ("Can't destroy events mutex", rc);
 	}
 }
 
@@ -172,63 +168,12 @@ static bool add_client (int sock)
 	for (int i = 0; i < CLIENTS_MAX; i++)
 	{
 		if (clients[i].socket) continue;
-		clients[i].wants_plist_events = 0;
 		clients[i].socket = new Socket(sock, false);
-		clients[i].requests_plist = 0;
-		clients[i].can_send_plist = 0;
-		clients[i].lock = 0;
 		tc->clear_queue(i);
 		return true;
 	}
 
 	return false;
-}
-
-/* Return index of a client that has a lock acquired. Return -1 if there is no
- * lock. */
-static int locking_client ()
-{
-	int i;
-
-	for (i = 0; i < CLIENTS_MAX; i++)
-		if (clients[i].socket && clients[i].lock)
-			return i;
-	return -1;
-}
-
-/* Acquire a lock for this client. Return 0 on error. */
-static int client_lock (struct client *cli)
-{
-	if (cli->lock) {
-		logit ("Client wants deadlock");
-		return 0;
-	}
-
-	assert (locking_client() == -1);
-
-	cli->lock = 1;
-	logit ("Lock acquired for client with fd %d", cli->socket->fd());
-
-	return 1;
-}
-
-/* Return != 0 if this client holds a lock. */
-static int is_locking (const struct client *cli)
-{
-	return cli->lock;
-}
-
-/* Release the lock hold by the client. Return 0 on error. */
-static int client_unlock (struct client *cli)
-{
-	if (!cli->lock) {
-		logit ("Client wants to unlock when there is no lock");
-		return 0;
-	}
-
-	cli->lock = 0;
-	logit ("Lock released by client with fd %d", cli->socket->fd());
-	return 1;
 }
 
 /* Return the client index from the clients table. */
@@ -397,30 +342,30 @@ void server_init (int debugging, int foreground)
 
 static bool send_data_int (client *cli, int data)
 {
-	Lock lock(cli);
+	Lock lock(*cli);
 	return cli->socket->send((int)EV_DATA) && cli->socket->send(data);
 }
 static bool send_data_bool (client *cli, bool data)
 {
-	Lock lock(cli);
+	Lock lock(*cli);
 	return cli->socket->send((int)EV_DATA) && cli->socket->send(data);
 }
 static bool send_data_str (client *cli, const char *str)
 {
-	Lock lock(cli);
+	Lock lock(*cli);
 	return cli->socket->send((int)EV_DATA) && cli->socket->send(str);
 }
 
 /* Add event to the client's queue */
 void add_event (client &cli, int type)
 {
-	Lock lock(&cli);
+	Lock lock(cli);
 	auto &sock = *cli.socket;
 	sock.packet(type);
 	sock.finish();
-}template<typename T> void add_event (client &cli, int type, T data)
+}template<typename T> void add_event (client &cli, int type, const T& data)
 {
-	Lock lock(&cli);
+	Lock lock(cli);
 	auto &sock = *cli.socket;
 	sock.packet(type);
 	sock.send(data);
@@ -428,7 +373,7 @@ void add_event (client &cli, int type)
 }
 template<typename T1, typename T2> void add_event (client &cli, int type, T1 d1, T2 d2)
 {
-	Lock lock(&cli);
+	Lock lock(cli);
 	auto &sock = *cli.socket;
 	sock.packet(type);
 	sock.send(d1);
@@ -436,29 +381,13 @@ template<typename T1, typename T2> void add_event (client &cli, int type, T1 d1,
 	sock.finish();
 }
 
-/* Return true iff 'event' is a playlist event. */
-static inline bool is_plist_event (const int event)
-{
-	switch (event) {
-	case EV_PLIST_ADD:
-	case EV_PLIST_DEL:
-	case EV_PLIST_MOVE:
-	case EV_PLIST_CLEAR:
-		return true;
-	}
-	return false;
-}
-
 template<typename T1, typename T2> void add_event_all(int type, T1 d1, T2 d2)
 {
-	return;
-
 	bool added = false;
 
 	for (int i = 0; i < CLIENTS_MAX; i++)
 	{
 		if (!clients[i].socket) continue;
-		if (!clients[i].wants_plist_events && is_plist_event(type)) continue;
 		add_event(clients[i], type, d1, d2);
 		added = true;
 	}
@@ -468,16 +397,13 @@ template<typename T1, typename T2> void add_event_all(int type, T1 d1, T2 d2)
 	else
 		debug ("No events have been added because there are no clients");
 }
-template<typename T1> void add_event_all(int type, T1 d1)
+template<typename T1> void add_event_all(int type, const T1& d1)
 {
-		return;
-
 	bool added = false;
 
 	for (int i = 0; i < CLIENTS_MAX; i++)
 	{
 		if (!clients[i].socket) continue;
-		if (!clients[i].wants_plist_events && is_plist_event(type)) continue;
 		add_event(clients[i], type, d1);
 		added = true;
 	}
@@ -494,7 +420,6 @@ void add_event_all(int type)
 	for (int i = 0; i < CLIENTS_MAX; i++)
 	{
 		if (!clients[i].socket) continue;
-		if (!clients[i].wants_plist_events && is_plist_event(type)) continue;
 		add_event(clients[i], type);
 		added = true;
 	}
@@ -509,7 +434,7 @@ void add_event_all(int type)
 static bool flush_events (client &cli)
 {
 	if (!cli.socket) return false;
-	Lock lock(&cli);
+	Lock lock(cli);
 	auto &sock = *cli.socket;
 	while (!sock.packets.empty() && sock.send_next_packet_noblock() == 1) ;
 	return true;
@@ -604,171 +529,6 @@ static bool req_jump_to (client &cli)
 	logit ("Jumping to %ds", sec);
 	audio_jump_to (sec);
 	return true;
-}
-
-/* Handle CMD_GET_PLIST. Return 0 on error. */
-static int get_client_plist (struct client *cli)
-{
-	debug ("Client with fd %d requests the playlist", cli->socket);
-
-	/* Find the first connected client, and ask it to send the playlist.
-	 * Here, send 1 if there is a client with the playlist, or 0 if there
-	 * isn't. */
-
-	cli->requests_plist = 1;
-
-	int first = -1;
-	for (int i = 0; i < CLIENTS_MAX; i++)
-	{
-		if (!clients[i].socket || !clients[i].can_send_plist) continue;
-		first = i;
-		break;
-	}
-
-	if (first == -1) {
-		debug ("No clients with the playlist");
-		cli->requests_plist = 0;
-		if (!send_data_int(cli, 0))
-			return 0;
-		return 1;
-	}
-
-	if (!send_data_int(cli, 1))
-		return 0;
-
-	if (!clients[first].socket->send(EV_SEND_PLIST))
-		return 0;
-
-	return 1;
-}
-
-/* Handle CMD_SEND_PLIST. Some client requested to get the playlist, so we asked
- * another client to send it (EV_SEND_PLIST). */
-static int req_send_plist (struct client *cli)
-{
-	int requesting = -1;
-	for (int i = 0; i < CLIENTS_MAX; i++)
-		if (clients[i].requests_plist) { requesting = i; break; }
-
-	Socket *send_fd = NULL;
-	int serial;
-
-	debug ("Client with fd %d wants to send its playlists", cli->socket);
-
-	if (requesting == -1) {
-		logit ("No clients are requesting the playlist");
-	}
-	else {
-		send_fd = clients[requesting].socket;
-		if (!send_fd->send(EV_DATA)) {
-			logit ("Error while sending response; disconnecting the client");
-			close (send_fd->fd());
-			del_client (clients[requesting]);
-			send_fd = NULL;
-		}
-	}
-
-	if (!cli->socket->get(serial)) {
-		logit ("Error while getting serial");
-		return 0;
-	}
-
-	if (send_fd && !send_fd->send(serial)) {
-		error ("Error while sending serial; disconnecting the client");
-		close (send_fd->fd());
-		del_client (clients[requesting]);
-		send_fd = NULL;
-	}
-
-	/* Even if no clients are requesting the playlist, we must read it,
-	 * because there is no way to say that we don't need it. */
-	str item;
-	while (cli->socket->get(item) && !item.empty()) {
-		if (send_fd && !send_fd->send(item)) {
-			logit ("Error while sending item; disconnecting the client");
-			close (send_fd->fd());
-			del_client (clients[requesting]);
-			send_fd = NULL;
-		}
-	}
-
-	if (send_fd && send_fd->send("")) {
-		logit ("Error while sending end of playlist mark; "
-		       "disconnecting the client");
-		close (send_fd->fd());
-		del_client (clients[requesting]);
-		return 0;
-	}
-	logit ("Playlist sent");
-
-	if (requesting != -1)
-		clients[requesting].requests_plist = 0;
-
-	return true;
-}
-
-/* Handle command that synchronises the playlists between interfaces
- * (except forwarding the whole list). Return 0 on error. */
-static int plist_sync_cmd (struct client &cli, const int cmd)
-{
-	if (cmd == CMD_CLI_PLIST_ADD) {
-		debug ("Sending EV_PLIST_ADD");
-		str item;
-		if (!cli.socket->get(item)) {
-			logit ("Error while receiving item");
-			return 0;
-		}
-		add_event_all (EV_PLIST_ADD, item);
-	}
-	else if (cmd == CMD_CLI_PLIST_DEL) {
-		str file;
-
-		debug ("Sending EV_PLIST_DEL");
-
-		if (!cli.socket->get(file)) {
-			logit ("Error while receiving file");
-			return 0;
-		}
-
-		add_event_all (EV_PLIST_DEL, file);
-	}
-	else if (cmd == CMD_CLI_PLIST_MOVE) {
-		int i, j;
-		if (!cli.socket->get(i) || !cli.socket->get(j)) {
-			logit ("Error while receiving file");
-			return 0;
-		}
-		add_event_all (EV_PLIST_MOVE, i, j);
-
-	}
-	else { /* it can be only CMD_CLI_PLIST_CLEAR */
-		debug ("Sending EV_PLIST_CLEAR");
-		add_event_all (EV_PLIST_CLEAR);
-	}
-
-	return 1;
-}
-
-/* Generate a unique playlist serial number. */
-static int gen_serial (const client *cli)
-{
-	static int seed = 0;
-	int serial;
-
-	/* Each client must always get a different serial number, so we use
-	 * also the client index to generate it. It must also not be used by
-	 * our playlist to not confuse clients.
-	 * There can be 256 different serial number per client, but it's
-	 * enough since clients use only two playlists. */
-
-	do {
-		serial = (seed << 8) | client_index(*cli);
-		seed = (seed + 1) & 0xFF;
-	} while (serial == audio_plist_get_serial());
-
-	debug ("Generated serial %d for client with fd %d", serial, cli->socket);
-
-	return serial;
 }
 
 /* Send tags to the client. Return 0 on error. */
@@ -908,30 +668,68 @@ static void handle_command (const int client_id)
 			del_client (cli);
 			server_quit = 1;
 			break;
-		case CMD_LIST_CLEAR:
-			logit ("Clearing the list");
-			audio_plist_clear ();
-			break;
-		case CMD_LIST_ADD:
+		case CMD_PLIST_ADD:
 		{
-			str file;
-			err = !cli.socket->get(file);
-			if (!err)
-			{
-				logit ("Adding '%s' to the list", file.c_str());
-				audio_plist_add (file.c_str());
-			}
+			plist pl;
+			if ((err = !cli.socket->get(pl))) break;
+			logit ("Adding %d files to the list", (int)pl.size());
+			audio_plist_add (pl);
+			debug ("Sending EV_PLIST_ADD");
+			add_event_all(EV_PLIST_ADD, pl);
 			break;
 		}
 		case CMD_PLAY:
 		{
+			int idx;
 			str file;
-			err = !cli.socket->get(file);
-			if (!err)
+			if ((err = !cli.socket->get(idx))) break;
+			if ((err = !cli.socket->get(file))) break;
+			if (idx == -1)
 			{
 				logit ("Playing %s", file.empty() ? "first element on the list" : file.c_str());
 				audio_play (file.c_str());
 			}
+			else if (file.empty())
+			{
+				audio_play (idx);
+			}
+			else
+			{
+				plist pl, tmp; pl += std::move(file);
+				if ((err = !cli.socket->get(tmp))) break;
+				if (idx >=  pl.size())
+				{
+					logit("Invalid play index %d for given playlist of size %d", idx, (int)pl.size());
+					err = 1;
+					break;
+				}
+				audio_plist_set_and_play(std::move(pl), idx);
+				add_event_all(EV_PLIST_NEW);
+			}
+			break;
+		}
+		case CMD_PLIST_DEL:
+		{
+			int idx;
+			if ((err = !cli.socket->get(idx))) break;
+			debug ("Request for deleting %d", idx);
+			audio_plist_delete (idx);
+			debug ("Sending EV_PLIST_DEL");
+			add_event_all (EV_PLIST_DEL, idx);
+			break;
+		}
+		case CMD_PLIST_GET:
+			err = !cli.socket->send(playlist);
+			cli.socket->send(EV_DATA);
+			err = !audio_send_plist(*cli.socket);
+			break;
+		case CMD_PLIST_MOVE:
+		{
+			int i, j;
+			if ((err = !cli.socket->get(i) || !cli.socket->get(j))) break;
+			audio_plist_move (i, j);
+			debug ("Sending EV_PLIST_MOVE");
+			add_event_all (EV_PLIST_MOVE, i, j);
 			break;
 		}
 		case CMD_DISCONNECT:
@@ -939,15 +737,9 @@ static void handle_command (const int client_id)
 			close (cli.socket->fd());
 			del_client (cli);
 			break;
-		case CMD_PAUSE:
-			audio_pause ();
-			break;
-		case CMD_UNPAUSE:
-			audio_unpause ();
-			break;
-		case CMD_STOP:
-			audio_stop ();
-			break;
+		case CMD_PAUSE: audio_pause(); break;
+		case CMD_UNPAUSE: audio_unpause(); break;
+		case CMD_STOP: audio_stop(); break;
 		case CMD_GET_CTIME:
 			if (!send_data_int(&cli, MAX(0, audio_get_time())))
 				err = 1;
@@ -1063,65 +855,6 @@ static void handle_command (const int client_id)
 			if (!err) audio_set_mixer (val);
 			break;
 		}
-		case CMD_DELETE:
-		{
-			str file;
-			err = !cli.socket->get(file);
-			if (!err) debug ("Request for deleting %s", file.c_str());
-			if (!err) audio_plist_delete (file.c_str());
-			break;
-		}
-		case CMD_SEND_PLIST_EVENTS:
-			cli.wants_plist_events = 1;
-			logit ("Request for events");
-			break;
-		case CMD_GET_PLIST:
-			err = !get_client_plist(&cli);
-			break;
-		case CMD_SEND_PLIST:
-			if (!req_send_plist(&cli))
-				err = 1;
-			break;
-		case CMD_CAN_SEND_PLIST:
-			cli.can_send_plist = 1;
-			break;
-		case CMD_CLI_PLIST_ADD:
-		case CMD_CLI_PLIST_DEL:
-		case CMD_CLI_PLIST_CLEAR:
-		case CMD_CLI_PLIST_MOVE:
-			if (!plist_sync_cmd(cli, cmd))
-				err = 1;
-			break;
-		case CMD_LOCK:
-			if (!client_lock(&cli))
-				err = 1;
-			break;
-		case CMD_UNLOCK:
-			if (!client_unlock(&cli))
-				err = 1;
-			break;
-		case CMD_GET_SERIAL:
-			err = !send_data_int(&cli, gen_serial(&cli));
-			break;
-		case CMD_PLIST_GET_SERIAL:
-			err = !send_data_int(&cli, audio_plist_get_serial());
-			break;
-		case CMD_PLIST_SET_SERIAL:
-		{
-			int serial;
-			err = !cli.socket->get(serial);
-			if (!err && serial < 0)
-			{
-				logit ("Client wants to set bad serial number");
-				err = 1;
-			}
-			if (!err)
-			{
-				debug ("Setting the playlist serial number to %d", serial);
-				audio_plist_set_serial (serial);
-			}
-			break;
-		}
 		case CMD_GET_TAGS:
 			if (!req_get_tags(&cli))
 				err = 1;
@@ -1149,13 +882,6 @@ static void handle_command (const int client_id)
 			if (!abort_tags_requests(client_id))
 				err = 1;
 			break;
-		case CMD_LIST_MOVE:
-		{
-			int i, j;
-			err = !cli.socket->get(i) || !cli.socket->get(j);
-			if (!err) audio_plist_move (i, j);
-			break;
-		}
 		case CMD_TOGGLE_EQUALIZER:
 			req_toggle_equalizer();
 			break;
@@ -1190,13 +916,9 @@ static void handle_command (const int client_id)
 /* Add clients file descriptors to fds. */
 static void add_clients_fds (fd_set *read, fd_set *write)
 {
-	int i;
-
-	for (i = 0; i < CLIENTS_MAX; i++)
+	for (int i = 0; i < CLIENTS_MAX; i++)
 		if (clients[i].socket) {
-			if (locking_client() == -1 || is_locking(&clients[i]))
-				FD_SET (clients[i].socket->fd(), read);
-
+			FD_SET (clients[i].socket->fd(), read);
 			LOCK (clients[i].events_mtx);
 			if (!clients[i].socket->packets.empty())
 				FD_SET (clients[i].socket->fd(), write);
@@ -1221,19 +943,9 @@ static int max_fd (int max)
 /* Handle clients whose fds are ready to read. */
 static void handle_clients (fd_set *fds)
 {
-	int i;
-
-	for (i = 0; i < CLIENTS_MAX; i++)
-		if (clients[i].socket
-				&& FD_ISSET(clients[i].socket->fd(), fds)) {
-			if (locking_client() == -1
-					|| is_locking(&clients[i]))
-				handle_command (i);
-			else
-				debug ("Not getting a command from client with"
-						" fd %d because of lock",
-						clients[i].socket->fd());
-		}
+	for (int i = 0; i < CLIENTS_MAX; i++)
+		if (clients[i].socket && FD_ISSET(clients[i].socket->fd(), fds))
+			handle_command (i);
 }
 
 /* Close all client connections sending EV_EXIT. */

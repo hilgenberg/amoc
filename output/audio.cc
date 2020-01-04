@@ -507,6 +507,37 @@ void audio_play (const char *fname)
 	UNLOCK (plist_mtx);
 	UNLOCK (curr_playing_mtx);
 }
+void audio_play (int idx)
+{
+	int rc;
+
+	audio_stop ();
+	player_reset ();
+
+	LOCK (curr_playing_mtx);
+	LOCK (plist_mtx);
+
+	if (options::Shuffle) {
+		shuffled_plist.clear();
+		shuffled_plist += playlist;
+		shuffled_plist.shuffle();
+
+		curr_plist = &shuffled_plist;
+		curr_playing = idx; // TODO
+	}
+	else {
+		curr_plist = &playlist;
+		curr_playing = idx;
+	}
+
+	rc = pthread_create (&playing_thread, NULL, play_thread, NULL);
+	if (rc != 0)
+		error_errno ("Can't create thread", rc);
+	play_thread_running = 1;
+
+	UNLOCK (plist_mtx);
+	UNLOCK (curr_playing_mtx);
+}
 
 void audio_next ()
 {
@@ -957,6 +988,14 @@ void audio_plist_add (const char *file)
 	UNLOCK (plist_mtx);
 }
 
+void audio_plist_add (const plist &pl)
+{
+	LOCK (plist_mtx);
+	playlist += pl;
+	shuffled_plist.clear();
+	UNLOCK (plist_mtx);
+}
+
 void audio_plist_clear ()
 {
 	LOCK (plist_mtx);
@@ -1011,6 +1050,38 @@ void audio_plist_delete (const char *file)
 	UNLOCK (plist_mtx);
 }
 
+void audio_plist_delete (int i)
+{
+	LOCK (plist_mtx);
+
+	playlist.remove(i);
+	shuffled_plist.clear();
+
+	UNLOCK (plist_mtx);
+}
+
+bool audio_send_plist(Socket &socket)
+{
+	LOCK (plist_mtx);
+	bool ok = socket.send(playlist);
+	UNLOCK (plist_mtx);
+	return ok;
+}
+
+void audio_plist_set_and_play (plist &&pl, int idx)
+{
+	if (idx < 0 || idx >= pl.size()) return;
+
+	LOCK (plist_mtx);
+
+	playlist.swap(pl);
+	shuffled_plist.clear();
+
+	UNLOCK (plist_mtx);
+	audio_play(idx);
+}
+
+
 /* Set the time for a file on the playlist. */
 void audio_plist_set_time (const char *file, const int time)
 {
@@ -1035,24 +1106,6 @@ void audio_state_started_playing ()
 	prev_state = state;
 	state = STATE_PLAY;
 	state_change ();
-}
-
-int audio_plist_get_serial ()
-{
-	int serial;
-
-	LOCK (plist_mtx);
-	serial = playlist.serial;
-	UNLOCK (plist_mtx);
-
-	return serial;
-}
-
-void audio_plist_set_serial (const int serial)
-{
-	LOCK (plist_mtx);
-	playlist.serial = serial;
-	UNLOCK (plist_mtx);
 }
 
 /* Swap 2 files on the playlist. */

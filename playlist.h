@@ -53,15 +53,21 @@ bool operator< (const plist_item &a, const plist_item &b);
 struct plist
 {
 public:
-	plist() : serial(-1), is_dir(false) {}
+	plist() : is_dir(false) {}
 	plist(const plist &) = delete;
-	plist(plist &&p) : serial(p.serial), is_dir(p.is_dir), cwd(p.cwd) { items.swap(p.items); }
+	plist(plist &&p) : is_dir(p.is_dir) { items.swap(p.items); }
 
 	void clear() { items.clear(); }
 	void remove(int i)
 	{
 		if (i < 0 || (size_t)i >= items.size()) return;
 		items.erase(items.begin() + i);
+	}
+	void move(int i, int j)
+	{
+		int n = (int)items.size();
+		if (i == j || i < 0 || j < 0 || i >= n || j >= n) return;
+		std::swap(items[i], items[j]);
 	}
 
 	bool load_directory(const char *directory);
@@ -116,15 +122,11 @@ public:
 	void swap(plist &other)
 	{
 		std::swap(items, other.items);
-		std::swap(serial, other.serial);
 		std::swap(is_dir, other.is_dir);
-		std::swap(cwd, other.cwd);
 	}
 
 	std::vector<std::unique_ptr<plist_item> > items;
-	int  serial; /* Optional serial number of this playlist */
 	bool is_dir; // otherwise it's a playlist
-	str  cwd; // set for directories and on-disk playlists
 };
 
 inline void swap(plist &a, plist &b) { a.swap(b); }

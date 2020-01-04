@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include "../playlist.h"
+#include "../protocol.h"
 
 // TODO: use indices a lot more and support the same file being in a playlist more than once
 
@@ -221,6 +222,8 @@ int sfmt_same_bps (const long fmt1, const long fmt2);
 
 void audio_stop ();
 void audio_play (const char *fname);
+void audio_play (int idx);
+void audio_plist_set_and_play (plist &&pl, int idx);
 void audio_next ();
 void audio_prev ();
 void audio_pause ();
@@ -242,15 +245,16 @@ int audio_get_time ();
 int audio_get_state ();
 int audio_get_prev_state ();
 void audio_plist_add (const char *file);
+void audio_plist_add (const plist &pl);
 void audio_plist_clear ();
 char *audio_get_sname ();
 void audio_set_mixer (const int val);
 int audio_get_mixer ();
 void audio_plist_delete (const char *file);
+void audio_plist_delete (int idx);
+bool audio_send_plist(Socket &socket);
 void audio_plist_set_time (const char *file, const int time);
 void audio_state_started_playing ();
-int audio_plist_get_serial ();
-void audio_plist_set_serial (const int serial);
 file_tags* audio_get_curr_tags ();
 char *audio_get_mixer_channel_name ();
 void audio_toggle_mixer_channel ();

@@ -794,17 +794,13 @@ void player_cleanup ()
 	int rc;
 
 	rc = pthread_mutex_destroy (&request_cond_mtx);
-	if (rc != 0)
-		log_errno ("Can't destroy request mutex", rc);
+	if (rc != 0) log_errno ("Can't destroy request mutex", rc);
 	rc = pthread_mutex_destroy (&curr_tags_mtx);
-	if (rc != 0)
-		log_errno ("Can't destroy tags mutex", rc);
+	if (rc != 0) log_errno ("Can't destroy tags mutex", rc);
 	rc = pthread_mutex_destroy (&decoder_stream_mtx);
-	if (rc != 0)
-		log_errno ("Can't destroy decoder_stream mutex", rc);
+	if (rc != 0) log_errno ("Can't destroy decoder_stream mutex", rc);
 	rc = pthread_cond_destroy (&request_cond);
-	if (rc != 0)
-		log_errno ("Can't destroy request condition", rc);
+	if (rc != 0) log_errno ("Can't destroy request condition", rc);
 
 	precache_wait (&precache);
 	precache_reset (&precache);

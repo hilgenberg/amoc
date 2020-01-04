@@ -89,7 +89,6 @@ void Client::get_server_options ()
 	iface->redraw(1);
 }
 
-int Client::get_server_plist_serial() { srv.send(CMD_PLIST_GET_SERIAL); return get_data_int (); }
 int Client::get_mixer_value() { srv.send(CMD_GET_MIXER); return get_data_int (); }
 int Client::get_channels() { srv.send(CMD_GET_CHANNELS); return get_data_int (); }
 int Client::get_rate() { srv.send(CMD_GET_RATE); return get_data_int (); }
@@ -215,44 +214,6 @@ void Client::update_state ()
 	if (silent_seek_pos == -1) iface->update_curr_time(get_curr_time ());
 }
 
-/* Send the playlist to the server to be forwarded to another client. */
-void Client::forward_playlist ()
-{
-	debug ("Forwarding the playlist...");
-	srv.send(CMD_SEND_PLIST);
-	srv.send(playlist.serial);
-	for (auto &i : playlist.items)
-		srv.send(i->path);
-	srv.send("");
-}
-
-int Client::recv_server_plist (plist &plist)
-{
-	logit ("Asking server for the playlist from other client.");
-	srv.send(CMD_GET_PLIST);
-	logit ("Waiting for response");
-	wait_for_data ();
-
-	if (!srv.get_int()) {
-		debug ("There is no playlist");
-		return 0; /* there are no other clients with a playlist */
-	}
-
-	logit ("There is a playlist, getting...");
-	wait_for_data ();
-
-	logit ("Transfer...");
-
-	plist.serial = srv.get_int();
-
-	while (true) {
-		str path = srv.get_str();
-		if (path.empty()) break;
-		plist += std::move(path);
-	}
-	return 1;
-}
-
 /* Handle server event. */
 void Client::handle_server_event (int type)
 {
@@ -272,36 +233,35 @@ void Client::handle_server_event (int type)
 		case EV_AVG_BITRATE: iface->update_avg_bitrate(get_avg_bitrate()); break;
 		case EV_OPTIONS: get_server_options(); break;
 		case EV_SRV_ERROR: iface->error_message(srv.get_str()); break;
-		case EV_SEND_PLIST: forward_playlist (); break;
+		case EV_PLIST_NEW:
+			if (!synced) break;
+			srv.send(CMD_PLIST_GET);
+			wait_for_data();
+			srv.get(playlist);
+			ask_for_tags(playlist);
+			break;
 		case EV_PLIST_ADD:
 		{
-			str file = srv.get_str();
-			playlist += file;
-			auto &item = *playlist.items.back();
-			if (options::ReadTags && !item.tags)
-				send_tags_request(file);
+			if (!synced) break;
+			plist pl; srv.get(pl);
+			playlist += pl;
+			ask_for_tags(pl);
 			iface->redraw(2);
 			break;
 		}
-		case EV_PLIST_CLEAR:
-			playlist.clear();
-			iface->redraw(2);
-			break;
 		case EV_PLIST_DEL:
 		{
-			str file = srv.get_str();
-			int item = playlist.find(file);
-			if (item != -1) {
-				playlist.remove(item);
-				iface->redraw(2);
-			}
+			if (!synced) break;
+			int i = srv.get_int();
+			playlist.remove(i);
+			iface->redraw(2);
 			break;
 		}
 		case EV_PLIST_MOVE:
 		{
-			int i = srv.get_int(), j = srv.get_int(), n = playlist.size();
-			if (i >= 0 && j >= 0 && i != j && i < n && j < n)
-				std::swap(playlist.items[i], playlist.items[j]);
+			if (!synced) break;
+			int i = srv.get_int(), j = srv.get_int();
+			playlist.move(i, j);
 			iface->redraw(2);
 			break;
 		}
@@ -379,20 +339,6 @@ bool Client::go_to_dir (const char *dir)
 	return true;
 }
 
-/* Make sure that the server's playlist has different serial from ours. */
-void Client::change_srv_plist_serial ()
-{
-	int serial;
-	do {
-		srv.send(CMD_GET_SERIAL);
-		serial = get_data_int ();
-	 } while (serial == playlist.serial ||
-	          serial == dir_plist.serial);
-
-	srv.send(CMD_PLIST_SET_SERIAL);
-	srv.send(serial);
-}
-
 /* Load the playlist file and switch the menu to it. Return 1 on success. */
 int Client::go_to_playlist (const char *file)
 {
@@ -401,24 +347,12 @@ int Client::go_to_playlist (const char *file)
 				"I'm not sure you want to do this.");
 		return 0;
 	}
-	//playlist.clear();
+
+	synced = false;
 
 	iface->status("Loading playlist...");
 	if (playlist.load_m3u(file)) {
-		srv.send(CMD_LOCK);
-		change_srv_plist_serial ();
-		srv.send(CMD_CLI_PLIST_CLEAR);
-		iface->status ("Notifying clients...");
-		srv.send(playlist);
-		iface->status ("");
-		srv.send(CMD_UNLOCK);
-
-		/* We'll use the playlist received from the
-		 * server to be synchronized with other clients.
-		 */
-		playlist.clear();
-
-		//interface_message ("Playlist loaded.");
+		iface->message ("Playlist loaded.");
 	}
 	else {
 		iface->message ("The playlist is empty");
@@ -461,35 +395,6 @@ void Client::enter_first_dir ()
 	}
 
 	first_run = 0;
-}
-
-/* Request the playlist from the server (given by another client).  Make
- * the titles.  Return 0 if such a list doesn't exist. */
-int Client::get_server_playlist (plist &plist)
-{
-	iface->status("Getting the playlist...");
-	debug ("Getting the playlist...");
-	if (recv_server_plist(plist)) {
-		if (options::ReadTags) ask_for_tags (plist);
-		iface->status("");
-		return 1;
-	}
-
-	iface->status("");
-
-	return 0;
-}
-
-/* Get the playlist from another client and use it as our playlist.
- * Return 0 if there is no client with a playlist. */
-int Client::use_server_playlist ()
-{
-	if (get_server_playlist(playlist)) {
-		iface->redraw(2);
-		return 1;
-	}
-
-	return 0;
 }
 
 /* Process file names passed as arguments. */
@@ -570,6 +475,7 @@ void Client::load_playlist ()
 	if (is_plist_file(plist_file)) {
 		go_to_playlist (plist_file);
 	}
+	synced = false;
 }
 
 void Client::go_dir_up ()
@@ -583,64 +489,29 @@ void Client::go_dir_up ()
 	go_to_dir (cwd.c_str());
 }
 
-/* Return a generated playlist serial from the server and make sure
- * it's not the same as our playlist's serial. */
-int Client::get_safe_serial ()
-{
-	int serial;
-	do {
-		srv.send(CMD_GET_SERIAL);
-		serial = get_data_int ();
-	} while (serial == playlist.serial);
-	/* check only the playlist, because dir_plist has serial -1 */
-
-	return serial;
-}
-
-/* Send the playlist to the server. If clear != 0, clear the server's playlist
- * before sending. */
-void Client::send_playlist (plist &plist, bool clear)
-{
-	if (clear)
-		srv.send(CMD_LIST_CLEAR);
-
-	for (auto &i : plist.items) {
-		srv.send(CMD_LIST_ADD);
-		srv.send(i->path);
-	}
-}
-
-/* Send the playlist to the server if necessary and request playing this
- * item. */
 void Client::play_it(const str &file)
 {
-	struct plist *curr_plist;
 	if (iface->in_dir_plist())
-		curr_plist = &dir_plist;
-	else
-		curr_plist = &playlist;
-
-	srv.send(CMD_LOCK);
-
-	if (curr_plist->serial == -1 || get_server_plist_serial() != curr_plist->serial) {
-		int serial;
-
-		logit ("The server has different playlist");
-
-		serial = get_safe_serial();
-		curr_plist->serial = serial;
-		srv.send(CMD_PLIST_SET_SERIAL);
-		srv.send(serial);
-
-		send_playlist (*curr_plist, true);
+	{
+		auto *i = iface->sel_item();
+		if (!i) return;
+		srv.send(CMD_PLAY);
+		srv.send(-1);
+		srv.send(file);
 	}
 	else
-		logit ("The server already has my playlist");
-	srv.send(CMD_PLAY);
-	srv.send(file);
-
-	srv.send(CMD_UNLOCK);
-	iface->redraw(2);
+	{
+		int i = iface->sel_index();
+		if (i < 0) return;
+		srv.send(CMD_PLAY);
+		srv.send(iface->sel_index());
+		if (!synced)
+		{
+			srv.send(playlist);
+			synced = true;
+		}
+		else srv.send("");
+	}
 }
 
 /* Action when the user selected a file. */
@@ -688,30 +559,29 @@ void Client::add_dir_plist ()
 
 	iface->status("Reading directories...");
 
+	plist pl;
 	if (type == F_DIR)
-		playlist.add_directory(item->path.c_str());
+		pl.add_directory(item->path.c_str());
 	else
-		playlist.load_m3u(item->path.c_str());
+		pl.load_m3u(item->path.c_str());
 
-	srv.send(CMD_LOCK);
+	if (synced)
+	{
+		srv.send(CMD_PLIST_ADD);
+		srv.send(pl);
+	}
+	else
+	{
+		playlist += std::move(pl);
+		iface->redraw(2);
+	}
 
-	/* Add the new files to the server's playlist if the server has our
-	 * playlist. */
-	if (get_server_plist_serial() == playlist.serial)
-		send_playlist (playlist, true);
-
-	iface->status("Notifying clients...");
-	srv.send(playlist);
 	iface->status("");
-
-	srv.send(CMD_UNLOCK);
 }
 
 /* Add the currently selected file to the playlist. */
 void Client::add_file_plist ()
 {
-	char *file;
-
 	if (!iface->in_dir_plist()) {
 		error ("Can't add to the playlist a file from the playlist.");
 		return;
@@ -730,18 +600,15 @@ void Client::add_file_plist ()
 		return;
 	}
 
-	srv.send(CMD_LOCK);
-	srv.send(CMD_CLI_PLIST_ADD);
-	srv.send(item->path);
-
-	/* Add to the server's playlist if the server has our
-	 * playlist. */
-	if (get_server_plist_serial() == playlist.serial) {
-		srv.send(CMD_LIST_ADD);
+	if (synced) {
+		srv.send(CMD_PLIST_ADD);
 		srv.send(item->path);
 	}
-	srv.send(CMD_UNLOCK);
-
+	else
+	{
+		playlist += *item;
+		iface->redraw(2);
+	}
 	iface->move_down();
 }
 
@@ -777,21 +644,19 @@ void Client::delete_item ()
 	}
 
 	assert (playlist.size() > 0);
-	auto *item = iface->sel_item();
-	if (!item) return;
+	int i = iface->sel_index();
+	if (i < 0) return;
 
-	srv.send(CMD_LOCK);
-	srv.send(CMD_CLI_PLIST_DEL);
-	srv.send(item->path);
-
-	/* Delete this item from the server's playlist if it has our
-	 * playlist. */
-	if (get_server_plist_serial() == playlist.serial) {
-		srv.send(CMD_DELETE);
-		srv.send(item->path);
+	if (synced)
+	{
+		srv.send(CMD_PLIST_DEL);
+		srv.send(i);
 	}
-	srv.send(CMD_UNLOCK);
-	iface->redraw(2);
+	else
+	{
+		playlist.remove(i);
+		iface->redraw(2);
+	}
 }
 
 /* Select the file that is currently played. */
@@ -853,13 +718,21 @@ void Client::move_item (int direction)
 	int i = iface->sel_index(), j = i+direction;
 	if (i < 0 || j < 0 || j >= playlist.size()) return;
 
-	srv.send((int)CMD_CLI_PLIST_MOVE);
-	srv.send(i);
-	srv.send(j);
+	if (synced)
+	{
+		srv.send(CMD_PLIST_MOVE);
+		srv.send(i);
+		srv.send(j);
+	}
+	else
+	{
+		playlist.move(i, j);
+		iface->redraw(2);
+	}
 }
 
 Client::Client(int sock, stringlist &args)
-: srv(sock, false)
+: srv(sock, false), synced(false)
 {
 	logit ("Starting MOC Interface");
 
@@ -877,55 +750,29 @@ Client::Client(int sock, stringlist &args)
 	xsignal(SIGINT, sig_interrupt);
 	xsignal(SIGWINCH, sig_winch);
 
-	srv.send(CMD_GET_SERIAL);
-	playlist.serial = get_data_int();
-
 	if (!args.empty()) {
 		process_args (args);
 
 		if (playlist.size() == 0) {
-			if (!use_server_playlist())
-				load_playlist ();
-			srv.send(CMD_SEND_PLIST_EVENTS);
-		}
-		else {
-			plist tmp_plist;
-
-			/* We have made the playlist from command line. */
-
-			/* The playlist should be now clear, but this will give
-			 * us the serial number of the playlist used by other
-			 * clients. */
-			get_server_playlist (tmp_plist);
-
-			srv.send(CMD_SEND_PLIST_EVENTS);
-
-			srv.send(CMD_LOCK);
-			srv.send(CMD_CLI_PLIST_CLEAR);
-
-			playlist.serial = tmp_plist.serial;
-
-			change_srv_plist_serial ();
-
-			iface->status("Notifying clients...");
-			srv.send(playlist);
-			iface->status("");
-			playlist.clear();
-			srv.send(CMD_UNLOCK);
-
+			srv.send(CMD_PLIST_GET);
+			wait_for_data();
+			srv.get(playlist);
+			ask_for_tags(playlist);
+			synced = true;
+		} else {
 			/* Now enter_first_dir() should not go to the music
 			 * directory. */
 			options::StartInMusicDir = false;
 		}
 	}
 	else {
-		srv.send(CMD_SEND_PLIST_EVENTS);
-		if (!use_server_playlist())
-			load_playlist ();
+		srv.send(CMD_PLIST_GET);
+		wait_for_data();
+		srv.get(playlist);
+		ask_for_tags(playlist);
+		synced = true;
 		enter_first_dir ();
 	}
-
-	srv.send(CMD_CAN_SEND_PLIST);
 
 	update_state ();
 }
@@ -1030,19 +877,6 @@ void Client::handle_command(key_cmd cmd)
 			if (iface->get_state() != STATE_STOP)
 				srv.send(CMD_NEXT);
 			else if (playlist.size()) {
-				if (playlist.serial != -1 || get_server_plist_serial() != playlist.serial) {
-					int serial;
-					srv.send(CMD_LOCK);
-
-					send_playlist (playlist, 1);
-					serial = get_safe_serial();
-					playlist.serial = serial;
-					srv.send(CMD_PLIST_SET_SERIAL);
-					srv.send(playlist.serial);
-
-					srv.send(CMD_UNLOCK);
-				}
-
 				srv.send(CMD_PLAY);
 				srv.send("");
 			}
@@ -1082,10 +916,20 @@ void Client::handle_command(key_cmd cmd)
 			add_file_plist ();
 			break;
 		case KEY_CMD_PLIST_CLEAR:
-			srv.send(CMD_LOCK);
-			srv.send(CMD_CLI_PLIST_CLEAR);
-			change_srv_plist_serial ();
-			srv.send(CMD_UNLOCK);
+			if (synced)
+			{
+				playlist.clear();
+				synced = false;
+			}
+			else
+			{
+				srv.send(CMD_PLIST_GET);
+				wait_for_data();
+				srv.get(playlist);
+				ask_for_tags(playlist);
+				synced = true;
+			}
+			iface->redraw(2);
 			break;
 		case KEY_CMD_PLIST_ADD_DIR:
 			add_dir_plist ();
@@ -1142,7 +986,6 @@ void Client::handle_command(key_cmd cmd)
 		case KEY_CMD_PLIST_DEL:
 			delete_item ();
 			break;
-
 		case KEY_CMD_GO_DIR_UP:
 			go_dir_up ();
 			break;

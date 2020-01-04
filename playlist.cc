@@ -142,7 +142,6 @@ bool plist::load_directory(const char *directory)
 
 	items.clear();
 	is_dir = true;
-	cwd = directory;
 
 	const bool root = !strcmp(directory, "/");
 	const char *prefix = (root ? "" : directory);
@@ -238,7 +237,6 @@ bool plist::load_m3u (const char *fname)
 	
 	items.clear();
 	is_dir = false;
-	cwd = fname;
 
 	str base(fname);
 	size_t i = base.rfind('/');

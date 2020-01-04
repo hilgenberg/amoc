@@ -15,6 +15,7 @@ public:
 
 	plist playlist, dir_plist;
 	str cwd; // current position of dir_plist
+	bool synced; // is our playlist synced with the server's?
 
 	void handle_command(key_cmd cmd); // does everything that's not purely UI
 
@@ -38,7 +39,6 @@ private:
 	void send_tags_request (const str &file);
 
 	void get_server_options();
-	int get_server_plist_serial();
 	int get_mixer_value();
 	int get_channels();
 	int get_rate();
@@ -58,18 +58,13 @@ private:
 	void update_curr_tags ();
 	void update_state ();
 	void forward_playlist ();
-	int  recv_server_plist (plist &plist);
 	bool go_to_dir (const char *dir);
-	void change_srv_plist_serial ();
 	int  go_to_playlist (const char *file);
 	void go_file ();
 	void enter_first_dir ();
-	int  get_server_playlist (plist &plist);
-	int  use_server_playlist ();
 	void process_args (stringlist &args);
 	void load_playlist ();
 	void go_dir_up ();
-	int  get_safe_serial ();
 	void send_playlist (plist &plist, bool clear);
 	void play_it(const str &file);
 	void set_mixer (int val);
