@@ -47,21 +47,6 @@ void Client::send_tags_request (const str &file)
 	debug ("Asking for tags for %s", file.c_str());
 }
 
-/* Get the server options and set our options like them. */
-void Client::get_server_options ()
-{
-	srv.send(CMD_GET_OPTION_SHUFFLE);
-	options::Shuffle = get_data_bool ();
-
-	srv.send(CMD_GET_OPTION_REPEAT);
-	options::Repeat = get_data_bool ();
-
-	srv.send(CMD_GET_OPTION_AUTONEXT);
-	options::AutoNext = get_data_bool ();
-
-	iface->redraw(1);
-}
-
 int Client::get_mixer_value() { srv.send(CMD_GET_MIXER); return get_data_int (); }
 int Client::get_channels() { srv.send(CMD_GET_CHANNELS); return get_data_int (); }
 int Client::get_rate() { srv.send(CMD_GET_RATE); return get_data_int (); }
@@ -155,17 +140,18 @@ void Client::update_item_tags (plist &plist, const int num, file_tags *tags)
 /* Use new tags for current file title (for Internet streams). */
 void Client::update_curr_tags ()
 {
-	auto f = iface->get_curr_file();
-	if (is_url(f.c_str())) {
-		srv.send(CMD_GET_TAGS);
-		wait_for_data ();
-		iface->update_curr_tags(srv.get_tags());
-	}
+	srv.send(CMD_GET_TAGS);
+	wait_for_data ();
+	auto *tags = srv.get_tags();
+	if (tags && tags->time > 0) iface->update_total_time(tags->time);
+	iface->update_curr_tags(tags);
 }
 
 /* Get and show the server state. */
 void Client::update_state ()
 {
+	want_state_update = false;
+
 	auto old_state = iface->get_state();
 	auto new_state = get_state ();
 	iface->update_state(new_state);
@@ -179,6 +165,7 @@ void Client::update_state ()
 		iface->update_curr_file(file);
 		iface->update_curr_tags(nullptr);
 		silent_seek_pos = -1;
+		update_curr_tags ();
 	}
 
 	iface->update_channels(get_channels());
@@ -190,32 +177,36 @@ void Client::update_state ()
 /* Handle server event. */
 void Client::handle_server_event (int type)
 {
+	// this can not send any commands that return EV_DATA because it
+	// gets called by wait_for_data!
 	logit ("EVENT: 0x%02x", type);
 	switch (type)
 	{
 		case EV_EXIT: interface_fatal ("The server exited!"); break;
 		case EV_BUSY: interface_fatal ("The server is busy; too many other clients are connected!"); break;
 
-		case EV_CTIME:
-			if (silent_seek_pos == -1) iface->update_curr_time(get_curr_time ());
+		case EV_STATE: want_state_update = true; break;
+		case EV_CTIME: { int tmp = srv.get_int(); if (silent_seek_pos == -1) iface->update_curr_time(tmp); } break;
+		case EV_BITRATE: iface->update_bitrate(srv.get_int()); break;
+		case EV_RATE:  iface->update_rate(srv.get_int()); break;
+		case EV_CHANNELS: iface->update_channels(srv.get_int()); break;
+		case EV_AVG_BITRATE: iface->update_avg_bitrate(srv.get_int()); break;
+		case EV_OPTIONS: 
+		{
+			int v = srv.get_int();
+			options::AutoNext = v & 1;
+			options::Repeat   = v & 2;
+			options::Shuffle  = v & 4;
+			iface->redraw(1);
 			break;
-		case EV_STATE: update_state(); break;
-		case EV_BITRATE: iface->update_bitrate(get_bitrate()); break;
-		case EV_RATE:  iface->update_rate(get_rate()); break;
-		case EV_CHANNELS: iface->update_channels(get_channels()); break;
-		case EV_AVG_BITRATE: iface->update_avg_bitrate(get_avg_bitrate()); break;
-		case EV_OPTIONS: get_server_options(); break;
+		}
 		case EV_SRV_ERROR: iface->error_message(srv.get_str()); break;
 		case EV_PLIST_NEW:
-			if (!synced) break;
-			srv.send(CMD_PLIST_GET);
-			wait_for_data();
-			srv.get(playlist);
-			ask_for_tags(playlist);
+			if (synced) want_plist_update = true;
 			break;
 		case EV_PLIST_ADD:
 		{
-			if (!synced) break;
+			if (!synced || want_plist_update) break;
 			plist pl; srv.get(pl);
 			playlist += pl;
 			ask_for_tags(pl);
@@ -224,7 +215,7 @@ void Client::handle_server_event (int type)
 		}
 		case EV_PLIST_DEL:
 		{
-			if (!synced) break;
+			if (!synced || want_plist_update) break;
 			int i = srv.get_int();
 			playlist.remove(i);
 			iface->redraw(2);
@@ -232,17 +223,19 @@ void Client::handle_server_event (int type)
 		}
 		case EV_PLIST_MOVE:
 		{
-			if (!synced) break;
+			if (!synced || want_plist_update) break;
 			int i = srv.get_int(), j = srv.get_int();
 			playlist.move(i, j);
 			iface->redraw(2);
 			break;
 		}
-		case EV_TAGS:
-			update_curr_tags ();
-			break;
+
+		case EV_TAGS: want_state_update = true; break;
 		case EV_STATUS_MSG: iface->status(srv.get_str()); break;
-		case EV_MIXER_CHANGE: update_mixer_name(); break;
+		case EV_MIXER_CHANGE:
+			iface->update_mixer_name(srv.get_str());
+			iface->update_mixer_value(srv.get_int());
+			break;
 		case EV_FILE_TAGS:
 		{
 			str file = srv.get_str();
@@ -254,8 +247,8 @@ void Client::handle_server_event (int type)
 			if ((n = playlist.find(file))  != -1) update_item_tags (playlist, n, tags);
 			if (iface->get_curr_file() == file) {
 				debug ("Tags apply to the currently played file.");
+				if (tags) iface->update_curr_tags(tags);
 				if (tags->time != -1) iface->update_total_time(tags->time);
-				iface->update_curr_tags(tags);
 			}
 			else delete tags;
 			break;
@@ -677,6 +670,7 @@ void Client::move_item (int direction)
 
 Client::Client(int sock, stringlist &args)
 : srv(sock, false), synced(false)
+, want_plist_update(false), want_state_update(false)
 {
 	logit ("Starting MOC Interface");
 
@@ -685,7 +679,7 @@ Client::Client(int sock, stringlist &args)
 
 	keys_init ();
 	iface.reset(new Interface(*this, dir_plist, playlist));
-	get_server_options ();
+	srv.send(CMD_GET_OPTIONS);
 	update_mixer_name ();
 
 	xsignal(SIGQUIT, sig_quit);
@@ -756,6 +750,20 @@ void Client::run()
 					handle_server_event(type);
 				else
 					debug ("Getting event would block.");
+			}
+			else
+			{
+				if (want_plist_update && synced)
+				{
+					srv.send(CMD_PLIST_GET);
+					wait_for_data();
+					want_plist_update = false;
+					srv.get(playlist);
+					ask_for_tags(playlist);
+				}
+				else want_plist_update = false;
+				
+				if (want_state_update) update_state();
 			}
 		}
 
@@ -837,17 +845,14 @@ void Client::handle_command(key_cmd cmd)
 		case KEY_CMD_TOGGLE_SHUFFLE:
 			srv.send(CMD_SET_OPTION_SHUFFLE);
 			srv.send(!options::Shuffle);
-			get_server_options();
 			break;
 		case KEY_CMD_TOGGLE_REPEAT:
 			srv.send(CMD_SET_OPTION_REPEAT);
 			srv.send(!options::Repeat);
-			get_server_options();
 			break;
 		case KEY_CMD_TOGGLE_AUTO_NEXT:
 			srv.send(CMD_SET_OPTION_AUTONEXT);
 			srv.send(!options::AutoNext);
-			get_server_options();
 			break;
 		case KEY_CMD_TOGGLE_PLAYLIST_FULL_PATHS:
 			options::PlaylistFullPaths ^= 1;

@@ -176,10 +176,10 @@ static int bitrate_list_get (struct bitrate_list *b, const int time)
 		}
 
 		bitrate = b->head->bitrate /*b->head->time + 1000*/;
-		debug ("Getting bitrate for time %d (%d)", time, bitrate);
+		//debug ("Getting bitrate for time %d (%d)", time, bitrate);
 	}
 	else {
-		debug ("Getting bitrate for time %d (no bitrate information)", time);
+		//debug ("Getting bitrate for time %d (no bitrate information)", time);
 		bitrate = -1;
 	}
 	UNLOCK (b->mtx);

@@ -106,7 +106,7 @@ static str total_time_str(int sec)
 	int m = (sec / 60) % 60;
 	int s = sec % 60;
 	if (h <= 99999) return format("%05d:%02d:%02d", h, m, s);
-	return " very:long ";
+	return " very:lo:ng";
 }
 static str time_str(int sec)
 {
@@ -115,7 +115,7 @@ static str time_str(int sec)
 	int s = sec % 60;
 	if (m <= 99) return format("%02d:%02d", m, s);
 	int h = m / 60; m %= 60;
-	if (h <= 99) return format("%02dH%02d", h, m);
+	if (h <= 99) return format("%02dh%02d", h, m);
 	int d = h/24; h %= 24;
 	if (d <= 99) return format("%02dD%02d", d, h);
 	int y = d/365; d %= 365; // um, yeah, really useful ;-)

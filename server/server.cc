@@ -389,10 +389,7 @@ template<typename T1, typename T2> void add_event_all(int type, T1 d1, T2 d2)
 		added = true;
 	}
 
-	if (added)
-		wake_up_server ();
-	else
-		debug ("No events have been added because there are no clients");
+	if (added) wake_up_server ();
 }
 template<typename T1> void add_event_all(int type, const T1& d1)
 {
@@ -405,10 +402,7 @@ template<typename T1> void add_event_all(int type, const T1& d1)
 		added = true;
 	}
 
-	if (added)
-		wake_up_server ();
-	else
-		debug ("No events have been added because there are no clients");
+	if (added) wake_up_server ();
 }
 void add_event_all(int type)
 {
@@ -421,10 +415,7 @@ void add_event_all(int type)
 		added = true;
 	}
 
-	if (added)
-		wake_up_server ();
-	else
-		debug ("No events have been added because there are no clients");
+	if (added) wake_up_server ();
 }
 
 /* Send events from the queue. Return 0 on error. */
@@ -628,6 +619,27 @@ static int abort_tags_requests (const int cli_id)
 	return 1;
 }
 
+static void send_ev_options(int where = -1)
+{
+	int v = options::AutoNext + 2*options::Repeat + 4*options::Shuffle;
+	if (where == -1)
+		add_event_all(EV_OPTIONS, v);
+	else
+		add_event(clients[where], EV_OPTIONS, v);
+}
+static void send_ev_mixer(int where = -1)
+{
+	char *name = audio_get_mixer_channel_name ();
+	int v = audio_get_mixer();
+
+	if (where == -1)
+		add_event_all(EV_MIXER_CHANGE, name, v);
+	else
+		add_event(clients[where], EV_MIXER_CHANGE, name, v);
+
+	free (name);
+}
+
 /* Receive a command from the client and execute it. */
 static void handle_command (const int client_id)
 {
@@ -724,8 +736,7 @@ static void handle_command (const int client_id)
 		case CMD_UNPAUSE: audio_unpause(); break;
 		case CMD_STOP: audio_stop(); break;
 		case CMD_GET_CTIME:
-			if (!send_data_int(&cli, MAX(0, audio_get_time())))
-				err = 1;
+			err = !send_data_int(&cli, MAX(0, audio_get_time()));
 			break;
 		case CMD_SEEK:
 		{
@@ -773,58 +784,31 @@ static void handle_command (const int client_id)
 		case CMD_PING:
 			err = !cli.socket->send(EV_PONG);
 			break;
-		case CMD_GET_OPTION_AUTONEXT:
-			if (!send_data_bool(&cli, options::AutoNext))
-				err = 1;
-			break;
-		case CMD_GET_OPTION_SHUFFLE:
-			if (!send_data_bool(&cli, options::Shuffle))
-				err = 1;
-			break;
-		case CMD_GET_OPTION_REPEAT:
-			if (!send_data_bool(&cli, options::Repeat))
-				err = 1;
+		case CMD_GET_OPTIONS:
+			send_ev_options(client_id);
 			break;
 		case CMD_SET_OPTION_AUTONEXT:
 		{
-			int val = 0;
-			if (!cli.socket->get(val))
-			{
-				err = 1;
-			}
-			else
-			{
-				options::AutoNext = val;
-				add_event_all (EV_OPTIONS);
-			}
+			bool val = 0;
+			if ((err = !cli.socket->get(val))) break;
+			options::AutoNext = val;
+			send_ev_options();
 			break;
 		}
 		case CMD_SET_OPTION_SHUFFLE:
 		{
-			int val = 0;
-			if (!cli.socket->get(val))
-			{
-				err = 1;
-			}
-			else
-			{
-				options::Shuffle = val;
-				add_event_all (EV_OPTIONS);
-			}
+			bool val = 0;
+			if ((err = !cli.socket->get(val))) break;
+			options::Shuffle = val;
+			send_ev_options();
 			break;
 		}
 		case CMD_SET_OPTION_REPEAT:
 		{
-			int val = 0;
-			if (!cli.socket->get(val))
-			{
-				err = 1;
-			}
-			else
-			{
-				options::Repeat = val;
-				add_event_all (EV_OPTIONS);
-			}
+			bool val = 0;
+			if ((err = !cli.socket->get(val))) break;
+			options::Repeat = val;
+			send_ev_options();
 			break;
 		}
 		case CMD_GET_MIXER:
@@ -840,19 +824,19 @@ static void handle_command (const int client_id)
 		}
 		case CMD_GET_TAGS:
 		{
-			Lock lock(cli);
 			file_tags *tags = audio_get_curr_tags ();
-			err = !cli.socket->send(EV_DATA || !cli.socket->send(tags));
+			Lock lock(cli);
+			err = !cli.socket->send(EV_DATA) || !cli.socket->send(tags);
 			delete tags;
 			break;
 		}
 		case CMD_TOGGLE_MIXER_CHANNEL:
 			audio_toggle_mixer_channel ();
-			add_event_all (EV_MIXER_CHANGE);
+			send_ev_mixer();
 			break;
 		case CMD_TOGGLE_SOFTMIXER:
 			softmixer_set_active(!softmixer_is_active());
-			add_event_all (EV_MIXER_CHANGE);
+			send_ev_mixer();
 			break;
 		case CMD_GET_MIXER_CHANNEL_NAME:
 		{
@@ -1025,25 +1009,25 @@ void server_loop ()
 void set_info_bitrate (const int bitrate)
 {
 	sound_info.bitrate = bitrate;
-	add_event_all (EV_BITRATE);
+	add_event_all (EV_BITRATE, sound_info.bitrate);
 }
 
 void set_info_channels (const int channels)
 {
 	sound_info.channels = channels;
-	add_event_all (EV_CHANNELS);
+	add_event_all (EV_CHANNELS, sound_info.channels);
 }
 
 void set_info_rate (const int rate)
 {
 	sound_info.rate = rate;
-	add_event_all (EV_RATE);
+	add_event_all (EV_RATE, sound_info.rate);
 }
 
 void set_info_avg_bitrate (const int avg_bitrate)
 {
 	sound_info.avg_bitrate = avg_bitrate;
-	add_event_all (EV_AVG_BITRATE);
+	add_event_all (EV_AVG_BITRATE, sound_info.avg_bitrate);
 }
 
 /* Notify the client about change of the player state. */
@@ -1054,7 +1038,7 @@ void state_change ()
 
 void ctime_change ()
 {
-	add_event_all (EV_CTIME);
+	add_event_all (EV_CTIME, (int)MAX(0, audio_get_time()));
 }
 
 void tags_change ()

@@ -41,7 +41,7 @@ char *socket_name ()
 
 bool Socket::send(const void *data, size_t n)
 {
-	//logit("Socketsend: %d %s", (int)n, buffering ? "-> buffer" : "");
+	//SOCKET_DEBUG("Socketsend: %d %s", (int)n, buffering ? "-> buffer" : "");
 	if (buffering)
 	{
 		buf.insert(buf.end(), (char*)data, (char*)data+n);
@@ -62,7 +62,7 @@ bool Socket::send(const void *data, size_t n)
 }
 bool Socket::read(void *data, size_t n)
 {
-	//logit("Socketread: %d", n);
+	//SOCKET_DEBUG("Socketread: %d", n);
 	if (!n) return true;
 	while (n)
 	{
@@ -142,9 +142,7 @@ int Socket::send_next_packet_noblock()
 	if (packets.empty()) return 1;
 	const std::vector<char> &d = packets.front();
 
-
-	logit("sending packet %X (%d)", *(int*)d.data(), (int)d.size());
-
+	SOCKET_DEBUG("sending packet %X (%d)", *(int*)d.data(), (int)d.size());
 
 	/* We must do it in one send() call to be able to handle blocking. */
 	ssize_t res;

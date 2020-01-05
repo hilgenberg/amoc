@@ -26,6 +26,8 @@ public:
 private:
 	Socket srv;
 	std::unique_ptr<Interface> iface;
+
+	bool want_plist_update, want_state_update;
 	
 	int silent_seek_pos = -1; /* Silent seeking - where we are in seconds. -1 - no seeking. */
 	time_t silent_seek_key_last = (time_t)0; /* when the silent seek key was last used */
@@ -38,7 +40,6 @@ private:
 	str  get_data_str () { wait_for_data(); return srv.get_str (); }
 	void send_tags_request (const str &file);
 
-	void get_server_options();
 	int get_mixer_value();
 	int get_channels();
 	int get_rate();
