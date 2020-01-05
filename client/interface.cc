@@ -462,6 +462,8 @@ void Interface::draw(bool force)
 
 void Interface::resize ()
 {
+	endwin();
+	refresh();
 	keypad (win, TRUE);
 	wresize (win, LINES, COLS);
 	werase (win);
