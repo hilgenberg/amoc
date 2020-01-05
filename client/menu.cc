@@ -68,15 +68,20 @@ void menu::draw(bool active) const
 	const int N = items.size();
 	const int asel = active ? sel : -1;
 
+	bool have_up = items.is_dir && N && iface->cwd() != "/";
+
 	// gather layout data: widths for three columns (artist, album, title)
 	// and maximum track number
 	const int extra = 5 /*rating*/ + 5 /*time*/ + 3 /*[|]*/ + 3*2 /*spacing*/;
-	int c0 = 0, c1 = 0, c2 = 0, M = -1;
+	int c0 = 0, c1 = 0, c2 = 0, M = 0;
 	bool readtags = options::ReadTags;
 	int avail = bounds.w - extra;
 	if (avail-2 < 3*4) readtags = false;
+	bool first = true;
 	if (readtags) for (const auto &ip : items.items)
 	{
+		if (first && have_up) { first = false; continue; } // should not have tags anyway...
+
 		const auto &it = *ip;
 		if (!it.tags) continue;
 		auto &tags = *it.tags;
@@ -126,31 +131,34 @@ void menu::draw(bool active) const
 			{
 				w1 = avail/2, w2 = avail-w1;
 				o1 = c1-w1; o2 = c2-w2;
-				if      (o1 < 0) { w1 = c1; w2 = avail; }
-				else if (o2 < 0) { w2 = c2; w1 = avail; }
+				if      (o1 < 0) { w1 = c1; w2 = avail-c1; }
+				else if (o2 < 0) { w2 = c2; w1 = avail-c2; }
 			}
 			else if (o1 < 0)
 			{
 				w0 = avail/2, w2 = avail-w0;
 				o0 = c0-w0; o2 = c2-w2;
-				if      (o0 < 0) { w0 = c0; w2 = avail; }
-				else if (o2 < 0) { w2 = c2; w0 = avail; }
+				if      (o0 < 0) { w0 = c0; w2 = avail-c0; }
+				else if (o2 < 0) { w2 = c2; w0 = avail-c2; }
 			}
 			else if (o2 < 0)
 			{
 				w0 = avail/2, w1 = avail-w0;
 				o0 = c0-w0; o1 = c1-w1;
-				if      (o0 < 0) { w0 = c0; w1 = avail; }
-				else if (o1 < 0) { w1 = c1; w0 = avail; }
+				if      (o0 < 0) { w0 = c0; w1 = avail-c0; }
+				else if (o1 < 0) { w1 = c1; w0 = avail-c1; }
 			}
 		}
 		c0 = w0; c1 = w1; c2 = w2;
 	}
+
 	assert(c0+c1+c2+cn+extra <= bounds.w);
 	
 	// draw the visible items
 	for (int i = top, n = std::min(top + bounds.h, N); i < n; ++i)
 	{
+		bool is_up = (have_up && i == 0);
+
 		const auto &it = *items.items[i];
 		int y = bounds.y + i-top, x0 = bounds.x, x1 = bounds.x + bounds.w-1;
 
@@ -204,7 +212,7 @@ void menu::draw(bool active) const
 		wattrset (win, file_color);
 		wmove (win, y, x0);
 
-		if (readtags && it.tags && !it.tags->title.empty())
+		if (!is_up && readtags && it.tags && !it.tags->title.empty())
 		{
 			auto &tags = *it.tags;
 			xwprintfield(win, sanitize(tags.artist), c0);
@@ -213,7 +221,7 @@ void menu::draw(bool active) const
 			waddstr(win, "   ");
 			if (items.is_dir)
 			{
-				if (tags.track > -1)
+				if (tags.track > 0)
 					xwprintw(win, "%*d ", cn-1, tags.track);
 				else
 					xwprintw(win, "%*s", cn, "");
@@ -224,9 +232,13 @@ void menu::draw(bool active) const
 		{
 			xwprintfield(win, sanitize(it.path), x1-x0+1, 'c');
 		}
+		else if (is_up && it.type == F_DIR)
+		{
+			xwprintfield(win, "../", x1-x0+1, 'l');
+		}
 		else
 		{
-			str s = sanitize(it.path);
+			str s = is_up ? str("..") : sanitize(it.path);
 			if (it.type == F_DIR && s.back() != '/') s += '/';
 			if (items.is_dir || !options::PlaylistFullPaths)
 			{

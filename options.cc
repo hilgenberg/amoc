@@ -286,7 +286,7 @@ bool CanStartInPlaylist = true;
 
 bool PlaylistFullPaths = true;
 
-int  MessageLingerTime = 3;
+int  MessageLingerTime = 2;
 bool PrefixQueuedMessages = true;
 str  ErrorMessagesQueued = "!";
 

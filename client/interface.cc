@@ -124,6 +124,8 @@ static str time_str(int sec)
 
 }
 
+str Interface::cwd() const { return client.cwd; }
+
 Interface::Interface(Client &client, plist &pl1, plist &pl2)
 : client(client)
 , win(NULL)
@@ -204,17 +206,24 @@ void Interface::draw(bool force)
 		if (message_display_start == 0)
 		{
 			message_display_start = t;
-			need_redraw = std::min(need_redraw, 1);
+			need_redraw = std::max(need_redraw, 1);
 		}
 		else if (t > message_display_start + options::MessageLingerTime)
 		{
 			messages.pop();
-			message_display_start = t;
-			need_redraw = std::min(need_redraw, 1);
+			message_display_start = (messages.empty() ? 0 : t);
+			need_redraw = std::max(need_redraw, 1);
 		}
 	}
 
 	if (!need_redraw) return;
+
+	// make sure there is always a selection
+	if (menus[active_menu]->items.empty())
+		if (!menus[1-active_menu]->items.empty()) active_menu = 1-active_menu;
+	auto &am = *menus[active_menu];
+	if (am.sel == -1 && am.mark == -1 && !am.items.empty())
+		am.sel = 0;
 
 	const int W = COLS, H = LINES;
 	if (W < 30 || H < 7)

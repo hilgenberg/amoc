@@ -117,12 +117,11 @@ bool operator< (const plist_item &a, const plist_item &b)
 	return strcoll(a.path.c_str(), b.path.c_str()) < 0;
 }
 
-bool plist::load_directory(const char *directory)
+bool plist::load_directory(const str &directory_, bool include_updir)
 {
-	assert (directory && *directory == '/');
-	assert (directory[strlen(directory)-1] != '/');
+	str directory = normalized_path(directory_);
 	
-	DIR *dir = opendir(directory);
+	DIR *dir = opendir(directory.empty() ? "." : directory.c_str());
 	if (!dir) {
 		error_errno ("Can't read directory", errno);
 		return false;
@@ -131,8 +130,8 @@ bool plist::load_directory(const char *directory)
 	items.clear();
 	is_dir = true;
 
-	const bool root = !strcmp(directory, "/");
-	const char *prefix = (root ? "" : directory);
+	const bool root = (directory == "/");
+	const char *prefix = (root ? "" : directory.c_str());
 	dirent *entry;
 	while ((entry = readdir(dir)))
 	{
@@ -142,10 +141,13 @@ bool plist::load_directory(const char *directory)
 		}
 
 		if (!strcmp(entry->d_name, ".")) continue;
-		if (root && !strcmp(entry->d_name, "..")) continue;
+		bool up = !strcmp(entry->d_name, "..");
+		if (up && (root || !include_updir)) continue;
 		if (!options::ShowHiddenFiles && *entry->d_name == '.') continue;
 
-		items.emplace_back(new plist_item(format("%s/%s", prefix, entry->d_name)));
+		str p = format("%s/%s", prefix, entry->d_name);
+		if (up) normalize_path(p);
+		items.emplace_back(new plist_item(p));
 	}
 
 	closedir (dir);
@@ -154,7 +156,7 @@ bool plist::load_directory(const char *directory)
 	return true;
 }
 
-bool plist::add_directory (const char *directory, bool recursive)
+bool plist::add_directory (const str &directory, bool recursive)
 {
 	is_dir = false;
 
@@ -185,19 +187,21 @@ bool plist::add_directory (const char *directory, bool recursive)
 			continue;
 		}
 
-		plist p; p.load_directory(directory);
-		for (int i  = (int)p.items.size() - 1; i >= 0; --i)
+		plist p; p.load_directory(d, false);
+		for (int i = 0, n = (int)p.items.size(); i < n; ++i)
 		{
 			auto &it = p.items[i];
 			switch (it->type)
 			{
 				case F_DIR:
-					if (it->path != ".." && recursive)
-						todo.push(it->path);
+				{
+					if (recursive) todo.push(it->path);
 					// fallthrough
+				}
 				case F_PLAYLIST:
 				case F_OTHER:
 					p.items.erase(p.items.begin() + i);
+					--i; --n;
 					break;
 				default: break;
 			}
@@ -210,11 +214,11 @@ bool plist::add_directory (const char *directory, bool recursive)
 	return true;
 }
 
-bool plist::load_m3u (const char *fname)
+bool plist::load_m3u (const str &fname)
 {
 	struct flock read_lock = {.l_type = F_RDLCK, .l_whence = SEEK_SET};
 
-	FILE *file = fopen (fname, "r");
+	FILE *file = fopen (fname.c_str(), "r");
 	if (!file) {
 		error_errno ("Can't open playlist file", errno);
 		return false;
@@ -246,7 +250,8 @@ bool plist::load_m3u (const char *fname)
 			continue;
 		}
 
-		str p = resolve_path(line[0] == '/' ? str(line) : base + line);
+		str p = (line[0] == '/' ? str(line) : base + line);
+		normalize_path(p);
 		items.emplace_back(new plist_item(p));
 	}
 
@@ -255,13 +260,13 @@ bool plist::load_m3u (const char *fname)
 }
 
 /* Save the playlist into the file in m3u format. */
-bool plist::save (const char *fname) const
+bool plist::save (const str &fname) const
 {
 	struct flock write_lock = {.l_type = F_WRLCK, .l_whence = SEEK_SET};
 
-	debug ("Saving playlist to '%s'", fname);
+	debug ("Saving playlist to '%s'", fname.c_str());
 
-	FILE *file = fopen (fname, "w");
+	FILE *file = fopen (fname.c_str(), "w");
 	if (!file) {
 		error_errno ("Can't save playlist", errno);
 		return false;

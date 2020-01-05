@@ -11,7 +11,6 @@
 
 #include <time.h>
 #include <sys/types.h>
-#include <pwd.h>
 #include <pthread.h>
 #include <signal.h>
 #ifdef HAVE_SYSLOG
@@ -301,26 +300,6 @@ char *format_msg_va (const char *format, va_list va)
 	return result;
 }
 
-/* Return path to a file in MOC config directory. NOT THREAD SAFE */
-char *create_file_name (const char *file)
-{
-	int rc;
-	static char fname[PATH_MAX];
-	const char *moc_dir = options::MOCDir.c_str();
-
-	if (moc_dir[0] == '~')
-		rc = snprintf(fname, sizeof(fname), "%s/%s/%s", get_home (),
-		              (moc_dir[1] == '/') ? moc_dir + 2 : moc_dir + 1,
-		              file);
-	else
-		rc = snprintf(fname, sizeof(fname), "%s/%s", moc_dir, file);
-
-	if (rc >= ssizeof(fname))
-		fatal ("Path too long!");
-
-	return fname;
-}
-
 int get_realtime (struct timespec *ts)
 {
 	int result;
@@ -336,31 +315,6 @@ int get_realtime (struct timespec *ts)
 	}
 #endif
     return result;
-}
-
-/* Determine and return the path of the user's home directory. */
-const char *get_home ()
-{
-	static const char *home = NULL;
-	struct passwd *passwd;
-
-	if (home == NULL) {
-		home = xstrdup (getenv ("HOME"));
-		if (home == NULL) {
-			errno = 0;
-			passwd = getpwuid (geteuid ());
-			if (passwd)
-				home = xstrdup (passwd->pw_dir);
-			else
-				if (errno != 0) {
-					char *err = xstrerror (errno);
-					logit ("getpwuid(%d): %s", geteuid (), err);
-					free (err);
-				}
-		}
-	}
-
-	return home;
 }
 
 void common_cleanup ()

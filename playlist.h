@@ -67,10 +67,10 @@ public:
 		std::swap(items[i], items[j]);
 	}
 
-	bool load_directory(const char *directory);
-	bool add_directory(const char *directory, bool recursive = true);
-	bool load_m3u(const char *path);
-	bool save (const char *m3u_path) const;
+	bool load_directory(const str &directory, bool include_updir=true);
+	bool add_directory(const str &directory, bool recursive = true);
+	bool load_m3u(const str &path);
+	bool save (const str &m3u_path) const;
 	plist & operator+= (const plist &other);
 	plist & operator+= (plist &&other);
 	plist & operator+= (const plist_item &i);

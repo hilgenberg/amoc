@@ -31,7 +31,7 @@ public:
 	plist &sel_plist() { return menus[active_menu]->items; }
 	plist_item *sel_item() { auto &m = *menus[active_menu]; return m.sel < 0 ? NULL : m.items.items[m.sel].get(); }
 	bool sel_item(const plist_item *what, int where); // where: -1=active menu, 0=left, 1=right
-	int sel_index() { auto &m = *menus[active_menu]; return m.sel; }
+	int sel_index(int where=-1) { auto &m = *menus[where<0 ? active_menu : where]; return m.sel; }
 	void move_down();
 
 	void status(const str &s) { status_msg = s; redraw(1); }
@@ -58,6 +58,12 @@ public:
 	#undef UPD
 
 	WINDOW *window() { return win; }
+	str cwd() const;
+
+	WINDOW *win;
+	menu    left, right, *menus[2];
+	int     active_menu;
+	Client &client;
 
 private:
 	str curr_file;
@@ -69,11 +75,6 @@ private:
 	PlayState state; // STATE_(PLAY | STOP | PAUSE)
 	str mixer_name;
 	int mixer_value;
-
-	WINDOW *win;
-	menu    left, right, *menus[2];
-	int     active_menu;
-	Client &client;
 
 	enum Layout { HSPLIT=0, VSPLIT=1, SINGLE=2 };
 	Layout layout;

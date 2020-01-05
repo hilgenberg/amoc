@@ -11,6 +11,7 @@
 
 #include <sys/stat.h>
 #include <dirent.h>
+#include <pwd.h>
 
 #ifdef HAVE_LIBMAGIC
 #include <magic.h>
@@ -60,6 +61,151 @@ void files_cleanup ()
 	magic_close (cookie);
 	cookie = NULL;
 #endif
+}
+
+str add_path(const str &p1, const str &p2)
+{
+	assert(p1 == normalized_path(p1));
+	assert(p2 == normalized_path(p2));
+	assert(p1.empty() || p1.front() != '/' || is_dir(p1.c_str()));
+	
+	if (p2.empty() || p2 == "." || p2 == "./") return p1;
+	if (p2.front() == '/') return p2;
+	if (p1.empty() || p1 == ".") return p2;
+	
+	if (p2 == ".." || p2 == "../")
+	{
+		if (p1 == "/") return p1;  /*  /.. == /  */
+		if (p1 == ".") return "..";/*  ./.. == ..  */
+		if (p1.length() <= 1) return str();/*  a/.. == ""  */
+		auto i = p1.rfind('/', p1.length()-2);
+		if (i == str::npos) return str(); /*  foo/.. == ""  */
+		if (i == 0) return "/";/*  /foo/.. == /  */
+		return p1.substr(0, i);/*  foo/bar/.. == foo  */
+	}
+
+	if (has_prefix(p2, "../", false))
+	{
+		str p = p1;
+		if (p1.back() != '/') p += '/';
+		p += p2;
+		return normalize_path(p);
+	}
+
+	if (p1.back() != '/') return p1 + "/" + p2;
+	return p1 + p2;
+}
+str normalized_path(const str &p)
+{
+	str tmp(p);
+	return normalize_path(tmp);
+}
+
+str& normalize_path(str &p)
+{
+	char *s = (char*)p.data();
+	size_t n = p.length();
+	if (!n) return p;
+
+	// foo//././//bar//./  --> foo/bar
+	size_t j = 0;
+	for (size_t i = 0; i < n; ++i)
+	{
+		if (p[i] == '/')
+		{
+			while (i < n)
+			{
+				if (i+1 < n && p[i+1] == '/') { ++i; continue; }
+				if (i+2 < n && p[i+1] == '.' && p[i+2] == '/') { i += 2; continue; }
+				if (i+2 == n && p[i+1] == '.') { i += 2; break; }
+				if (i+1 == n) { ++i; break; }
+				break;
+			}
+			if (i >= n) break;
+		}
+		p[j++] = p[i];
+	}
+	if (j == 0) return p = "/";
+	p.resize(n = j);
+
+	//  /../../..foo  --> /..foo,  /../.. --> /
+	if (p[0] == '/')
+	{
+		j = 0;
+		while (j+2 < n && p[j+1] == '.' && p[j+2] == '.')
+		{
+			if (j+3 == n) return p = "/";
+			if (j+3 < n && p[j+3] == '/') { j += 3; continue; }
+			if (j > 0) p = p.substr(j); break;
+		}
+	}
+
+	// ../../foo/bar/../a/b/c/../..  --> ../../foo/a
+
+	j = n; // start of the final part we know we can keep  (except initial slash maybe)
+	       // (and foo/../bar is the case where the initial slash will need to be removed)
+	while (j > 0)
+	{
+		// invariant: p[j-1] is never a slash but j == n or p[j] == '/'
+		size_t i = j, up = 0;
+		while (i > 3 && p[i-3] == '/' && p[i-2] == '.' && p[i-1] == '.') { i -= 3; ++up; }
+
+		if (!up)
+		{
+			// we can keep the last part before j too
+			while (j > 0 && p[j-1] != '/') --j;
+			if (j > 0) --j; // keep the slash too
+			continue;
+		}
+		if (i == 2 && p[0] == '.' && p[1] == '.') break; // done
+
+		while (up)
+		{
+			// check for and return ../../good_part
+			if (i == 2 && p[0] == '.' && p[1] == '.') return p;
+			
+			// remove the middle /foo/..
+
+			// p[i] is the initial slash in some /../../good_part
+			// we know the part before i is not /.. because up is maximal
+			// we know i is not 0 because initial /.. were handled already
+			size_t k = i-1;
+			while (k > 0 && p[k] != '/') --k;
+			// now k==0 or p[k] is the initial slash in /foo/../../good_part, which
+			// can become /../good_part with up -= 1;
+			// if k==0, we have foo/../../good_part, which should become ../good_part,
+			// which we can return
+			if (p[k] != '/') // (k == 0 is not enough!)
+			{
+				if (up == 1 && j == n) // foo/..  --> empty
+				{
+					return p = "";
+				}
+				// foo/../..  --> ..
+				// foo/../../bar --> ../bar
+				// foo/../bar --> bar
+				return p = p.substr(i+4);
+			}
+
+			// prefix/foo/../good_part --> prefix/good_part
+			size_t d = 1/*slash at k*/ + i-k-1 /*strlen(foo)*/ + 3 /*../*/;
+			p = p.replace(k, d, "");
+			j -= d; n -= d;
+			--up; // and if up > 0, then j > 0
+		}
+	}
+	return p;
+}
+
+str absolute_path(const str &p)
+{
+	if (!p.empty() && p[0] == '/') return p;
+	
+	char buf[PATH_MAX];
+	if (!getcwd (buf, sizeof(buf)))
+		interface_fatal ("Can't get CWD: %s", xstrerror (errno));
+	
+	return add_path(buf, p);
 }
 
 /* Is the string a URL? */
@@ -129,115 +275,6 @@ char *file_mime_type (const char *file ASSERT_ONLY)
 #endif
 
 	return result;
-}
-
-/* Add file to the directory path in buf resolving '../' and removing './'. */
-/* buf must be absolute path. */
-void resolve_path (char *buf, const int size, const char *file)
-{
-	int rc;
-	char *f; /* points to the char in *file we process */
-	char path[2*PATH_MAX]; /* temporary path */
-	int len = 0; /* number of characters in the buffer */
-
-	assert (buf[0] == '/');
-
-	rc = snprintf(path, sizeof(path), "%s/%s/", buf, file);
-	if (rc >= ssizeof(path))
-		fatal ("Path too long!");
-
-	f = path;
-	while (*f) {
-		if (!strncmp(f, "/../", 4)) {
-			char *slash = strrchr (buf, '/');
-
-			assert (slash != NULL);
-
-			if (slash == buf) {
-
-				/* make '/' from '/directory' */
-				buf[1] = 0;
-				len = 1;
-			}
-			else {
-
-				/* strip one element */
-				*(slash) = 0;
-				len -= len - (slash - buf);
-				buf[len] = 0;
-			}
-
-			f+= 3;
-		}
-		else if (!strncmp(f, "/./", 3))
-
-			/* skip '/.' */
-			f += 2;
-		else if (!strncmp(f, "//", 2))
-
-			/* remove double slash */
-			f++;
-		else if (len == size - 1)
-			fatal ("Path too long!");
-		else  {
-			buf[len++] = *(f++);
-			buf[len] = 0;
-		}
-	}
-
-	/* remove dot from '/dir/.' */
-	if (len >= 2 && buf[len-1] == '.' && buf[len-2] == '/')
-		buf[--len] = 0;
-
-	/* strip trailing slash */
-	if (len > 1 && buf[len-1] == '/')
-		buf[--len] = 0;
-}
-
-str resolve_path (const str &path)
-{
-	std::vector<char> buf(path.length()+1);
-
-	int j = 0; // used size of buf
-	for (int i = 0; path[i]; ++i)
-	{
-		if (path[i] == '/')
-		{
-			// --> single /
-			if (j > 0 && buf[j-1] == '/') continue;
-
-			if (j == 1 && buf[0] == '.') // ./ --> empty string
-			{
-				j = 0;
-				while (path[i+1] == '/') ++i;
-				continue;
-			}
-
-			//  /./ --> /
-			if (j >= 2 && buf[j-2] == '/' && buf[j-1] == '.') { --j; continue; }
-
-			//  /something/../ --> /   and   
-			if (j >= 3 && buf[j-3] == '/' && buf[j-2] == '.' && buf[j-1] == '.')
-			{
-				j -= 2;
-				if (j == 1) continue; //   /../ --> /
-				--j;
-				while (j > 0 && buf[j-1] != '/') --j;
-				if (j == 0) // foo/../ --> empty string
-				{
-					while (path[i+1] == '/') ++i;
-				}
-				continue;
-			}
-		}
-
-		buf[j++] = path[i];
-	}
-
-	if (j >= 2 && buf[j-2] == '/' && buf[j-1] == '.') j -= 2; // remove trailing "/."
-	if (j > 1 && buf[j-1] == '/') --j; // remove trailing slash
-	buf[j] = 0;
-	return str(buf.data());
 }
 
 /* Return the file extension position or NULL if the file has no extension. */
@@ -317,87 +354,6 @@ static char *add_dir_file (const char *base, const char *name)
 	return path;
 }
 
-/* Find directories having a prefix of 'pattern'.
- * - If there are no matches, NULL is returned.
- * - If there is one such directory, it is returned with a trailing '/'.
- * - Otherwise the longest common prefix is returned (with no trailing '/').
- * (This is used for directory auto-completion.)
- * Returned memory is malloc()ed.
- * 'pattern' is temporarily modified! */
-char *find_match_dir (char *pattern)
-{
-	char *slash;
-	DIR *dir;
-	struct dirent *entry;
-	int name_len;
-	char *name;
-	char *matching_dir = NULL;
-	char *search_dir;
-	int unambiguous = 1;
-
-	if (!pattern[0])
-		return NULL;
-
-	/* strip the last directory */
-	slash = strrchr (pattern, '/');
-	if (!slash)
-		return NULL;
-	if (slash == pattern) {
-		/* only '/dir' */
-		search_dir = xstrdup ("/");
-	}
-	else {
-		*slash = 0;
-		search_dir = xstrdup (pattern);
-		*slash = '/';
-	}
-
-	name = slash + 1;
-	name_len = strlen (name);
-
-	if (!(dir = opendir(search_dir)))
-		return NULL;
-
-	while ((entry = readdir(dir))) {
-		if (strcmp(entry->d_name, ".") && strcmp(entry->d_name, "..")
-				&& !strncmp(entry->d_name, name, name_len)) {
-			char *path = add_dir_file (search_dir, entry->d_name);
-
-			if (is_dir(path) == 1) {
-				if (matching_dir) {
-
-					/* More matching directories - strip
-					 * matching_dir to the part that is
-					 * common to both paths */
-					int i = 0;
-
-					while (matching_dir[i] == path[i]
-							&& path[i])
-						i++;
-					matching_dir[i] = 0;
-					free (path);
-					unambiguous = 0;
-				}
-				else
-					matching_dir = path;
-			}
-			else
-				free (path);
-		}
-	}
-
-	closedir (dir);
-	free (search_dir);
-
-	if (matching_dir && unambiguous) {
-		matching_dir = (char *)xrealloc (matching_dir,
-				sizeof(char) * (strlen(matching_dir) + 2));
-		strcat (matching_dir, "/");
-	}
-
-	return matching_dir;
-}
-
 /* Return != 0 if the file exists. */
 int file_exists (const char *file)
 {
@@ -422,33 +378,6 @@ time_t get_mtime (const char *file)
 		return stat_buf.st_mtime;
 
 	return (time_t)-1;
-}
-
-/* Convert file path to absolute path;
- * resulting string is allocated and must be freed afterwards. */
-char *absolute_path (const char *path, const char *cwd)
-{
-	char tmp[2*PATH_MAX];
-	char *result;
-
-	assert (path);
-	assert (cwd);
-
-	if(path[0] != '/' && !is_url(path)) {
-		strncpy (tmp, cwd, sizeof(tmp));
-		tmp[sizeof(tmp)-1] = 0;
-
-		resolve_path (tmp, sizeof(tmp), path);
-
-		result = (char *)xmalloc (sizeof(char) * (strlen(tmp)+1));
-		strcpy (result, tmp);
-	}
-	else {
-		result = (char *)xmalloc (sizeof(char) * (strlen(path)+1));
-		strcpy (result, path);
-	}
-
-	return result;
 }
 
 /* Check that a file which may cause other applications to be invoked
@@ -539,4 +468,50 @@ bool purge_directory (const char *dir_path)
 
 	closedir (dir);
 	return true;
+}
+
+
+/* Return path to a file in MOC config directory. NOT THREAD SAFE */
+char *create_file_name (const char *file)
+{
+	int rc;
+	static char fname[PATH_MAX];
+	const char *moc_dir = options::MOCDir.c_str();
+
+	if (moc_dir[0] == '~')
+		rc = snprintf(fname, sizeof(fname), "%s/%s/%s", get_home (),
+		              (moc_dir[1] == '/') ? moc_dir + 2 : moc_dir + 1,
+		              file);
+	else
+		rc = snprintf(fname, sizeof(fname), "%s/%s", moc_dir, file);
+
+	if (rc >= ssizeof(fname))
+		fatal ("Path too long!");
+
+	return fname;
+}
+
+/* Determine and return the path of the user's home directory. */
+const char *get_home ()
+{
+	static const char *home = NULL;
+	struct passwd *passwd;
+
+	if (home == NULL) {
+		home = xstrdup (getenv ("HOME"));
+		if (home == NULL) {
+			errno = 0;
+			passwd = getpwuid (geteuid ());
+			if (passwd)
+				home = xstrdup (passwd->pw_dir);
+			else
+				if (errno != 0) {
+					char *err = xstrerror (errno);
+					logit ("getpwuid(%d): %s", geteuid (), err);
+					free (err);
+				}
+		}
+	}
+
+	return home;
 }

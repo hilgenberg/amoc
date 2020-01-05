@@ -535,28 +535,6 @@ static bool req_jump_to (client &cli)
 	return true;
 }
 
-/* Send tags to the client. Return 0 on error. */
-static int req_get_tags (client &cli)
-{
-
-	debug ("Sending tags to client with fd %d...", cli.socket->fd());
-	Lock lock(cli);
-	if (!cli.socket->send(EV_DATA)) {
-		logit ("Error when sending EV_DATA");
-		return 0;
-	}
-
-	int res = 1;
-	file_tags *tags = audio_get_curr_tags ();
-	if (!cli.socket->send(tags)) {
-		logit ("Error when sending tags");
-		res = 0;
-	}
-	delete tags;
-
-	return res;
-}
-
 void update_eq_name()
 {
 	char buffer[27];
@@ -861,8 +839,13 @@ static void handle_command (const int client_id)
 			break;
 		}
 		case CMD_GET_TAGS:
-			err = !req_get_tags(cli);
+		{
+			Lock lock(cli);
+			file_tags *tags = audio_get_curr_tags ();
+			err = !cli.socket->send(EV_DATA || !cli.socket->send(tags));
+			delete tags;
 			break;
+		}
 		case CMD_TOGGLE_MIXER_CHANNEL:
 			audio_toggle_mixer_channel ();
 			add_event_all (EV_MIXER_CHANGE);

@@ -87,27 +87,12 @@ char *str_repl (char *target, const char *oldstr, const char *newstr);
 char *trim (const char *src, size_t len);
 char *format_msg (const char *format, ...);
 char *format_msg_va (const char *format, va_list va);
-char *create_file_name (const char *file);
 int get_realtime (struct timespec *ts);
-const char *get_home ();
 void common_cleanup ();
-
-
 
 #ifndef SUN_LEN
 #define SUN_LEN(p) \
         ((sizeof *(p)) - sizeof((p)->sun_path) + strlen ((p)->sun_path))
-#endif
-
-/* Maximum path length, we don't consider exceptions like mounted NFS */
-#ifndef PATH_MAX
-# if defined(_POSIX_PATH_MAX)
-#  define PATH_MAX	_POSIX_PATH_MAX /* Posix */
-# elif defined(MAXPATHLEN)
-#  define PATH_MAX	MAXPATHLEN      /* Solaris? Also linux...*/
-# else
-#  define PATH_MAX	4096             /* Suppose, we have 4096 */
-# endif
 #endif
 
 #if !HAVE_DECL_STRCASESTR && !defined(__cplusplus)

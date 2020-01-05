@@ -94,7 +94,7 @@ void Client::set_cwd(const str &path)
 		if (cwd.back() != '/') cwd += '/';
 		cwd += path;
 	}
-	cwd = resolve_path(cwd);
+	normalize_path(cwd);
 }
 
 /* Try to find the directory we can start and set cwd to it. */
@@ -291,11 +291,15 @@ void Client::handle_server_event (int type)
  * Return 1 on success, 0 on error. */
 bool Client::go_to_dir (const char *dir)
 {
+	bool same = !dir || cwd==dir;
+	auto &left = iface->left;
+	int sel0 = left.sel, top0 = left.top;
+
 	str last_dir = cwd; // for selecting the old dir after going up
 
 	iface->status("Reading directory...");
 	plist bak; bak.swap(dir_plist);
-	if (!dir_plist.load_directory(dir ? dir : cwd.c_str())) {
+	if (!dir_plist.load_directory(dir ? str(dir) : cwd)) {
 		iface->status ("Failed.");
 		bak.swap(dir_plist);
 		return false;
@@ -305,9 +309,18 @@ bool Client::go_to_dir (const char *dir)
 
 	if (dir) cwd = dir;
 	if (options::ReadTags) ask_for_tags (dir_plist);
-	iface->redraw(2);
-	iface->select_path(last_dir);
+	if (same)
+	{
+		left.top = top0;
+		left.sel = sel0;
+	}
+	else
+	{
+		left.top = 0;
+		iface->select_path(last_dir);
+	}
 
+	iface->redraw(2);
 	iface->status ("");
 	return true;
 }
@@ -387,53 +400,22 @@ void Client::process_args (stringlist &args)
 
 	if (size == 1 && is_plist_file (arg))
 	{
-		char path[PATH_MAX + 1];   /* the playlist's directory */
-		if (arg[0] == '/')
-			strcpy (path, "/");
-		else if (!getcwd (path, sizeof (path)))
-			interface_fatal ("Can't get CWD: %s", xstrerror (errno));
-
-		resolve_path (path, sizeof (path), arg);
-		char *slash = strrchr (path, '/');
-		assert (slash != NULL);
-		*slash = 0;
-
 		iface->status("Loading playlist...");
-		playlist.load_m3u(path);
+		playlist.load_m3u(arg);
 		iface->status("");
 		enter_first_dir ();
 		return;
 	}
 
-	char this_cwd[PATH_MAX];
-	if (!getcwd (this_cwd, sizeof (cwd)))
-		interface_fatal ("Can't get CWD: %s", xstrerror (errno));
-
-	for (int ix = 0; ix < size; ix += 1) {
-		char path[2 * PATH_MAX];
-
-		const char *arg = args[ix].c_str();
-		bool dir = is_dir (arg);
-
-		if (is_url (arg)) {
-			strncpy (path, arg, sizeof (path));
-			path[sizeof(path) - 1] = 0;
+	for (str &arg : args)
+	{
+		if (is_dir (arg.c_str()))
+			playlist.add_directory(arg, true);
+		else if (is_sound_file(arg.c_str()) || is_url(arg.c_str())) {
+			playlist += absolute_path(arg);
 		}
-		else {
-			if (arg[0] == '/')
-				strcpy (path, "/");
-			else
-				strcpy (path, this_cwd);
-			resolve_path (path, sizeof (path), arg);
-		}
-
-		if (dir == 1)
-			playlist.add_directory(path, true);
-		else if (!dir && (is_sound_file (path) || is_url (path))) {
-			playlist += path;
-		}
-		else if (is_plist_file (path)) {
-			playlist.load_m3u(path);
+		else if (is_plist_file(arg.c_str())) {
+			playlist.load_m3u(arg);
 		}
 	}
 
@@ -445,10 +427,9 @@ void Client::go_dir_up ()
 	if (cwd.empty() || cwd == "/") return;
 	auto i = cwd.rfind('/', cwd.length()-1);
 	if (i == 0 || i == str::npos)
-		cwd = "/";
+		go_to_dir("/");
 	else
-		cwd = cwd.substr(0, i);
-	go_to_dir (cwd.c_str());
+		go_to_dir(cwd.substr(0, i).c_str());
 }
 
 void Client::play_it(const str &file)
@@ -837,6 +818,7 @@ void Client::handle_command(key_cmd cmd)
 				srv.send(CMD_NEXT);
 			else if (playlist.size()) {
 				srv.send(CMD_PLAY);
+				srv.send(-1);
 				srv.send("");
 			}
 			break;
@@ -930,18 +912,15 @@ void Client::handle_command(key_cmd cmd)
 			break;
 		case KEY_CMD_GO_MUSIC_DIR:
 		{
-			char music_dir[PATH_MAX] = "/";
-
 			if (options::MusicDir.empty()) {
 				error ("MusicDir not defined");
 				return;
 			}
-
-			resolve_path (music_dir, sizeof(music_dir), options::MusicDir.c_str());
+			str music_dir = normalize_path(options::MusicDir);
 
 			switch (plist_item::ftype(music_dir)) {
-				case F_DIR: go_to_dir (music_dir); break;
-				case F_PLAYLIST: go_to_playlist (music_dir); break;
+				case F_DIR: go_to_dir (music_dir.c_str()); break;
+				case F_PLAYLIST: go_to_playlist (music_dir.c_str()); break;
 				default: error ("MusicDir is neither a directory nor a playlist!"); break;
 			}
 			break;

@@ -32,8 +32,14 @@ struct menu
 		{
 			case REQ_UP:     sel = (sel < 0 ? N-1 : sel - 1); break;
 			case REQ_DOWN:   sel = (sel < 0 ? 0 : sel + 1); break;
-			case REQ_PGUP:   sel = (sel < 0 ? N-1 : sel) - (bounds.h - 1); break;
-			case REQ_PGDOWN: sel = (sel < 0 ? 0 : sel) + (bounds.h - 1); break;
+			case REQ_PGUP:
+				top -= (bounds.h - 1); if (top < 0) top = 0;
+				return;
+			case REQ_PGDOWN:
+				top += (bounds.h - 1);
+				if (top + (bounds.h-1) >= N) top = N - bounds.h;
+				if (top < 0) top = 0;
+				return;
 			case REQ_TOP:    sel = 0; break;
 			case REQ_BOTTOM: sel = N-1; break;
 		}
