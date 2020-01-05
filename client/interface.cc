@@ -1,15 +1,6 @@
-#include <stdarg.h>
 #include <locale.h>
-#include <assert.h>
-#include <string.h>
-#include <strings.h>
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <time.h>
 #include <signal.h>
-#include <ctype.h>
-#include <unistd.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <dirent.h>
@@ -19,18 +10,15 @@
 
 #include "interface.h"
 #include "client.h"
+#include "utf8.h"
 #include "menu.h"
 #include "themes.h"
 #include "keys.h"
-#include "../lists.h"
-#include "../files.h"
-#include "../input/decoder.h"
 #include "../playlist.h"
 #include "../protocol.h"
-#include "interface.h"
-#include "utf8.h"
 #include "../rcc.h"
-#include "../output/softmixer.h"
+#include "../server/input/decoder.h"
+#include "../server/output/softmixer.h"
 #include "../server/ratings.h"
 
 #define STATUS_WIDTH 26
@@ -282,7 +270,7 @@ void Interface::draw(bool force)
 		menus[active_menu]->draw(true);
 		str &curr_dir = client.cwd;
 		if (layout != SINGLE || active_menu==0) draw_frame(win, r1, options::FileNamesIconv ? files_iconv_str(curr_dir) : curr_dir, false);
-		if (layout != SINGLE || active_menu==1) draw_frame(win, r2, "Playlist", layout==VSPLIT);
+		if (layout != SINGLE || active_menu==1) draw_frame(win, r2, client.synced ? "Playlist" : "Playlist (local)", layout==VSPLIT);
 
 		// bottom frame and playlist total time frame(s)
 		wattrset (win, get_color(CLR_FRAME));
@@ -380,7 +368,6 @@ void Interface::draw(bool force)
 	}
 
 	// status message
-	//status_msg = "testing status balasdfölkjasdfölkjwerpoiuasdf";
 	wattrset (win, get_color(CLR_FRAME));
 	if (status_msg.empty())
 	{

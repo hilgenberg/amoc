@@ -1,28 +1,16 @@
-#include <stdio.h>
-#include <assert.h>
-#include <sys/types.h>
 #include <sys/stat.h>
-#include <unistd.h>
-#include <string.h>
-#include <strings.h>
-#include <errno.h>
-#include <stdlib.h>
 #include <dirent.h>
 #include <stack>
-#include <set>
 #include <fcntl.h>
 #include <sys/file.h>
-#include <ctype.h>
 
 #include "playlist.h"
 #include "rcc.h"
-#include "files.h"
-#include "lists.h"
 #include "client/interface.h"
-#include "input/decoder.h"
 #include "client/utf8.h"
-#include "server/ratings.h"
 #include "client/client.h"
+#include "server/input/decoder.h"
+#include "server/ratings.h"
 
 file_type plist_item::ftype (const str &file)
 {

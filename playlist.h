@@ -1,8 +1,4 @@
 #pragma once
-
-#include <cstring>
-#include <sys/types.h>
-#include <map>
 #include <memory>
 
 #define TAGS_COMMENTS 1
@@ -57,6 +53,7 @@ public:
 	plist(const plist &) = delete;
 	plist(plist &&p) : is_dir(p.is_dir) { items.swap(p.items); }
 
+	bool empty() const { return items.empty(); }
 	void clear() { items.clear(); }
 	void remove(int i)
 	{

@@ -1,5 +1,4 @@
 #pragma once
-#include <stdio.h>
 
 void files_init ();
 void files_cleanup ();
@@ -12,12 +11,14 @@ char *ext_pos (char *file);
 
 int file_exists (const char *file);
 int is_dir (const char *file);
+int is_sound_file (const char *name); // in decoder.cc
+int is_url (const char *str);
+int is_plist_file (const char *name);
+
 time_t get_mtime (const char *file);
 int can_read_file (const char *file);
 bool is_secure (const char *file);
 char *file_mime_type (const char *file);
-int is_url (const char *str);
-int is_plist_file (const char *name);
 
 char *read_line (FILE *file);
 char *find_match_dir (char *dir);

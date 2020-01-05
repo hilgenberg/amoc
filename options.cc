@@ -1,20 +1,5 @@
-#include <assert.h>
-#include <string.h>
-#include <strings.h>
-#include <ctype.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <limits.h>
-#include <stdarg.h>
-#include <sys/types.h>
 #include <regex.h>
-#include <cstdarg>
-#include <map>
-#include "files.h"
 #include "options.h"
-#include "lists.h"
 
 static void parse(bool &o, const char *v)
 {

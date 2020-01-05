@@ -9,19 +9,11 @@
  *
  */
 
-#include <stdio.h>
-#include <stdarg.h>
-#include <stdint.h>
-#include <assert.h>
 #include <pthread.h>
 #include <time.h>
-#include <errno.h>
 #include <signal.h>
 
-#include "common.h"
-#include "lists.h"
 #include "log.h"
-#include "options.h"
 
 #ifndef NDEBUG
 static FILE *logfp = NULL; /* logging file stream */

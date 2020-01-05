@@ -282,6 +282,8 @@
 #include <set>
 #include <map>
 #include <string>
+#include <algorithm>
+#include <limits>
 
 #include <pthread.h>
 #include <assert.h>
@@ -292,12 +294,15 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+#include <stdarg.h>
+#include <locale.h>
+#include <ctype.h>
 
-#include <iconv.h>
-#include <ncurses.h>
+typedef std::string str;
+
 #include "common.h"
 #include "log.h"
 #include "options.h"
 #include "StringFormatting.h"
 #include "lists.h"
-
+#include "files.h"

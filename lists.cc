@@ -1,10 +1,3 @@
-#include <assert.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <strings.h>
-#include <algorithm>
-
 #include "lists.h"
 
 typedef std::vector<std::string> stringlist;

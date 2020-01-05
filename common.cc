@@ -9,21 +9,11 @@
  *
  */
 
-#include <stdio.h>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
-#include <strings.h>
-#include <ctype.h>
-#include <assert.h>
-#include <unistd.h>
 #include <time.h>
 #include <sys/types.h>
 #include <pwd.h>
 #include <pthread.h>
 #include <signal.h>
-#include <errno.h>
 #ifdef HAVE_SYSLOG
 #include <syslog.h>
 #endif
@@ -311,27 +301,6 @@ char *format_msg_va (const char *format, va_list va)
 	return result;
 }
 
-/* Return true iff the argument would be a syntactically valid symbol.
- * (Note that the so-called "peculiar indentifiers" are disallowed here.) */
-bool is_valid_symbol (const char *candidate)
-{
-	size_t len;
-	bool result;
-	const char *first = "+-.0123456789@";
-	const char *valid = "abcdefghijklmnopqrstuvwxyz"
-	                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	                    "0123456789"
-	                    "@?!.+-*/<=>:$%^&_~";
-
-	result = false;
-	len = strlen (candidate);
-	if (len > 0 && len == strspn (candidate, valid) &&
-	               strchr (first, candidate[0]) == NULL)
-		result = true;
-
-	return result;
-}
-
 /* Return path to a file in MOC config directory. NOT THREAD SAFE */
 char *create_file_name (const char *file)
 {
@@ -367,29 +336,6 @@ int get_realtime (struct timespec *ts)
 	}
 #endif
     return result;
-}
-
-/* Convert time in second to min:sec text format. buff must be 6 chars long. */
-void sec_to_min (char *buff, const int seconds)
-{
-	assert (seconds >= 0);
-
-	if (seconds < 6000) {
-
-		/* the time is less than 99:59 */
-		int min, sec;
-
-		min = seconds / 60;
-		sec = seconds % 60;
-
-		snprintf (buff, 6, "%02d:%02d", min, sec);
-	}
-	else if (seconds < 10000 * 60)
-
-		/* the time is less than 9999 minutes */
-		snprintf (buff, 6, "%4dm", seconds/60);
-	else
-		strcpy (buff, "!!!!!");
 }
 
 /* Determine and return the path of the user's home directory. */

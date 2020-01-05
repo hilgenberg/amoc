@@ -9,31 +9,20 @@
  *
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
-#include <ctype.h>
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/utsname.h>
-#include <unistd.h>
 #include <signal.h>
-#include <errno.h>
 #include <time.h>
 #include <locale.h>
-#include <assert.h>
 #include <popt.h>
 
 #include "server/server.h"
+#include "server/input/decoder.h"
 #include "client/client.h"
 #include "protocol.h"
-#include "input/decoder.h"
-#include "lists.h"
-#include "files.h"
 #include "rcc.h"
 
 static int mocp_argc;

@@ -1,16 +1,9 @@
-#include <string.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <sys/types.h>
 #include <sys/socket.h>
 #include <time.h>
-#include <assert.h>
-#include <unistd.h>
 #include <fcntl.h>
 
 #include "protocol.h"
 #include "playlist.h"
-#include "files.h"
 
 /* Maximal socket name. */
 #define UNIX_PATH_MAX	108

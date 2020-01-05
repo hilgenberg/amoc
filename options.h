@@ -1,6 +1,4 @@
 #pragma once
-#include "lists.h"
-typedef std::string str;
 
 namespace options
 {

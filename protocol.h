@@ -1,5 +1,4 @@
 #pragma once
-
 #include "playlist.h"
 
 /* Definition of events sent by server to the client. */

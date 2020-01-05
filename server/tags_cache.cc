@@ -1,19 +1,11 @@
 #include <pthread.h>
-#include <assert.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <errno.h>
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <time.h>
-#include <unistd.h>
 #include <dirent.h>
 #include "server.h"
 #include "../playlist.h"
-#include "../files.h"
 #include "tags_cache.h"
-#include "../output/audio.h"
+#include "output/audio.h"
 
 #ifdef HAVE_DB_H
 #undef STRERROR_FN

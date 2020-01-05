@@ -9,17 +9,9 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
-#include <stdlib.h>
-
 #ifdef HAVE_RCC
 # include <librcc.h>
 #endif
-
-#include <assert.h>
 
 #include "rcc.h"
 

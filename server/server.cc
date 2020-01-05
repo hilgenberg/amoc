@@ -9,8 +9,6 @@
  *
  */
 
-#include <stdio.h>
-#include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -19,26 +17,17 @@
 #endif
 #include <sys/un.h>
 #include <time.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <strings.h>
 #include <signal.h>
-#include <errno.h>
-#include <stdarg.h>
 #include <pthread.h>
-#include <assert.h>
 
 #include "../protocol.h"
-#include "../output/audio.h"
-#include "../output/oss.h"
-#include "../options.h"
+#include "output/audio.h"
+#include "output/oss.h"
 #include "server.h"
 #include "../playlist.h"
 #include "tags_cache.h"
-#include "../files.h"
-#include "../output/softmixer.h"
-#include "../output/equalizer.h"
+#include "output/softmixer.h"
+#include "output/equalizer.h"
 #include "ratings.h"
 
 #define SERVER_LOG	"mocp_server_log"

@@ -1,6 +1,3 @@
-#include <assert.h>
-#include <string.h>
-#include <algorithm>
 #include "fifo_buf.h"
 
 fifo_buf::fifo_buf(size_t n)

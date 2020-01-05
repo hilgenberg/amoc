@@ -1,36 +1,10 @@
-#include <stdarg.h>
-#include <locale.h>
-#include <assert.h>
-#include <string.h>
-#include <strings.h>
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-#include <signal.h>
-#include <ctype.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <sys/wait.h>
-#include <dirent.h>
-#include <sys/select.h>
-#include <wctype.h>
-#include <wchar.h>
-
 #include "client.h"
-#include "../lists.h"
-#include "../files.h"
-#include "../input/decoder.h"
 #include "../playlist.h"
 #include "../protocol.h"
-#include "utf8.h"
-#include "../rcc.h"
-#include "../output/softmixer.h"
-#include "../server/ratings.h"
 
-#define QUEUE_CLEAR_THRESH 128
-#define STARTUP_MESSAGE "Welcome to " PACKAGE_NAME " (version " PACKAGE_VERSION ")!"
-#define HISTORY_SIZE	50
+#include <sys/socket.h>
+#include <sys/wait.h>
+#include <sys/select.h>
 
 volatile int  Client::want_quit = 0; // 1=quit client, 2=quit server
 volatile bool Client::want_interrupt = false;
@@ -905,6 +879,10 @@ void Client::handle_command(key_cmd cmd)
 			{
 				playlist.clear();
 				synced = false;
+			}
+			else if (!playlist.empty())
+			{
+				playlist.clear();
 			}
 			else
 			{

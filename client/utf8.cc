@@ -361,7 +361,7 @@ void xwprintfield(WINDOW *win, const str &s, int W, char ellipsis)
 			free(t);
 			break;
 		}
-		case 'm':
+		case 'c':
 		{
 			int l = (W-3)/2;
 			xwaddnstr(win, s.c_str(), l);

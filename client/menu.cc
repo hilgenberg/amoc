@@ -9,16 +9,10 @@
  *
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <assert.h>
-
 #include "menu.h"
 #include "../rcc.h"
-#include "../files.h"
 #include "utf8.h"
-#include "../input/decoder.h"
+#include "../server/input/decoder.h"
 #include "themes.h"
 #include "interface.h"
 
@@ -33,6 +27,21 @@ static str sanitize(const str &s_)
 		}
 	}
 	return s;
+}
+
+/* Convert time in second to min:sec text format. buff must be 6 chars long. */
+static str sec_to_min(int sec)
+{
+	if (sec < 0) sec = 0;
+	if (sec < 100*60)
+		return format("%02d:%02d", sec / 60, sec % 60);
+	sec /= 60;
+	if (sec < 100*60)
+		return format("%02dH%02d", sec / 60, sec % 60);
+	sec /= 24;
+	if (sec < 100*60)
+		return format("%02dD%02d", sec / 24, sec % 24);
+	return "++:++";
 }
 
 bool menu::mark_path(const str &f)
@@ -183,9 +192,7 @@ void menu::draw(bool active) const
 			waddch(win, '|');
 			if (it.tags && it.tags->time > -1)
 			{
-				char time_str[6];
-				sec_to_min (time_str, it.tags->time);
-				xwaddstr(win, time_str);
+				xwaddstr(win, sec_to_min(it.tags->time));
 			}
 			else
 			{

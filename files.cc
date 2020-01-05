@@ -9,15 +9,7 @@
  *
  */
 
-#include <stdio.h>
-#include <assert.h>
-#include <sys/types.h>
 #include <sys/stat.h>
-#include <unistd.h>
-#include <string.h>
-#include <strings.h>
-#include <errno.h>
-#include <stdlib.h>
 #include <dirent.h>
 
 #ifdef HAVE_LIBMAGIC
@@ -25,9 +17,8 @@
 #include <pthread.h>
 #endif
 
-#include "lists.h"
 #include "client/interface.h"
-#include "input/decoder.h"
+#include "server/input/decoder.h"
 #include "files.h"
 #include "client/utf8.h"
 #include "server/ratings.h"
