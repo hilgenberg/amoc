@@ -799,8 +799,6 @@ static int ffmpeg_can_decode (struct io_stream *stream)
 static void put_in_remain_buf (struct ffmpeg_data *data, const char *buf,
 		const int len)
 {
-	debug ("Remain: %dB", len);
-
 	data->remain_buf_len = len;
 	data->remain_buf = (char *)xmalloc (len);
 	memcpy (data->remain_buf, buf, len);
@@ -809,14 +807,10 @@ static void put_in_remain_buf (struct ffmpeg_data *data, const char *buf,
 static void add_to_remain_buf (struct ffmpeg_data *data, const char *buf,
 		const int len)
 {
-	debug ("Adding %dB to remain_buf", len);
-
 	data->remain_buf = (char *)xrealloc (data->remain_buf,
 			data->remain_buf_len + len);
 	memcpy (data->remain_buf + data->remain_buf_len, buf, len);
 	data->remain_buf_len += len;
-
-	debug ("remain_buf is %dB long", data->remain_buf_len);
 }
 
 /* Free the remainder buffer. */
@@ -832,8 +826,6 @@ static int take_from_remain_buf (struct ffmpeg_data *data, char *buf, int buf_le
 {
 	int to_copy = MIN (buf_len, data->remain_buf_len);
 
-	debug ("Copying %d bytes from the remain buf", to_copy);
-
 	memcpy (buf, data->remain_buf, to_copy);
 
 	if (to_copy < data->remain_buf_len) {
@@ -842,7 +834,6 @@ static int take_from_remain_buf (struct ffmpeg_data *data, char *buf, int buf_le
 		data->remain_buf_len -= to_copy;
 	}
 	else {
-		debug ("Remain buf is now empty");
 		free_remain_buf (data);
 	}
 
@@ -921,7 +912,6 @@ static AVPacket *get_packet (struct ffmpeg_data *data)
 
 	rc = av_read_frame (data->ic, pkt);
 	if (rc >= 0) {
-		debug ("Got %dB packet", pkt->size);
 		return pkt;
 	}
 
@@ -974,8 +964,6 @@ static int decode_packet (struct ffmpeg_data *data, AVPacket *pkt,
 			break;
 		}
 
-		debug ("Decoded %dB", len);
-
 		pkt->data += len;
 		pkt->size -= len;
 
@@ -1010,8 +998,6 @@ static int decode_packet (struct ffmpeg_data *data, AVPacket *pkt,
 		buf += copied;
 		filled += copied;
 		buf_len -= copied;
-
-		debug ("Copying %dB (%dB filled)", packed_size, filled);
 
 		if (packed != (char *)frame->extended_data[0])
 			free (packed);

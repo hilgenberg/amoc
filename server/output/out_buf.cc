@@ -148,7 +148,6 @@ static void *read_thread (void *arg)
 			LOCK (buf->mutex);
 		}
 
-		debug ("sending the signal");
 		pthread_cond_broadcast (&buf->ready_cond);
 
 		if ((buf->buf.get_fill() == 0 || buf->pause || buf->stop)
@@ -159,10 +158,8 @@ static void *read_thread (void *arg)
 				audio_dev_closed = 1;
 			}
 
-			debug ("waiting for something in the buffer");
 			buf->read_thread_waiting = 1;
 			pthread_cond_wait (&buf->play_cond, &buf->mutex);
-			debug ("something appeared in the buffer");
 		}
 
 		buf->read_thread_waiting = 0;
@@ -206,8 +203,6 @@ static void *read_thread (void *arg)
 			                      AUDIO_MAX_PLAY_BYTES) / audio_bpf;
 			play_buf_fill = buf->buf.get(play_buf, play_buf_frames * audio_bpf);
 			UNLOCK (buf->mutex);
-
-			debug ("playing %d bytes", play_buf_fill);
 
 			while (play_buf_pos < play_buf_fill) {
 				played = audio_send_pcm (

@@ -360,7 +360,7 @@ static void *play_thread (void *unused ATTR_UNUSED)
 		if (!file.empty()) {
 			LOCK (curr_playing_mtx);
 			LOCK (plist_mtx);
-			logit ("Playing item %d: %s", curr_playing, file);
+			logit ("Playing item %d: %s", curr_playing, file.c_str());
 
 			if (curr_playing_fname)
 				free (curr_playing_fname);

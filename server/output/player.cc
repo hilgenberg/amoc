@@ -145,8 +145,6 @@ static void bitrate_list_add (struct bitrate_list *b, const int time,
 		b->tail->next = NULL;
 		b->tail->time = time;
 		b->tail->bitrate = bitrate;
-
-		debug ("Adding bitrate %d at time %d", bitrate, time);
 	}
 	else if (b->tail->bitrate != bitrate && b->tail->time != time) {
 		assert (b->tail->time < time);
@@ -157,15 +155,7 @@ static void bitrate_list_add (struct bitrate_list *b, const int time,
 		b->tail->next = NULL;
 		b->tail->time = time;
 		b->tail->bitrate = bitrate;
-
-		debug ("Appending bitrate %d at time %d", bitrate, time);
 	}
-	else if (b->tail->bitrate == bitrate)
-		debug ("Not adding bitrate %d at time %d because the bitrate"
-				" hasn't changed", bitrate, time);
-	else
-		debug ("Not adding bitrate %d at time %d because it is for"
-				" the same time as the last bitrate", bitrate, time);
 	UNLOCK (b->mtx);
 }
 
@@ -442,8 +432,6 @@ static void decode_loop (const struct decoder *f, void *decoder_data,
 	status_msg ("Playing...");
 
 	while (1) {
-		debug ("loop...");
-
 		LOCK (request_cond_mtx);
 		if (!eof && !decoded) {
 			struct decoder_error err;
@@ -479,7 +467,6 @@ static void decode_loop (const struct decoder *f, void *decoder_data,
 				logit ("EOF from decoder");
 			}
 			else {
-				debug ("decoded %d bytes", decoded);
 				if (!sound_params_eq(new_sound_params, *sound_params))
 					sound_params_change = true;
 
@@ -493,7 +480,6 @@ static void decode_loop (const struct decoder *f, void *decoder_data,
 		 * data or EOF occurred and there is something in the buffer. */
 		else if (decoded > out_buf_get_free(out_buf)
 					|| (eof && out_buf_get_fill(out_buf))) {
-			debug ("waiting...");
 			if (eof && !precache.file && next_file
 					&& plist_item::ftype(next_file) == F_SOUND
 					&& options::AutoNext)
@@ -544,7 +530,6 @@ static void decode_loop (const struct decoder *f, void *decoder_data,
 		}
 		else if (!eof && decoded <= out_buf_get_free(out_buf)
 				&& !sound_params_change) {
-			debug ("putting into the buffer %d bytes", decoded);
 			audio_send_buf (buf, decoded);
 			decoded = 0;
 		}

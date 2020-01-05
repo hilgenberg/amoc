@@ -676,8 +676,6 @@ void equalizer_refresh()
 /* sound processing code */
 void equalizer_process_buffer(char *buf, size_t size, const struct sound_params *sound_params)
 {
-  debug ("EQ Processing %zu bytes...", size);
-
   if(!equ_active || !current_equ || !current_equ->set)
     return;
 

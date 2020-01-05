@@ -377,7 +377,6 @@ static void *io_read_thread (void *data)
 		int read_buf_pos = 0;
 
 		LOCK (s->io_mtx);
-		debug ("Reading...");
 
 		LOCK (s->buf_mtx);
 		s->after_seek = 0;
@@ -386,7 +385,6 @@ static void *io_read_thread (void *data)
 		read_buf_fill = io_internal_read (s, 0, read_buf, sizeof(read_buf));
 		UNLOCK (s->io_mtx);
 		if (read_buf_fill > 0)
-			debug ("Read %d bytes", read_buf_fill);
 
 		LOCK (s->buf_mtx);
 
@@ -419,8 +417,6 @@ static void *io_read_thread (void *data)
 		while (read_buf_pos < read_buf_fill && !s->after_seek) {
 			size_t put;
 
-			debug ("Buffer fill: %zu", s->buf->get_fill());
-
 			put = s->buf->put(
 					read_buf + read_buf_pos,
 					read_buf_fill - read_buf_pos);
@@ -429,7 +425,6 @@ static void *io_read_thread (void *data)
 				break;
 
 			if (put > 0) {
-				debug ("Put %zu bytes into the buffer", put);
 				if (s->buf_fill_callback) {
 					UNLOCK (s->buf_mtx);
 					s->buf_fill_callback (s,
@@ -443,9 +438,7 @@ static void *io_read_thread (void *data)
 				continue;
 			}
 
-			debug ("The buffer is full, waiting.");
 			pthread_cond_wait (&s->buf_free_cond, &s->buf_mtx);
-			debug ("Some space in the buffer was freed");
 		}
 
 		UNLOCK (s->buf_mtx);
@@ -601,17 +594,12 @@ static ssize_t io_peek_internal (struct io_stream *s, void *buf, size_t count)
  * occurs which prevents prebuffering. */
 void io_prebuffer (struct io_stream *s, const size_t to_fill)
 {
-	logit ("prebuffering to %zu bytes...", to_fill);
-
 	LOCK (s->buf_mtx);
 	while (io_ok_nolock(s) && !s->stop_read_thread && !s->eof
 	                       && to_fill > s->buf->get_fill()) {
-		debug ("waiting (buffer %zu bytes full)", s->buf->get_fill());
 		pthread_cond_wait (&s->buf_fill_cond, &s->buf_mtx);
 	}
 	UNLOCK (s->buf_mtx);
-
-	logit ("done");
 }
 
 static ssize_t io_read_buffered (struct io_stream *s, void *buf, size_t count)
@@ -626,16 +614,13 @@ static ssize_t io_read_buffered (struct io_stream *s, void *buf, size_t count)
 		if (s->buf->get_fill()) {
 			received += s->buf->get((char *)buf + received,
 					count - received);
-			debug ("Read %zd bytes so far", received);
 			pthread_cond_signal (&s->buf_free_cond);
 			continue;
 		}
 
-		debug ("Buffer empty, waiting...");
 		pthread_cond_wait (&s->buf_fill_cond, &s->buf_mtx);
 	}
 
-	debug ("done");
 	s->pos += received;
 
 	UNLOCK (s->buf_mtx);
@@ -673,8 +658,6 @@ ssize_t io_read (struct io_stream *s, void *buf, size_t count)
 	assert (buf != NULL);
 	assert (s->opened);
 
-	debug ("Reading...");
-
 	if (s->buffered)
 		received = io_read_buffered (s, buf, count);
 	else if (s->eof)
@@ -694,8 +677,6 @@ ssize_t io_peek (struct io_stream *s, void *buf, size_t count)
 
 	assert (s != NULL);
 	assert (buf != NULL);
-
-	debug ("Reading...");
 
 	if (s->buffered)
 		received = io_peek_internal (s, buf, count);
@@ -746,8 +727,6 @@ off_t io_tell (struct io_stream *s)
 	}
 	else
 		res = s->pos;
-
-	debug ("We are at byte %" PRId64, res);
 
 	return res;
 }

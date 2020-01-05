@@ -658,7 +658,6 @@ static int play_buf_chunks ()
 			written += written_bytes;
 			alsa_buf_fill -= written_bytes;
 
-			debug ("Played %d bytes", written_bytes);
 			continue;
 		}
 
@@ -677,7 +676,6 @@ static int play_buf_chunks ()
 		}
 	}
 
-	debug ("%d bytes remain in alsa_buf", alsa_buf_fill);
 	memmove (alsa_buf, alsa_buf + written, alsa_buf_fill);
 
 	return written;
@@ -729,8 +727,6 @@ static int alsa_play (const char *buff, const size_t size)
 
 	assert (chunk_bytes > 0);
 
-	debug ("Got %zu bytes to play", size);
-
 	while (to_write) {
 		int to_copy;
 
@@ -740,14 +736,9 @@ static int alsa_play (const char *buff, const size_t size)
 		buf_pos += to_copy;
 		alsa_buf_fill += to_copy;
 
-		debug ("Copied %d bytes to alsa_buf (now filled with %d bytes)",
-				to_copy, alsa_buf_fill);
-
 		if (play_buf_chunks() < 0)
 			return -1;
 	}
-
-	debug ("Played everything");
 
 	return size;
 }
