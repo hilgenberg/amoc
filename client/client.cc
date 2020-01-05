@@ -28,7 +28,6 @@
 #include "../output/softmixer.h"
 #include "../server/ratings.h"
 
-#define PLAYLIST_FILE	"playlist.m3u"
 #define QUEUE_CLEAR_THRESH 128
 #define STARTUP_MESSAGE "Welcome to " PACKAGE_NAME " (version " PACKAGE_VERSION ")!"
 #define HISTORY_SIZE	50
@@ -467,17 +466,6 @@ void Client::process_args (stringlist &args)
 	enter_first_dir ();
 }
 
-/* Load the playlist from .moc directory. */
-void Client::load_playlist ()
-{
-	char *plist_file = create_file_name (PLAYLIST_FILE);
-
-	if (is_plist_file(plist_file)) {
-		go_to_playlist (plist_file);
-	}
-	synced = false;
-}
-
 void Client::go_dir_up ()
 {
 	if (cwd.empty() || cwd == "/") return;
@@ -603,6 +591,7 @@ void Client::add_file_plist ()
 	if (synced) {
 		srv.send(CMD_PLIST_ADD);
 		srv.send(item->path);
+		srv.send("");
 	}
 	else
 	{
@@ -740,7 +729,7 @@ Client::Client(int sock, stringlist &args)
 	if (!setlocale(LC_CTYPE, "")) logit ("Could not set locale!");
 
 	keys_init ();
-	iface.reset(new Interface(*this, playlist, dir_plist));
+	iface.reset(new Interface(*this, dir_plist, playlist));
 	get_server_options ();
 	update_mixer_name ();
 
@@ -833,10 +822,6 @@ void Client::run()
 
 Client::~Client ()
 {
-	// TODO: server should save this!
-	char *plist_file = create_file_name (PLAYLIST_FILE);
-	if (playlist.size()) playlist.save(plist_file); else unlink (plist_file);
-
 	FILE *dir_file = fopen(create_file_name("last_directory"), "w");
 	if (!dir_file) {
 		error_errno ("Can't save current directory", errno);

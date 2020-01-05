@@ -12,11 +12,11 @@
 
 void utf8_init ();
 void utf8_cleanup ();
-inline int xwaddstr (WINDOW *win, const str &s) { return xwaddstr(win, s.c_str()); };
+int xwaddstr (WINDOW *win, const str &s);
 int xwaddstr (WINDOW *win, const char *str);
 int xwaddnstr (WINDOW *win, const char *str, const int n);
 int xmvwaddstr (WINDOW *win, const int y, const int x, const char *str);
-inline int xmvwaddstr (WINDOW *win, const int y, const int x, const str &s) { return xmvwaddstr (win, y, x, s.c_str()); }
+int xmvwaddstr (WINDOW *win, const int y, const int x, const str &s);
 int xmvwaddnstr (WINDOW *win, const int y, const int x, const char *str, const int n);
 int xwprintw (WINDOW *win, const char *fmt, ...);
 

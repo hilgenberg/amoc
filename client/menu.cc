@@ -162,7 +162,7 @@ void menu::draw(bool active) const
 		if (!items.is_dir && cn)
 		{
 			wmove (win, y, x0);
-			xwprintw(win, "%* d ", cn-1, i+1);
+			xwprintw(win, "%*d ", cn-1, i+1);
 			x0 += cn;
 		}
 
@@ -207,9 +207,9 @@ void menu::draw(bool active) const
 			if (items.is_dir)
 			{
 				if (tags.track > -1)
-					xwprintw(win, "%* d ", cn-1, tags.track);
+					xwprintw(win, "%*d ", cn-1, tags.track);
 				else
-					xwprintw(win, "%* s", cn, "");
+					xwprintw(win, "%*s", cn, "");
 			}
 			xwprintfield(win, sanitize(tags.title), c2);
 		}

@@ -48,7 +48,7 @@ char *socket_name ()
 
 bool Socket::send(const void *data, size_t n)
 {
-	logit("Socketsend: %d %s", (int)n, buffering ? "-> buffer" : "");
+	//logit("Socketsend: %d %s", (int)n, buffering ? "-> buffer" : "");
 	if (buffering)
 	{
 		buf.insert(buf.end(), (char*)data, (char*)data+n);
@@ -69,7 +69,7 @@ bool Socket::send(const void *data, size_t n)
 }
 bool Socket::read(void *data, size_t n)
 {
-	logit("Socketread: %d", n);
+	//logit("Socketread: %d", n);
 	if (!n) return true;
 	while (n)
 	{

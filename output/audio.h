@@ -247,6 +247,7 @@ int audio_get_prev_state ();
 void audio_plist_add (const char *file);
 void audio_plist_add (const plist &pl);
 void audio_plist_clear ();
+void audio_get_plist(plist &pl);
 char *audio_get_sname ();
 void audio_set_mixer (const int val);
 int audio_get_mixer ();

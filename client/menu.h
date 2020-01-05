@@ -72,7 +72,7 @@ struct menu
 		if (i < 0) return;
 		int N = items.size();
 		if (i < top) top = i;
-		if (i >= top + bounds.h) top = i - bounds.h;
+		if (i >= top + bounds.h-1) top = i - (bounds.h-1);
 	}
 
 	Interface *iface;

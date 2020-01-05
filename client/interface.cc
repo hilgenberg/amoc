@@ -85,6 +85,7 @@ static void draw_frame(WINDOW *win, const Rect &r, const str &title, bool draw_b
 	wmove (win, r.y, r.x);
 	waddch (win, lines.ulcorn);
 	whline (win, lines.horiz, r.w - 2);
+	wmove (win, r.y, r.x+r.w-1);
 	waddch (win, lines.urcorn);
 	wmove (win, r.y + 1, r.x);
 	wvline (win, lines.vert, r.h - 2);
@@ -94,6 +95,7 @@ static void draw_frame(WINDOW *win, const Rect &r, const str &title, bool draw_b
 		wmove (win, r.y + r.h - 1, r.x);
 		waddch (win, lines.llcorn);
 		whline (win, lines.horiz, r.w - 2);
+		wmove (win, r.y + r.h - 1, r.x + r.w - 1);
 		waddch (win, lines.lrcorn);
 	}
 
@@ -266,7 +268,7 @@ void Interface::draw(bool force)
 				r1.set(0, m, W, H-3-m);
 				break;
 			case SINGLE:
-				left.bounds.set(0, 0, W, H-3);
+				r1.set(0, 0, W, H-3);
 				r2 = r1;
 				break;
 		}
@@ -279,32 +281,48 @@ void Interface::draw(bool force)
 		if (layout != SINGLE) menus[1-active_menu]->draw(false);
 		menus[active_menu]->draw(true);
 		str &curr_dir = client.cwd;
-		draw_frame(win, r1, options::FileNamesIconv ? files_iconv_str(curr_dir) : curr_dir, false);
-		draw_frame(win, r2, "Playlist", layout==VSPLIT);
+		if (layout != SINGLE || active_menu==0) draw_frame(win, r1, options::FileNamesIconv ? files_iconv_str(curr_dir) : curr_dir, false);
+		if (layout != SINGLE || active_menu==1) draw_frame(win, r2, "Playlist", layout==VSPLIT);
 
+		// bottom frame and playlist total time frame(s)
 		wattrset (win, get_color(CLR_FRAME));
+		mvwaddch (win, H-4, 0, lines.ltee);
+		whline (win, lines.horiz, W-2);
+		mvwaddch (win, H-4, W-1, lines.rtee);
+		if (layout == HSPLIT)
+		{
+			int x = r1.x1();
+			mvwaddch (win, H-4, x - 14, '[');
+			mvwaddch (win, H-4, x - 2, ']');
+			waddch(win, lines.lrcorn);
+			waddch(win, lines.llcorn);
+		}
+		else if (layout == VSPLIT)
+		{
+			int y = r2.y1()-1;
+			mvwaddch (win, y, W - 14, '[');
+			mvwaddch (win, y, W - 2, ']');
 
-		/* mixer frame */
-		mvwaddch (win, H-4, W - 38, lines.rtee);
-		mvwaddch (win, H-4, W - 17, lines.ltee);
+		}
+		mvwaddch (win, H-4, W - 14, '[');
+		mvwaddch (win, H-4, W - 2, ']');
 
-		/* playlist time frame */
-		mvwaddch (win, H-4, W - 13, lines.rtee);
-		mvwaddch (win, H-4, W - 2, lines.ltee);
+		// sides and corners
+		mvwaddch (win, H-3, 0,   lines.vert);
+		mvwaddch (win, H-2, 0,   lines.vert);
+		mvwaddch (win, H-3, W-1, lines.vert);
+		mvwaddch (win, H-2, W-1, lines.vert);
+		mvwaddch (win, H-1, 0,   lines.llcorn);
+		mvwaddch (win, H-1, W-1, lines.lrcorn);
+
+		/* status line frame */
+		mvwaddch (win, H-4, 5, lines.rtee);
+		mvwaddch (win, H-4, 5 + STATUS_WIDTH + 1, lines.ltee);
 
 		/* total time frames */
 		wattrset (win, get_color(CLR_TIME_TOTAL_FRAMES));
 		mvwaddch (win, H-2, 13, '[');
 		mvwaddch (win, H-2, 19, ']');
-
-		/* time bar frame */
-		wattrset (win, get_color(CLR_FRAME));
-		mvwaddch (win, H-1, W-2, lines.ltee);
-		mvwaddch (win, H-1, 2, lines.rtee);
-
-		/* status line frame */
-		mvwaddch (win, H-4, 5, lines.rtee);
-		mvwaddch (win, H-4, 5 + STATUS_WIDTH, lines.ltee);
 
 		/* rate and bitrate units */
 		wmove (win, H-2, 25);
@@ -312,18 +330,17 @@ void Interface::draw(bool force)
 		xwaddstr (win, "kHz	 kbps");		
 
 		// playlist total times
+		wattrset (win, get_color(CLR_PLIST_TIME));
 		if (layout != SINGLE || active_menu == 0)
 		{
 			str s = total_time_str(left.items.total_time());
-			wmove(win, left.bounds.y1(), left.bounds.x1()-s.length());
-			wattrset (win, get_color(CLR_PLIST_TIME));
+			wmove(win, left.bounds.y1(), left.bounds.x1()-s.length()-1);
 			xwaddstr (win, s);
 		}
 		if (layout != SINGLE || active_menu == 1)
 		{
 			str s = total_time_str(right.items.total_time());
-			wmove(win, right.bounds.y1(), right.bounds.x1()-s.length());
-			wattrset (win, get_color(CLR_PLIST_TIME));
+			wmove(win, right.bounds.y1(), right.bounds.x1()-s.length()-1);
 			xwaddstr (win, s);
 		}
 	}
@@ -360,6 +377,23 @@ void Interface::draw(bool force)
 	{
 		wattrset (win, get_color (CLR_TITLE));
 		xwprintfield(win, curr_file, W-5); // TODO
+	}
+
+	// status message
+	//status_msg = "testing status balasdfölkjasdfölkjwerpoiuasdf";
+	wattrset (win, get_color(CLR_FRAME));
+	if (status_msg.empty())
+	{
+		wmove (win, H-4, 5);
+		whline (win, lines.horiz, STATUS_WIDTH+2);
+	}
+	else
+	{
+		mvwaddch (win, H-4, 5, lines.rtee);
+		mvwaddch (win, H-4, 5 + STATUS_WIDTH + 1, lines.ltee);
+		wattrset (win, get_color(CLR_STATUS));
+		wmove (win, H-4, 6);
+		xwprintfield(win, status_msg, STATUS_WIDTH, 'c');
 	}
 
 	// prompt or info
@@ -411,7 +445,7 @@ void Interface::draw(bool force)
 		if (rate >= 0) xwprintw (win, "%3d", rate); else xwaddstr (win, "   ");
 		wmove (win, H-2, 29);
 		if (bitrate >= 0) xwprintw (win, "%4d", std::min(bitrate, 9999)); else xwaddstr(win, "    ");
-		wmove(win, H-2, 64); // TODO
+		wmove(win, H-2, 80); // TODO
 		xwprintw(win, "%s: %02d", mixer_name.c_str(), CLAMP(0, mixer_value, 100)); 
 
 		// toggles
@@ -424,11 +458,6 @@ void Interface::draw(bool force)
 		SW(REPEAT, options::Repeat);
 		SW(NEXT, options::AutoNext);
 		#undef SW
-
-		// status message
-		wattrset (win, get_color(CLR_STATUS));
-		wmove (win, H-4, 6);
-		xwprintfield(win, status_msg, STATUS_WIDTH, 'c');
 	}
 
 	need_redraw = 0;

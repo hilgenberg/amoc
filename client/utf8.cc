@@ -134,6 +134,21 @@ int xwaddstr (WINDOW *win, const char *str)
 
 	return res;
 }
+int xwaddstr (WINDOW *win, const str &s)
+{
+	int res;
+
+	if (using_utf8)
+		res = waddstr (win, s.c_str());
+	else {
+		char *lstr = iconv_str (iconv_desc, s.c_str());
+
+		res = waddstr (win, lstr);
+		free (lstr);
+	}
+
+	return res;
+}
 
 /* Convert multi-byte sequence to wide characters.  Change invalid UTF-8
  * sequences to '?'.  'dest' can be NULL as in mbstowcs().
@@ -252,6 +267,21 @@ int xmvwaddstr (WINDOW *win, const int y, const int x, const char *str)
 		res = mvwaddstr (win, y, x, str);
 	else {
 		char *lstr = iconv_str (iconv_desc, str);
+
+		res = mvwaddstr (win, y, x, lstr);
+		free (lstr);
+	}
+
+	return res;
+}
+int xmvwaddstr (WINDOW *win, const int y, const int x, const str &s)
+{
+	int res;
+
+	if (using_utf8)
+		res = mvwaddstr (win, y, x, s.c_str());
+	else {
+		char *lstr = iconv_str (iconv_desc, s.c_str());
 
 		res = mvwaddstr (win, y, x, lstr);
 		free (lstr);

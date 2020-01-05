@@ -1070,15 +1070,25 @@ bool audio_send_plist(Socket &socket)
 
 void audio_plist_set_and_play (plist &&pl, int idx)
 {
-	if (idx < 0 || idx >= pl.size()) return;
-
 	LOCK (plist_mtx);
 
 	playlist.swap(pl);
 	shuffled_plist.clear();
 
 	UNLOCK (plist_mtx);
+	
+	if (idx < 0 || idx >= pl.size()) return;
 	audio_play(idx);
+}
+
+void audio_get_plist(plist &pl)
+{
+	LOCK (plist_mtx);
+
+	pl.clear();
+	pl += playlist;
+
+	UNLOCK (plist_mtx);
 }
 
 

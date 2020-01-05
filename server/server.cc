@@ -43,9 +43,7 @@
 
 #define SERVER_LOG	"mocp_server_log"
 #define PID_FILE	"pid"
-
-plist playlist, dirlist;
-int curr_item, curr_list;
+#define PLAYLIST_FILE	"playlist.m3u"
 
 struct client
 {
@@ -320,6 +318,15 @@ void server_init (int debugging, int foreground)
 	tc = new tags_cache();
 	tc->load (create_file_name("cache"));
 
+	/* Load the playlist from .moc directory. */
+	char *plist_file = create_file_name (PLAYLIST_FILE);
+	if (is_plist_file(plist_file))
+	{
+		plist pl;
+		if (pl.load_m3u(plist_file))
+			audio_plist_set_and_play(std::move(pl), -1);
+	}
+
 	server_tid = pthread_self ();
 	xsignal (SIGTERM, sig_exit);
 	xsignal (SIGINT, foreground ? sig_exit : SIG_IGN);
@@ -363,7 +370,8 @@ void add_event (client &cli, int type)
 	auto &sock = *cli.socket;
 	sock.packet(type);
 	sock.finish();
-}template<typename T> void add_event (client &cli, int type, const T& data)
+}
+template<typename T> void add_event (client &cli, int type, const T& data)
 {
 	Lock lock(cli);
 	auto &sock = *cli.socket;
@@ -444,8 +452,7 @@ static bool flush_events (client &cli)
 static void send_events (fd_set *fds)
 {
 	for (int i = 0; i < CLIENTS_MAX; i++)
-		if (clients[i].socket
-				&& FD_ISSET(clients[i].socket->fd(), fds)) {
+		if (clients[i].socket && FD_ISSET(clients[i].socket->fd(), fds)) {
 			debug ("Flushing events for client %d", i);
 			if (!flush_events (clients[i])) {
 				close (clients[i].socket->fd());
@@ -458,6 +465,14 @@ static void send_events (fd_set *fds)
 static void server_shutdown ()
 {
 	logit ("Server exiting...");
+
+	char *plist_file = create_file_name (PLAYLIST_FILE);
+	if (plist_file && *plist_file)
+	{
+		plist playlist; audio_get_plist(playlist);
+		if (playlist.size()) playlist.save(plist_file); else unlink (plist_file);
+	}
+
 	audio_exit ();
 	delete tc; tc = NULL;
 	unlink (socket_name());
@@ -532,20 +547,19 @@ static bool req_jump_to (client &cli)
 }
 
 /* Send tags to the client. Return 0 on error. */
-static int req_get_tags (client *cli)
+static int req_get_tags (client &cli)
 {
-	file_tags *tags;
-	int res = 1;
 
-	debug ("Sending tags to client with fd %d...", cli->socket->fd());
-
-	if (!cli->socket->send(EV_DATA)) {
+	debug ("Sending tags to client with fd %d...", cli.socket->fd());
+	Lock lock(cli);
+	if (!cli.socket->send(EV_DATA)) {
 		logit ("Error when sending EV_DATA");
 		return 0;
 	}
 
-	tags = audio_get_curr_tags ();
-	if (!cli->socket->send(tags)) {
+	int res = 1;
+	file_tags *tags = audio_get_curr_tags ();
+	if (!cli.socket->send(tags)) {
 		logit ("Error when sending tags");
 		res = 0;
 	}
@@ -719,10 +733,12 @@ static void handle_command (const int client_id)
 			break;
 		}
 		case CMD_PLIST_GET:
-			err = !cli.socket->send(playlist);
-			cli.socket->send(EV_DATA);
-			err = !audio_send_plist(*cli.socket);
+		{
+			Lock lock(cli);
+			err = !cli.socket->send(EV_DATA) || 
+				!audio_send_plist(*cli.socket);
 			break;
+		}
 		case CMD_PLIST_MOVE:
 		{
 			int i, j;
@@ -762,7 +778,7 @@ static void handle_command (const int client_id)
 		case CMD_GET_SNAME:
 		{
 			char *s = audio_get_sname ();
-			err = !cli.socket->send(s);
+			err = !send_data_str(&cli, s);
 			free (s);
 			break;
 		}
@@ -856,8 +872,7 @@ static void handle_command (const int client_id)
 			break;
 		}
 		case CMD_GET_TAGS:
-			if (!req_get_tags(&cli))
-				err = 1;
+			err = !req_get_tags(cli);
 			break;
 		case CMD_TOGGLE_MIXER_CHANNEL:
 			audio_toggle_mixer_channel ();
