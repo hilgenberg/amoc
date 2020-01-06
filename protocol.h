@@ -9,27 +9,26 @@ enum ServerEvents : int
 	EV_EXIT,	/* the server is about to exit */
 	
 	EV_SRV_ERROR,	/* an error occurred */
-	EV_STATUS_MSG,	/* followed by a status message */
+	EV_STATUS_MSG,	/* (5) followed by a status message */
 	
 	EV_DATA,	/* data in response to a request follows */
 	EV_FILE_TAGS,	/* tags in a response for tags request */
 	EV_FILE_RATING,	/* ratings changed for a file */
 	
 	EV_PLIST_NEW,	/* replaced the playlist (no data. use CMD_PLIST_GET) */
-	EV_PLIST_ADD,	/* items were added, followed by the file names and "" */
+	EV_PLIST_ADD,	/* (10) items were added, followed by the file names and "" */
 	EV_PLIST_DEL,	/* an item was deleted, followed by the index */
 	EV_PLIST_MOVE,	/* an item moved, followed by its old and new indices */
 
 	EV_AUDIO_START,	/* playing of audio has started */
 	EV_AUDIO_STOP,	/* playing of audio has stopped */
-	EV_STATE, 	/* server has changed the play/pause/stopped state */
+	EV_STATE, 	/* (15) server has changed the play/pause/stopped state */
 	EV_CTIME,	/* current time of the song has changed */
 	EV_BITRATE,	/* the bitrate has changed */
 	EV_RATE,	/* the rate has changed */
 	EV_CHANNELS,	/* the number of channels has changed */
-	EV_OPTIONS,	/* the options (repeat, shuffle, autonext) have changed */
-	EV_TAGS,	/* tags for the current file have changed */
-	EV_AVG_BITRATE,	/* average bitrate has changed (new song) */
+	EV_OPTIONS,	/* (20) the options (repeat, shuffle, autonext) have changed */
+	EV_AVG_BITRATE,	/* average bitrate has changed */
 	EV_MIXER_CHANGE	/* the mixer channel was changed */
 };
 
@@ -46,7 +45,7 @@ enum ServerCommands : int
 	CMD_UNPAUSE,		/* unpause */
 	CMD_NEXT,		/* start playing next song if available */
 	CMD_PREV,		/* start playing previous song if available */
-	CMD_SEEK,		/* seek in the current stream */
+	CMD_SEEK,		/* (10) seek in the current stream */
 	CMD_JUMP_TO,		/* jumps to a some position in the current stream */
 
 	CMD_PLIST_GET,		/* send the entire playlist to client */
@@ -57,9 +56,8 @@ enum ServerCommands : int
 	CMD_ABORT_TAGS_REQUESTS,/* abort all previous CMD_GET_FILE_TAGS requests */
 	CMD_SET_RATING,		/* change rating for a file */
 
-	CMD_GET_TAGS,		/* get tags for the current file (gets an immediate EV_DATA reply) */
 	CMD_GET_CTIME,		/* get the current song time */
-	CMD_GET_SNAME,		/* get the stream file name */
+	CMD_GET_SNAME,		/* (20) get the stream file name */
 	CMD_GET_STATE,		/* get the state */
 	CMD_GET_BITRATE,	/* get the bitrate */
 	CMD_GET_RATE,		/* get the rate */

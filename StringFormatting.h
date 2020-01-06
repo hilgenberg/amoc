@@ -24,3 +24,4 @@ bool is_int(const char *s, int &value);
 bool has_prefix(const std::string &s, const char *prefix, bool ignore_case);
 bool has_prefix(const char *s, const char *prefix, bool ignore_case);
 	
+void intersect(str &s1, const str &s2); // set s1 to their longest common prefix

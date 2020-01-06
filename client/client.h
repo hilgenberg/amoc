@@ -48,7 +48,6 @@ private:
 	int get_curr_time();
 	str get_curr_file();
 	PlayState get_state();
-	void update_mixer_name();
 	
 	void set_cwd(const str &path);
 	void set_start_dir ();

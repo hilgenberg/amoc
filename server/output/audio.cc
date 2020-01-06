@@ -1121,11 +1121,6 @@ void audio_plist_move (int i1, int i2)
 	UNLOCK (plist_mtx);
 }
 
-file_tags* audio_get_curr_tags ()
-{
-	return player_get_curr_tags ();
-}
-
 char *audio_get_mixer_channel_name ()
 {
 	if (current_mixer == 2)

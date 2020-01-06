@@ -9,9 +9,6 @@
  *
  */
 
-#include <stdio.h>
-#include <stdarg.h>
-
 #define WIDTH_MAX 2048*1024
 
 #ifdef HAVE_ICONV
@@ -25,9 +22,6 @@
 #endif
 
 #include <ncurses.h>
-#include <assert.h>
-#include <string.h>
-#include <errno.h>
 #include <wchar.h>
 
 #include "utf8.h"
@@ -217,7 +211,7 @@ int xwaddnstr (WINDOW *win, const char *str, const int n)
 	char *mstr, *lstr;
 	size_t size, num_chars;
 
-	assert (n > 0);
+	if (n <= 0) return 0;
 	assert (str != NULL);
 
 	mstr = iconv_str (iconv_desc, str);
@@ -503,8 +497,13 @@ char *xstrtail (const char *str, const int len)
 	int width;
 	char *tail;
 
+	if (len <= 0) 
+	{
+		tail =(char *)xmalloc (1);
+		*tail = 0;
+		return tail;
+	}
 	assert (str != NULL);
-	assert (len > 0);
 
 	size = xmbstowcs(NULL, str, -1, NULL) + 1;
 	ucs = (wchar_t *)xmalloc (sizeof(wchar_t) * size);

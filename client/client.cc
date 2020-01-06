@@ -55,14 +55,6 @@ int Client::get_avg_bitrate() { srv.send(CMD_GET_AVG_BITRATE); return get_data_i
 int Client::get_curr_time() { srv.send(CMD_GET_CTIME); return get_data_int (); }
 str Client::get_curr_file() { srv.send(CMD_GET_SNAME); return get_data_str (); }
 PlayState Client::get_state() { srv.send(CMD_GET_STATE); return (PlayState)get_data_int (); }
-void Client::update_mixer_name ()
-{
-	srv.send(CMD_GET_MIXER_CHANNEL_NAME);
-	str name = get_data_str();
-	debug ("Mixer name: %s", name.c_str());
-	iface->update_mixer_name(name);
-	iface->update_mixer_value(get_mixer_value());
-}
 
 /* Make new cwd path from CWD and this path. */
 void Client::set_cwd(const str &path)
@@ -137,16 +129,6 @@ void Client::update_item_tags (plist &plist, const int num, file_tags *tags)
 	if (i.tags) *i.tags = *tags; else i.tags.reset(new file_tags(*tags));
 }
 
-/* Use new tags for current file title (for Internet streams). */
-void Client::update_curr_tags ()
-{
-	srv.send(CMD_GET_TAGS);
-	wait_for_data ();
-	auto *tags = srv.get_tags();
-	if (tags && tags->time > 0) iface->update_total_time(tags->time);
-	iface->update_curr_tags(tags);
-}
-
 /* Get and show the server state. */
 void Client::update_state ()
 {
@@ -165,7 +147,7 @@ void Client::update_state ()
 		iface->update_curr_file(file);
 		iface->update_curr_tags(nullptr);
 		silent_seek_pos = -1;
-		update_curr_tags ();
+		if (options::ReadTags) send_tags_request(file); // TODO: see if we already have them first
 	}
 
 	iface->update_channels(get_channels());
@@ -206,8 +188,8 @@ void Client::handle_server_event (int type)
 			break;
 		case EV_PLIST_ADD:
 		{
-			if (!synced || want_plist_update) break;
 			plist pl; srv.get(pl);
+			if (!synced || want_plist_update) break;
 			playlist += pl;
 			ask_for_tags(pl);
 			iface->redraw(2);
@@ -215,22 +197,21 @@ void Client::handle_server_event (int type)
 		}
 		case EV_PLIST_DEL:
 		{
-			if (!synced || want_plist_update) break;
 			int i = srv.get_int();
+			if (!synced || want_plist_update) break;
 			playlist.remove(i);
 			iface->redraw(2);
 			break;
 		}
 		case EV_PLIST_MOVE:
 		{
-			if (!synced || want_plist_update) break;
 			int i = srv.get_int(), j = srv.get_int();
+			if (!synced || want_plist_update) break;
 			playlist.move(i, j);
 			iface->redraw(2);
 			break;
 		}
 
-		case EV_TAGS: want_state_update = true; break;
 		case EV_STATUS_MSG: iface->status(srv.get_str()); break;
 		case EV_MIXER_CHANGE:
 			iface->update_mixer_name(srv.get_str());
@@ -247,8 +228,7 @@ void Client::handle_server_event (int type)
 			if ((n = playlist.find(file))  != -1) update_item_tags (playlist, n, tags);
 			if (iface->get_curr_file() == file) {
 				debug ("Tags apply to the currently played file.");
-				if (tags) iface->update_curr_tags(tags);
-				if (tags->time != -1) iface->update_total_time(tags->time);
+				iface->update_curr_tags(tags);
 			}
 			else delete tags;
 			break;
@@ -321,25 +301,21 @@ bool Client::go_to_dir (const char *dir)
 /* Load the playlist file and switch the menu to it. Return 1 on success. */
 int Client::go_to_playlist (const char *file)
 {
-	if (playlist.size()) {
-		error ("Please clear the playlist, because "
-				"I'm not sure you want to do this.");
-		return 0;
-	}
-
-	synced = false;
-
 	iface->status("Loading playlist...");
 	if (playlist.load_m3u(file)) {
 		iface->message ("Playlist loaded.");
+		synced = false;
+		if (options::ReadTags) ask_for_tags (playlist);
+		iface->redraw(2);
+		return 1;
 	}
-	else {
-		iface->message ("The playlist is empty");
+	else
+	{
+		iface->message ("File could not be read");
 		iface->status ("");
 		return 0;
 	}
 
-	return 1;
 }
 
 /* Enter to the initial directory or toggle to the initial playlist (only
@@ -364,7 +340,7 @@ void Client::enter_first_dir ()
 			}
 		}
 		else
-			error ("MusicDir is not set");
+			iface->message("ERROR: MusicDir is not set");
 	}
 
 	if (!(read_last_dir() && go_to_dir(NULL))) {
@@ -479,17 +455,14 @@ void Client::adjust_mixer (const int diff)
 /* Recursively add the content of a directory to the playlist. */
 void Client::add_dir_plist ()
 {
-	if (!iface->in_dir_plist()) {
-		error ("Can't add to the playlist a file from the playlist.");
-		return;
-	}
+	if (!iface->in_dir_plist()) return;
 
 	auto *item = iface->sel_item ();
 	if (!item) return;
 
 	auto type = item->type;
 	if (type != F_DIR && type != F_PLAYLIST) {
-		error ("This is not a directory or a playlist.");
+		iface->message("ERROR: This is not a directory or a playlist.");
 		return;
 	}
 
@@ -518,10 +491,7 @@ void Client::add_dir_plist ()
 /* Add the currently selected file to the playlist. */
 void Client::add_file_plist ()
 {
-	if (!iface->in_dir_plist()) {
-		error ("Can't add to the playlist a file from the playlist.");
-		return;
-	}
+	if (!iface->in_dir_plist()) return;
 
 	auto *item = iface->sel_item();
 	if (!item) return;
@@ -532,7 +502,7 @@ void Client::add_file_plist ()
 	}
 
 	if (item->type != F_SOUND) {
-		error ("You can only add a file using this command.");
+		iface->message("You can only add a file using this command.");
 		return;
 	}
 
@@ -546,7 +516,7 @@ void Client::add_file_plist ()
 		playlist += *item;
 		iface->redraw(2);
 	}
-	iface->move_down();
+	iface->move_sel(1);
 }
 
 void Client::set_rating (int r)
@@ -576,7 +546,7 @@ void Client::switch_read_tags ()
 void Client::delete_item ()
 {
 	if (iface->in_dir_plist()) {
-		error ("You can only delete an item from the playlist.");
+		iface->message("You can only delete an item from the playlist.");
 		return;
 	}
 
@@ -643,11 +613,11 @@ void Client::seek_silent (int sec)
 	iface->update_curr_time(silent_seek_pos);
 }
 
-/* Move the current playlist item (direction: 1 - up, -1 - down). */
+/* Move the current playlist item (direction: -1 - up, +1 - down). */
 void Client::move_item (int direction)
 {
 	if (iface->in_dir_plist()) {
-		error ("You can move only playlist items.");
+		iface->message("You can move only playlist items.");
 		return;
 	}
 
@@ -666,6 +636,7 @@ void Client::move_item (int direction)
 		playlist.move(i, j);
 		iface->redraw(2);
 	}
+	iface->move_sel(direction);
 }
 
 Client::Client(int sock, stringlist &args)
@@ -680,7 +651,10 @@ Client::Client(int sock, stringlist &args)
 	keys_init ();
 	iface.reset(new Interface(*this, dir_plist, playlist));
 	srv.send(CMD_GET_OPTIONS);
-	update_mixer_name ();
+
+	srv.send(CMD_GET_MIXER_CHANNEL_NAME);
+	iface->update_mixer_name(get_data_str());
+	iface->update_mixer_value(get_mixer_value());
 
 	xsignal(SIGQUIT, sig_quit);
 	xsignal(SIGTERM, sig_quit);
@@ -717,18 +691,20 @@ Client::Client(int sock, stringlist &args)
 
 void Client::run()
 {
-	while (!want_quit) {
-		fd_set fds;
-		int ret;
-		struct timespec timeout = { 1, 0 };
+	while (true)
+	{
+		fd_set fds; FD_ZERO (&fds);
 		int srv_sock = srv.fd();
-		FD_ZERO (&fds);
 		FD_SET (srv_sock, &fds);
 		FD_SET (STDIN_FILENO, &fds);
 
-		ret = pselect (srv_sock + 1, &fds, NULL, NULL, &timeout, NULL);
+		struct timespec timeout = { 1, 0 };
+		int ret = pselect (srv_sock + 1, &fds, NULL, NULL, &timeout, NULL);
 		if (ret == -1 && !want_quit && errno != EINTR)
 			interface_fatal ("pselect() failed: %s", xstrerror (errno));
+		logit ("--client loop: ret=%d", ret);
+
+		if (want_quit) break;
 
 		if (want_resize)
 		{
@@ -737,46 +713,54 @@ void Client::run()
 			want_resize = 0;
 		}
 
+
+
 		if (ret > 0) {
 			if (FD_ISSET(STDIN_FILENO, &fds)) {
+				logit ("--client loop: stdin");
 				iface->handle_input();
-				Client::want_interrupt = false;
 			}
+			Client::want_interrupt = false;
 
-			if (!want_quit && FD_ISSET(srv_sock, &fds))
+			if (want_quit) break;
+			
+			if (FD_ISSET(srv_sock, &fds))
 			{
+				logit ("--client loop: server");
 				int type;
 				if (srv.get_int_noblock(type))
 					handle_server_event(type);
 				else
 					debug ("Getting event would block.");
 			}
-			else
-			{
-				if (want_plist_update && synced)
-				{
-					srv.send(CMD_PLIST_GET);
-					wait_for_data();
-					want_plist_update = false;
-					srv.get(playlist);
-					ask_for_tags(playlist);
-				}
-				else want_plist_update = false;
-				
-				if (want_state_update) update_state();
-			}
 		}
 
-		if (!want_quit)
+		if (want_quit) break;
+		
+		if (want_plist_update && synced)
 		{
-			iface->update_mixer_value(get_mixer_value());
+			logit ("--client loop: sync");
+			srv.send(CMD_PLIST_GET);
+			wait_for_data();
+			want_plist_update = false;
+			srv.get(playlist);
+			ask_for_tags(playlist);
+		}
+		else want_plist_update = false;
+		
+		if (want_state_update)
+		{
+			logit ("--client loop: state");
+			update_state();
+		}
 
-			time_t curr_time = time(NULL);
-			if (silent_seek_pos != -1 && silent_seek_key_last < curr_time)
-			{
-				seek (silent_seek_pos - iface->get_curr_time() - 1);
-				silent_seek_pos = -1;
-			}
+		iface->update_mixer_value(get_mixer_value());
+
+		time_t curr_time = time(NULL);
+		if (silent_seek_pos != -1 && silent_seek_key_last < curr_time)
+		{
+			seek (silent_seek_pos - iface->get_curr_time() - 1);
+			silent_seek_pos = -1;
 		}
 
 		iface->draw();
@@ -813,6 +797,7 @@ void interface_fatal (const char *format, ...)
 
 void Client::handle_command(key_cmd cmd)
 {
+	logit ("KEY EVENT: 0x%02x", (int)cmd);
 	switch (cmd)
 	{
 		case KEY_CMD_QUIT_CLIENT: want_quit = 1; return;
@@ -918,7 +903,7 @@ void Client::handle_command(key_cmd cmd)
 		case KEY_CMD_GO_MUSIC_DIR:
 		{
 			if (options::MusicDir.empty()) {
-				error ("MusicDir not defined");
+				iface->message("ERROR: MusicDir not defined");
 				return;
 			}
 			str music_dir = normalize_path(options::MusicDir);
@@ -926,7 +911,7 @@ void Client::handle_command(key_cmd cmd)
 			switch (plist_item::ftype(music_dir)) {
 				case F_DIR: go_to_dir (music_dir.c_str()); break;
 				case F_PLAYLIST: go_to_playlist (music_dir.c_str()); break;
-				default: error ("MusicDir is neither a directory nor a playlist!"); break;
+				default: iface->message("ERROR: MusicDir is neither a directory nor a playlist!"); break;
 			}
 			break;
 		}
@@ -934,10 +919,10 @@ void Client::handle_command(key_cmd cmd)
 			delete_item ();
 			break;
 		case KEY_CMD_GO_DIR_UP:
-			go_dir_up ();
+			if (iface->in_dir_plist()) go_dir_up ();
 			break;
 		case KEY_CMD_WRONG:
-			error ("Bad command");
+			iface->message("Bad command / key not bound to anything");
 			break;
 		case KEY_CMD_SEEK_FORWARD_5: seek_silent (options::SilentSeekTime); break;
 		case KEY_CMD_SEEK_BACKWARD_5: seek_silent (-options::SilentSeekTime); break;
@@ -963,9 +948,10 @@ void Client::handle_command(key_cmd cmd)
 		case KEY_CMD_EQUALIZER_PREV: srv.send(CMD_EQUALIZER_PREV); break;
 		case KEY_CMD_EQUALIZER_NEXT: srv.send(CMD_EQUALIZER_NEXT); break;
 		case KEY_CMD_TOGGLE_MAKE_MONO: srv.send(CMD_TOGGLE_MAKE_MONO); break;
-		case KEY_CMD_PLIST_MOVE_UP: move_item (1); break;
-		case KEY_CMD_PLIST_MOVE_DOWN: move_item (-1); break;
+		case KEY_CMD_PLIST_MOVE_UP:   move_item (-1); break;
+		case KEY_CMD_PLIST_MOVE_DOWN: move_item (+1); break;
 		default:
-			abort ();
+			iface->message(format("BUG: invalid key command %d!", (int)cmd));
+			break;
 	}
 }

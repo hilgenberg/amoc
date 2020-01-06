@@ -89,3 +89,11 @@ bool has_prefix(const std::string &s, const char *p, bool ignore_case)
 	auto cmp = ignore_case ? strncasecmp : strncmp;
 	return cmp(s.c_str(), p, l) == 0;
 }
+
+void intersect(str &s1, const str &s2)
+{
+	if (s1.empty()) return;
+	size_t i = 0, n = std::min(s1.length(), s2.length());
+	while (i < n && s1[i]==s2[i]) ++i;
+	s1.resize(i);
+}

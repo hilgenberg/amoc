@@ -571,19 +571,8 @@ void req_equalizer_refresh()
 	logit("Equalizer refreshed");
 }
 
-void req_equalizer_prev()
-{
-	equalizer_prev();
-
-	update_eq_name();
-}
-
-void req_equalizer_next()
-{
-	equalizer_next();
-
-	update_eq_name();
-}
+void req_equalizer_prev() { equalizer_prev(); update_eq_name(); }
+void req_equalizer_next() { equalizer_next(); update_eq_name(); }
 
 void req_toggle_make_mono()
 {
@@ -812,22 +801,13 @@ static void handle_command (const int client_id)
 			break;
 		}
 		case CMD_GET_MIXER:
-			if (!send_data_int(&cli, audio_get_mixer()))
-				err = 1;
+			err = !send_data_int(&cli, audio_get_mixer());
 			break;
 		case CMD_SET_MIXER:
 		{
 			int val;
 			err = !cli.socket->get(val);
 			if (!err) audio_set_mixer (val);
-			break;
-		}
-		case CMD_GET_TAGS:
-		{
-			file_tags *tags = audio_get_curr_tags ();
-			Lock lock(cli);
-			err = !cli.socket->send(EV_DATA) || !cli.socket->send(tags);
-			delete tags;
 			break;
 		}
 		case CMD_TOGGLE_MIXER_CHANNEL:
@@ -1039,11 +1019,6 @@ void state_change ()
 void ctime_change ()
 {
 	add_event_all (EV_CTIME, (int)MAX(0, audio_get_time()));
-}
-
-void tags_change ()
-{
-	add_event_all (EV_TAGS);
 }
 
 void status_msg (const char *msg)

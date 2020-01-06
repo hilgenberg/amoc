@@ -32,16 +32,39 @@ public:
 	plist_item *sel_item() { auto &m = *menus[active_menu]; return m.sel < 0 ? NULL : m.items.items[m.sel].get(); }
 	bool sel_item(const plist_item *what, int where); // where: -1=active menu, 0=left, 1=right
 	int sel_index(int where=-1) { auto &m = *menus[where<0 ? active_menu : where]; return m.sel; }
-	void move_down();
+	void move_sel(int dy);
 
-	void status(const str &s) { status_msg = s; redraw(1); }
+	void status(const str &s)
+	{
+		if (s == status_msg) return;
+		redraw(s.empty() ? 2 : 1); // redraw the frame when needed
+		status_msg = s;
+	}
+
 	void error_message(const str &msg) { message(str("ERROR: " + msg)); }
-	void message(const str &msg) { if (messages.empty()) redraw(1); messages.push(msg); }
+	void message(const str &msg)
+	{
+		if (!messages.empty() && messages.back() == msg)
+		{
+			// avoid collecting hours of displaytime on the same message
+			if (messages.size() == 1)
+			{
+				message_display_start = 0;
+				redraw(1);
+			}
+		}
+		else
+		{
+			if (messages.empty()) redraw(1);
+			messages.push(msg);
+		}
+	}
 	bool select_path(const str &p) { return left.select_path(p); }
 
 	// update and get info set by client:
 	void update_curr_file(const str &f) { if (curr_file==f) return; curr_file = f; redraw(2); }
 	void update_curr_tags(file_tags *t) { curr_tags.reset(t); redraw(1); }
+	int  get_total_time() const { return curr_tags ? curr_tags->time : 0; }
 	str  get_curr_file() const { return curr_file; }
 	#define UPD(T,x)\
 		void update_ ## x(T v) { if (x==v) return; x=v; redraw(1); } \
@@ -50,7 +73,6 @@ public:
 	UPD(int, avg_bitrate)
 	UPD(int, rate)
 	UPD(int, curr_time)
-	UPD(int, total_time)
 	UPD(int, channels)
 	UPD(PlayState, state)
 	UPD(str, mixer_name)
@@ -70,7 +92,7 @@ private:
 	std::unique_ptr<file_tags> curr_tags;
 	int bitrate, avg_bitrate; // in kbps
 	int rate;		  // in kHz
-	int curr_time, total_time;
+	int curr_time;
 	int channels;
 	PlayState state; // STATE_(PLAY | STOP | PAUSE)
 	str mixer_name;

@@ -69,19 +69,6 @@ static pthread_mutex_t request_cond_mtx = PTHREAD_MUTEX_INITIALIZER;
 static enum request request = REQ_NOTHING;
 static int req_seek;
 
-/* Source of the played stream tags. */
-static enum
-{
-	TAGS_SOURCE_DECODER,	/* tags from the stream (e.g., id3tags, vorbis comments) */
-	TAGS_SOURCE_METADATA	/* tags from icecast metadata */
-} tags_source;
-
-/* Tags of the currently played file. */
-static file_tags *curr_tags = NULL;
-
-/* Mutex for curr_tags and tags_source. */
-static pthread_mutex_t curr_tags_mtx = PTHREAD_MUTEX_INITIALIZER;
-
 /* Stream associated with the currently playing decoder. */
 static struct io_stream *decoder_stream = NULL;
 static pthread_mutex_t decoder_stream_mtx = PTHREAD_MUTEX_INITIALIZER;
@@ -349,46 +336,6 @@ static void show_tags (const file_tags *tags DEBUG_ONLY)
 	debug ("TAG[track]: %d", tags->rating);
 }
 
-/* Update tags if tags from the decoder or the stream are available. */
-static void update_tags (const struct decoder *f, void *decoder_data,
-		struct io_stream *s)
-{
-	char *stream_title = NULL;
-	int tags_changed = 0;
-	file_tags new_tags;
-
-	LOCK (curr_tags_mtx);
-	if (f->current_tags && f->current_tags(decoder_data, &new_tags)
-			&& !new_tags.title.empty()) {
-		tags_changed = 1;
-		delete curr_tags; curr_tags = new file_tags(new_tags);
-		logit ("Tags change from the decoder");
-		tags_source = TAGS_SOURCE_DECODER;
-		show_tags (curr_tags);
-	}
-	else if (s && (stream_title = io_get_metadata_title(s))) {
-		if (curr_tags && !curr_tags->title.empty()
-				&& tags_source == TAGS_SOURCE_DECODER) {
-			logit ("New IO stream tags, ignored because there are "
-					"decoder tags present");
-			free (stream_title);
-		}
-		else {
-			delete curr_tags; curr_tags = new file_tags();
-			curr_tags->title = stream_title;
-			show_tags (curr_tags);
-			tags_changed = 1;
-			logit ("New IO stream tags");
-			tags_source = TAGS_SOURCE_METADATA;
-		}
-	}
-
-	if (tags_changed)
-		tags_change ();
-
-	UNLOCK (curr_tags_mtx);
-}
-
 /* Called when some free space in the output buffer appears. */
 static void buf_free_cb ()
 {
@@ -416,10 +363,6 @@ static void decode_loop (const struct decoder *f, void *decoder_data,
 	                                            (in seconds) */
 
 	out_buf_set_free_callback (out_buf, buf_free_cb);
-
-	LOCK (curr_tags_mtx);
-	curr_tags = new file_tags ();
-	UNLOCK (curr_tags_mtx);
 
 	if (f->get_stream) {
 		LOCK (decoder_stream_mtx);
@@ -472,7 +415,6 @@ static void decode_loop (const struct decoder *f, void *decoder_data,
 
 				bitrate_list_add (&bitrate_list, decode_time,
 						f->get_bitrate(decoder_data));
-				update_tags (f, decoder_data, decoder_stream);
 			}
 		}
 
@@ -559,11 +501,6 @@ static void decode_loop (const struct decoder *f, void *decoder_data,
 	UNLOCK (decoder_stream_mtx);
 
 	bitrate_list_destroy (&bitrate_list);
-
-	LOCK (curr_tags_mtx);
-	delete curr_tags;
-	curr_tags = NULL;
-	UNLOCK (curr_tags_mtx);
 
 	out_buf_wait (out_buf);
 
@@ -774,8 +711,6 @@ void player_cleanup ()
 
 	rc = pthread_mutex_destroy (&request_cond_mtx);
 	if (rc != 0) log_errno ("Can't destroy request mutex", rc);
-	rc = pthread_mutex_destroy (&curr_tags_mtx);
-	if (rc != 0) log_errno ("Can't destroy tags mutex", rc);
 	rc = pthread_mutex_destroy (&decoder_stream_mtx);
 	if (rc != 0) log_errno ("Can't destroy decoder_stream mutex", rc);
 	rc = pthread_cond_destroy (&request_cond);
@@ -847,18 +782,4 @@ void player_unpause ()
 	LOCK (request_cond_mtx);
 	pthread_cond_signal (&request_cond);
 	UNLOCK (request_cond_mtx);
-}
-
-/* Return tags for the currently played file or NULL if there are no tags.
- * Tags are duplicated. */
-file_tags* player_get_curr_tags ()
-{
-	file_tags *tags = NULL;
-
-	LOCK (curr_tags_mtx);
-	if (curr_tags)
-		tags = new file_tags(*curr_tags);
-	UNLOCK (curr_tags_mtx);
-
-	return tags;
 }
