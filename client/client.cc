@@ -30,14 +30,14 @@ static void sig_winch (int sig)
 /* Wait for EV_DATA handling other events. */
 void Client::wait_for_data ()
 {
-	logit("waiting for data");
+	SOCKET_DEBUG("waiting for data");
 	while (true) {
 		int event = srv.get_int();
 		if (event == EV_DATA) break;
 		handle_server_event(event);
 		if (event == EV_EXIT) return;
 	}
-	logit("found EV_DATA");
+	SOCKET_DEBUG("found EV_DATA");
 }
 
 void Client::send_tags_request (const str &file)
@@ -153,7 +153,7 @@ void Client::handle_server_event (int type)
 {
 	// this can not send any commands that return EV_DATA because it
 	// gets called by wait_for_data!
-	logit ("EVENT: 0x%02x", type);
+	SOCKET_DEBUG("EVENT: %d", type);
 	switch (type)
 	{
 		case EV_EXIT: interface_fatal ("The server exited!"); break;

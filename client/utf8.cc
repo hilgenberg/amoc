@@ -469,7 +469,8 @@ int strins(str &s, int i, wchar_t c)
 	int N = wcswidth (ucs.data(), WIDTH_MAX);
 	if (i >= N)
 	{
-		ucs.push_back(c);
+		ucs.back() = c;
+		ucs.push_back(0);
 	}
 	else if (i <= 0)
 	{

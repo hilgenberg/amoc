@@ -79,7 +79,7 @@ enum ServerCommands : int
 
 char *socket_name ();
 
-#if 1
+#if 0
 #define SOCKET_DEBUG logit
 #else
 #define SOCKET_DEBUG(...) 

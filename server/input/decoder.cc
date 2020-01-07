@@ -356,30 +356,6 @@ static int lookup_decoder_by_name (const char *name)
 	return result;
 }
 
-/* Return a string of concatenated driver names. */
-static std::string list_decoder_names (int *decoder_list, int count)
-{
-	std::string result;
-
-	for (int ix = 0; ix < count; ix += 1)
-	{
-		if (ix > 0) result += " ";
-		std::string s = plugins[decoder_list[ix]].name;
-		if (have_tremor && s == "vorbis") s = "vorbis(tremor)";
-		#if !defined(HAVE_FFMPEG)
-		else if (s == "ffmpeg")
-			#if defined(HAVE_LIBAV)
-			s = "ffmpeg(libav)";
-			#else
-			s = "ffmpeg/libav";
-			#endif
-		#endif
-		result += s;
-	}
-
-	return result;
-}
-
 /* Create a new preferences entry and initialise it. */
 static decoder_t_preference *make_preference (const std::string &prefix)
 {
@@ -511,7 +487,6 @@ static void load_plugins (int debug_info)
 	plugins[plugins_num].decoder = X ## _plugin();\
 	plugins[plugins_num].name = #X;\
 	if (plugins[plugins_num].decoder->init) plugins[plugins_num].decoder->init();\
-	debug("Loaded %s decoder", plugins[plugins_num].name);\
 	++plugins_num
 
 	ALL_INPUTS
@@ -522,9 +497,6 @@ static void load_plugins (int debug_info)
 
 	for (ix = 0; ix < plugins_num; ix += 1)
 		default_decoder_list[ix] = ix;
-
-	std::string names = list_decoder_names (default_decoder_list, plugins_num);
-	logit ("Loaded %d decoders:%s", plugins_num, names.c_str());
 }
 
 void decoder_init (int debug_info)

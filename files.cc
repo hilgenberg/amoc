@@ -171,6 +171,7 @@ str& normalize_path(str &p)
 			// we know i is not 0 because initial /.. were handled already
 			size_t k = i-1;
 			while (k > 0 && p[k] != '/') --k;
+
 			// now k==0 or p[k] is the initial slash in /foo/../../good_part, which
 			// can become /../good_part with up -= 1;
 			// if k==0, we have foo/../../good_part, which should become ../good_part,
@@ -178,9 +179,8 @@ str& normalize_path(str &p)
 			if (p[k] != '/') // (k == 0 is not enough!)
 			{
 				if (up == 1 && j == n) // foo/..  --> empty
-				{
 					return p = "";
-				}
+
 				// foo/../..  --> ..
 				// foo/../../bar --> ../bar
 				// foo/../bar --> bar
@@ -188,6 +188,7 @@ str& normalize_path(str &p)
 			}
 
 			// prefix/foo/../good_part --> prefix/good_part
+			if (j == n && k == 0) return p = "/"; //  /foo/.. --> /
 			size_t d = 1/*slash at k*/ + i-k-1 /*strlen(foo)*/ + 3 /*../*/;
 			p = p.replace(k, d, "");
 			j -= d; n -= d;

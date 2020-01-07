@@ -527,15 +527,9 @@ void Interface::handle_input()
 	if (ch == (wint_t)ERR) interface_fatal ("wgetch() failed!");
 
 	if (ch < 32 && ch != '\n' && ch != '\t' && ch != KEY_ESCAPE)
-	{
-		/* Unprintable, generally control sequences */
-		f = ch;
-	}
+		f = ch; /* Unprintable, generally control sequences */
 	else if (ch == 0x7f)
-	{
-		/* Workaround for backspace on many terminals */
-		f = KEY_BACKSPACE;
-	}
+		f = KEY_BACKSPACE; /* Workaround for backspace on many terminals */
 	else if (ch < 255)
 	{
 		/* Regular char */

@@ -30,9 +30,9 @@ class plist_item
 public:
 	static file_type ftype(const str &path);
 
-	explicit plist_item(str &&p) : path(p), type(ftype(path)) {}
-	explicit plist_item(const str &p) : path(p), type(ftype(path)) {}
-	plist_item(const str &p, file_type t) : path(p), type(t) {}
+	explicit plist_item(str &&p) : path(p), type(ftype(path)) { assert(!path.empty() && (type == F_URL || path[0] == '/')); }
+	explicit plist_item(const str &p) : path(p), type(ftype(path)) { assert(!path.empty() && (type == F_URL || path[0] == '/')); }
+	plist_item(const str &p, file_type t) : path(p), type(t) { assert(!path.empty() && (type == F_URL || path[0] == '/')); }
 	plist_item(const plist_item &i)
 		: path(i.path), type(i.type)
 		, tags(i.tags ? new file_tags(*i.tags) : NULL)

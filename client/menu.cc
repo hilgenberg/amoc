@@ -288,15 +288,15 @@ void menu::draw(bool active) const
 		}
 		else
 		{
-			str s = is_up_dir ? str("..") : it.path;
+			str s = it.path;
 			if (prefix_len > 0 && it.type != F_DIR) s = s.substr(prefix_len);
-			s = sanitize(s);
 			if (it.type == F_DIR && s.back() != '/') s += '/';
 			if (items.is_dir || !options::PlaylistFullPaths)
 			{
 				auto i = s.rfind('/', s.length()-2);
 				if (i != str::npos) s = s.substr(i+1);
 			}
+			s = sanitize(s);
 			if (options::HideFileExtension)
 			{
 				const char *file = s.c_str(), *ext = ext_pos(file);
