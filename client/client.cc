@@ -642,9 +642,12 @@ Client::Client(int sock, stringlist &args)
 	iface.reset(new Interface(*this, dir_plist, playlist));
 	srv.send(CMD_GET_OPTIONS);
 
-	srv.send(CMD_GET_MIXER_CHANNEL_NAME);
-	iface->update_mixer_name(get_data_str());
-	iface->update_mixer_value(get_mixer_value());
+	if (options::ShowMixer)
+	{
+		srv.send(CMD_GET_MIXER_CHANNEL_NAME);
+		iface->update_mixer_name(get_data_str());
+		iface->update_mixer_value(get_mixer_value());
+	}
 
 	xsignal(SIGQUIT, sig_quit);
 	xsignal(SIGTERM, sig_quit);
@@ -737,7 +740,8 @@ void Client::run()
 			update_state();
 		}
 
-		iface->update_mixer_value(get_mixer_value());
+		if (options::ShowMixer)
+			iface->update_mixer_value(get_mixer_value());
 
 		time_t curr_time = time(NULL);
 		if (silent_seek_pos != -1 && silent_seek_key_last < curr_time)

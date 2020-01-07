@@ -171,6 +171,7 @@ void init(const char *config_file)
 
 		OPT(Softmixer_SaveState);
 		OPT(Equalizer_SaveState);
+		OPT(ShowMixer);
 
 		OPT(ShowHiddenFiles);
 		OPT(HideFileExtension);
@@ -253,6 +254,7 @@ bool ALSAStutterDefeat = false;
 
 bool Softmixer_SaveState = true;
 bool Equalizer_SaveState = true;
+bool ShowMixer = true;
 
 bool ShowHiddenFiles = false;
 bool HideFileExtension = false;
@@ -268,8 +270,8 @@ bool FileNamesIconv = false;
 
 str  RatingFile = "ratings";
 
-str  TimeBarLine =  "-";
-str  TimeBarSpace = " ";
+str  TimeBarLine =  "";
+str  TimeBarSpace = "";
 
 int  SeekTime = 1;
 int  SilentSeekTime = 5;

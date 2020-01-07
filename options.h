@@ -43,6 +43,7 @@ namespace options
 
 	extern bool Softmixer_SaveState;
 	extern bool Equalizer_SaveState;
+	extern bool ShowMixer;
 
 	extern bool ShowHiddenFiles;
 	extern bool HideFileExtension;

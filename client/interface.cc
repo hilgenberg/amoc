@@ -399,15 +399,25 @@ void Interface::draw(bool force)
 	}
 
 	// time bar
-	int l1 = total_time <= 0 ? 0 : (W-2)*curr_time/total_time;
-	l1 = std::max(0, std::min(W-2, l1));
-	str c1 = options::TimeBarLine; if (c1.empty()) c1 = lines.horiz;
-	str c2 = options::TimeBarSpace; if (c2.empty()) c2 = lines.horiz;
-	wmove (win, H-1, 1);
-	wattrset(win, get_color(CLR_TIME_BAR_FILL));
-	for (int x = 0; x < l1; ++x) xwaddstr (win, c1);
-	wattrset(win, get_color(CLR_TIME_BAR_EMPTY));
-	for (int x = l1; x < W-2; ++x) xwaddstr (win, c2);
+	str c1 = options::TimeBarLine, c2 = options::TimeBarSpace;
+	if (total_time <= 0 || c1.empty())
+	{
+		wmove (win, H-1, 1);
+		wattrset (win, get_color(CLR_FRAME));
+		wmove (win, H-1, 1);
+		whline (win, lines.horiz, W-2);
+	}
+	else
+	{
+		int l1 = std::max(0, std::min(W-2, (W-2)*curr_time/total_time));
+		if (c1.empty()) c1 = lines.horiz;
+		if (c2.empty()) c2 = c1;
+		wmove (win, H-1, 1);
+		wattrset(win, get_color(CLR_TIME_BAR_FILL));
+		for (int x = 0; x < l1; ++x) xwaddstr (win, c1);
+		wattrset(win, get_color(CLR_TIME_BAR_EMPTY));
+		for (int x = l1; x < W-2; ++x) xwaddstr (win, c2);
+	}
 
 	// prompt (must be last so the cursor stays in the right place) or info
 	if (prompting)
@@ -495,13 +505,16 @@ void Interface::draw(bool force)
 			x += 6+3+7+6+4+2*5+4 + 2;
 		}
 
-		str ms = format("%s: %02d%%", mixer_name.c_str(), mixer_value);
-		if (x + ms.length() <= W-1)
+		if (options::ShowMixer)
 		{
-			wattrset (win, get_color(CLR_SOUND_PARAMS));
-			wmove(win, H-2, x);
-			xwaddstr(win, ms);
-			//x += ms.length() + 2;
+			str ms = format("%s: %02d%%", mixer_name.c_str(), mixer_value);
+			if (x + ms.length() <= W-1)
+			{
+				wattrset (win, get_color(CLR_SOUND_PARAMS));
+				wmove(win, H-2, x);
+				xwaddstr(win, ms);
+				//x += ms.length() + 2;
+			}
 		}
 	}
 

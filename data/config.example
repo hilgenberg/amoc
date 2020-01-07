@@ -83,6 +83,9 @@
 #
 #ALSAStutterDefeat = no
 
+# Display the mixer/volume with the other information?
+#ShowMixer = no
+
 # Save software mixer state?
 # If enabled, a file 'softmixer' will be created in '~/.moc/' storing the
 # mixersetting set when the server is shut down.
@@ -108,9 +111,13 @@
 
 # Draw a line as the time progress bar? To do so, set either or both
 # characters. TimeBarLine is for the filled part of the bar, TimeBarSpace
-# for the rest.
+# for the rest. If only TimeBarLine is set, it is used for both. If only
+# TimeBarSpace is set, it is ignored.
 #TimeBarLine = ""
 #TimeBarSpace = ""
+# above are the defaults but these look good:
+#TimeBarLine  = "╼"
+#TimeBarSpace = "─"
 
 # MOC directory (where pid file, socket and state files are stored).
 # You can use ~ at the beginning.
