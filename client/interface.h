@@ -28,10 +28,12 @@ public:
 	void handle_input(); // read the next key stroke
 	
 	bool in_dir_plist() const { return active_menu == 0; }
+	void go_to_dir_plist() { if (in_dir_plist()) return; active_menu = 0; redraw(2); }
 	plist &sel_plist() { return menus[active_menu]->items; }
 	plist_item *sel_item() { auto &m = *menus[active_menu]; return m.sel < 0 ? NULL : m.items.items[m.sel].get(); }
 	bool sel_item(const plist_item *what, int where); // where: -1=active menu, 0=left, 1=right
 	int sel_index(int where=-1) { auto &m = *menus[where<0 ? active_menu : where]; return m.sel; }
+	void set_sel_index(int sel, int where=-1) { auto &m = *menus[where<0 ? active_menu : where]; m.sel = sel; redraw(2); }
 	void move_sel(int dy);
 
 	void status(const str &s)
@@ -70,6 +72,7 @@ public:
 		redraw(2);
 		return true;
 	}
+	int get_curr_index() const { return curr_idx; }
 	void update_curr_tags(file_tags *t) { curr_tags.reset(t); redraw(1); }
 	int  get_total_time() const { return curr_tags ? curr_tags->time : 0; }
 	str  get_curr_file() const { return curr_file; }

@@ -92,8 +92,18 @@ static void distribute(int W, int &c0, int &c1, int &c2)
 
 bool menu::mark_path(const str &f)
 {
+	bool s = (sel >= 0 && sel == mark);
 	mark = items.find(f);
+	if (s && mark >= 0) sel = mark;
+	if (mark >= 0 && (s || sel==-1)) make_visible(mark);
 	return mark >= 0;
+}
+void menu::mark_item(int i)
+{
+	bool s = (sel >= 0 && sel == mark);
+	mark = i;
+	if (s && mark >= 0) sel = mark;
+	if (mark >= 0 && (s || sel==-1)) make_visible(mark);
 }
 bool menu::select_path(const str &f)
 {
@@ -101,6 +111,7 @@ bool menu::select_path(const str &f)
 	if (i >= 0)
 	{
 		sel = i;
+		make_visible(sel);
 		return true;
 	}
 	return false;
@@ -112,6 +123,9 @@ void menu::draw(bool active) const
 	if (!win) return;
 
 	const int N = items.size();
+	if (sel >= N) sel = N-1;
+	if (top + bounds.h > N) top = N-bounds.h;
+	if (top < 0) top = 0;
 	const int asel = active ? sel : -1;
 
 	bool have_up = items.is_dir && N && iface->cwd() != "/";

@@ -34,12 +34,14 @@ struct menu
 			case REQ_DOWN:   sel = (sel < 0 ? 0 : sel + 1); break;
 			case REQ_PGUP:
 				top -= (bounds.h - 1); if (top < 0) top = 0;
-				return;
+				sel -= (bounds.h - 1);
+				break;
 			case REQ_PGDOWN:
 				top += (bounds.h - 1);
+				sel += (bounds.h - 1);
 				if (top + (bounds.h-1) >= N) top = N - bounds.h;
 				if (top < 0) top = 0;
-				return;
+				break;
 			case REQ_TOP:    sel = 0; break;
 			case REQ_BOTTOM: sel = N-1; break;
 		}
@@ -56,6 +58,7 @@ struct menu
 		return NULL;
 	}
 	bool mark_path(const str &f); // or unmark if not found
+	void mark_item(int i); // this and mark_path take the selection along if sel==mark
 	bool select_path(const str &f); // leave selection as is if not found
 
 	void update() // call after resize or when number/position of items change
@@ -84,6 +87,6 @@ struct menu
 	Interface *iface;
 	plist  &items;
 	Rect    bounds;
-	int     top; // first visible item
-	int     sel, mark; // selected and marked items, -1 if none
+	mutable int top; // first visible item
+	mutable int sel, mark; // selected and marked items, -1 if none
 };

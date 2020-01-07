@@ -435,15 +435,24 @@ void Client::delete_item ()
 /* Select the file that is currently played. */
 void Client::go_to_playing_file ()
 {
-	auto *item = iface->sel_item();
-	if (!item || item->type != F_SOUND) return;
+	if (!iface->in_dir_plist() && synced)
+	{
+		int idx = iface->get_curr_index();
+		if (idx >= 0)
+		{
+			iface->set_sel_index(idx, 1);
+			return;
+		}
+	}
 
-	str path = item->path;
-	auto i = path.rfind('/');
-	if (i == 0 || i == str::npos) path = "/"; else path = path.substr(0, i);
-	go_to_dir(path.c_str());
-
-	iface->sel_item(item, 0);
+	str path = iface->get_curr_file(); if (path.empty()) return;
+	if (!go_to_dir(containing_directory(path).c_str()))
+	{
+		iface->status("File not found!");
+		return;
+	}
+	iface->select_path(path);
+	iface->go_to_dir_plist();
 }
 
 /* Return the time like the standard time() function, but rounded i.e. if we
