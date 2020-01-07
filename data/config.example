@@ -17,8 +17,8 @@
 #MusicDir =
 
 # Start in the music directory by default?  If set to 'no', start
-# in the current directory by default.  A single directory on
-# the command line takes precedence.
+# in the last visited or the current directory by default.  A single
+# directory on the command line takes precedence.
 #StartInMusicDir = no
 
 # Set playback toggles.
@@ -113,11 +113,13 @@
 # characters. TimeBarLine is for the filled part of the bar, TimeBarSpace
 # for the rest. If only TimeBarLine is set, it is used for both. If only
 # TimeBarSpace is set, it is ignored.
+#
+# Example:    
+#     TimeBarLine  = "╼"
+#     TimeBarSpace = "─"
+#
 #TimeBarLine = ""
 #TimeBarSpace = ""
-# above are the defaults but these look good:
-#TimeBarLine  = "╼"
-#TimeBarSpace = "─"
 
 # MOC directory (where pid file, socket and state files are stored).
 # You can use ~ at the beginning.

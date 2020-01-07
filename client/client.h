@@ -49,7 +49,6 @@ private:
 	PlayState get_state();
 	
 	void set_cwd(const str &path);
-	void set_start_dir ();
 	bool read_last_dir ();
 	void ask_for_tags (const plist &plist);
 	void interface_message (const char *format, ...);
@@ -57,21 +56,15 @@ private:
 	void forward_playlist ();
 	bool go_to_dir (const char *dir);
 	int  go_to_playlist (const char *file);
-	void go_file ();
-	void enter_first_dir ();
-	void process_args (stringlist &args);
-	void load_playlist ();
 	void go_dir_up ();
-	void send_playlist (plist &plist, bool clear);
-	void play_it(const str &file);
 	void set_mixer (int val);
-	void adjust_mixer (const int diff);
+	void adjust_mixer (int diff);
 	void add_dir_plist ();
 	void add_file_plist ();
 	void set_rating (int r);
 	void switch_read_tags ();
-	void seek (const int sec) { srv.send(CMD_SEEK); srv.send(sec); }
-	void jump_to (const int sec) { srv.send(CMD_JUMP_TO); srv.send(sec); }
+	void seek (int sec) { srv.send(CMD_SEEK); srv.send(sec); }
+	void jump_to (int sec) { srv.send(CMD_JUMP_TO); srv.send(sec); }
 	void seek_to_percent (int percent) { srv.send(CMD_JUMP_TO); srv.send(-percent); }
 	void delete_item ();
 	void go_to_playing_file ();

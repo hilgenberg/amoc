@@ -404,7 +404,6 @@ void Interface::draw(bool force)
 	{
 		wmove (win, H-1, 1);
 		wattrset (win, get_color(CLR_FRAME));
-		wmove (win, H-1, 1);
 		whline (win, lines.horiz, W-2);
 	}
 	else
@@ -433,6 +432,8 @@ void Interface::draw(bool force)
 		wattrset (win, get_color(CLR_ENTRY));
 		int n = strwidth(response);
 		cursor = CLAMP(0, cursor, n);
+		int nn = n + (cursor==n);
+		if (w >= nn || hscroll < 0) hscroll = 0;
 		if (cursor-hscroll < 5) hscroll = std::max(0, cursor-5);
 		if (hscroll+w-cursor < 5) hscroll = std::max(0, 5+cursor-w);
 		if (hscroll > 0 && n-hscroll+(cursor==n) > w)
@@ -454,6 +455,10 @@ void Interface::draw(bool force)
 	}
 	else
 	{
+		wmove (win, H-2, 1);
+		wattrset (win, get_color(CLR_BACKGROUND));
+		whline (win, ' ', W-2);
+
 		curs_set(0);
 		int x = 1;
 
@@ -626,15 +631,20 @@ void Interface::handle_input()
 			if (!client.playlist.size())
 				error ("The playlist is empty.");
 			else
-				prompt("SAVE PLAYLIST", NULL, [this](){
+			{
+				str p0 = client.cwd;
+				if (!p0.empty() && p0.back() != '/') p0 += "/";
+				p0 += ".m3u";
+				prompt("SAVE PLAYLIST", p0, p0.length()-4, [this](){
 					if (response.empty()) return;
-					if (file_exists(response.c_str())) {
-						prompt("File exists, overwrite (y/n)?", NULL, [this](){
+					str fn = response;
+					if (file_exists(fn.c_str())) {
+						prompt("File exists, overwrite (y/n)?", "", 0, [this,fn](){
 							if (response == "y")
 							{
 								status("Saving the playlist...");
-								client.playlist.save(response.c_str());
-								status("");
+								client.playlist.save(fn.c_str());
+								status("Playlist saved.");
 							}
 							else
 								status("Aborted.");
@@ -643,10 +653,12 @@ void Interface::handle_input()
 					else
 					{
 						status("Saving the playlist...");
-						client.playlist.save(response.c_str());
-						status("");
+						client.playlist.save(fn.c_str());
+						client.handle_command(KEY_CMD_RELOAD);
+						status("Playlist saved.");
 					}
 				});
+			}
 			break;
 		/*case KEY_CMD_GO_DIR:
 			prompt("GO", NULL, ...);
@@ -699,13 +711,14 @@ bool Interface::sel_item(const plist_item *what, int k)
 	return false;
 }
 
-void Interface::prompt(const str &prompt, stringlist *history, std::function<void(void)> cb)
+void Interface::prompt(const str &prompt, const str &s0, int cur0, std::function<void(void)> cb)
 {
 	prompting = true;
 	prompt_str = prompt;
-	response.clear();
-	cursor = hscroll = 0;
+	response = s0;
+	cursor = hscroll = cur0;
 	callback = cb;
+	redraw(1);
 }
 
 

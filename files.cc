@@ -228,11 +228,9 @@ int is_url (const char *str)
 /* Return 1 if the file is a directory, 0 if not, -1 on error. */
 int is_dir (const char *file)
 {
+	if (!*file || is_url(file)) return 0;
+
 	struct stat file_stat;
-
-	if (is_url (file))
-		return 0;
-
 	if (stat (file, &file_stat) == -1) {
 		char *err = xstrerror (errno);
 		error ("Can't stat %s: %s", file, err);

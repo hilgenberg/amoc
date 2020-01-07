@@ -483,8 +483,8 @@ int strins(str &s, int i, wchar_t c)
 		ucs.insert(ucs.begin()+k, c);
 	}
 	s.resize(s.length() + 16); // TODO
-	wcstombs((char*)s.data(), ucs.data(), s.length());
-	s.shrink_to_fit();
+	size_t nout = wcstombs((char*)s.data(), ucs.data(), s.length());
+	s.resize(nout);
 	return wcwidth(c);
 }
 

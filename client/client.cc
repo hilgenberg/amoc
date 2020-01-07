@@ -58,7 +58,7 @@ PlayState Client::get_state() { srv.send(CMD_GET_STATE); return (PlayState)get_d
 /* Make new cwd path from CWD and this path. */
 void Client::set_cwd(const str &path)
 {
-	if (path[0] == '/')
+	if (!path.empty() && path[0] == '/')
 		cwd = path;
 	else
 	{
@@ -71,18 +71,6 @@ void Client::set_cwd(const str &path)
 		cwd += path;
 	}
 	normalize_path(cwd);
-}
-
-/* Try to find the directory we can start and set cwd to it. */
-void Client::set_start_dir ()
-{
-	char buf[PATH_MAX];
-	if (getcwd(buf, sizeof (buf)))
-		cwd = buf;
-	else {
-		if (errno == ERANGE) fatal ("CWD is larger than PATH_MAX!");
-		cwd = get_home();
-	}
 }
 
 /* Set cwd to last directory written to a file, return 1 on success. */
@@ -308,79 +296,6 @@ int Client::go_to_playlist (const char *file)
 
 }
 
-/* Enter to the initial directory or toggle to the initial playlist (only
- * if the function has not been called yet). */
-void Client::enter_first_dir ()
-{
-	static int first_run = 1;
-
-	if (options::StartInMusicDir) {
-		const char *p = options::MusicDir.c_str();
-		if (p && *p) {
-			set_cwd (p);
-			if (first_run && plist_item::ftype(p) == F_PLAYLIST
-					&& playlist.size() == 0
-					&& go_to_playlist(p)) {
-				cwd = "";
-				first_run = 0;
-			}
-			else if (plist_item::ftype(cwd) == F_DIR && go_to_dir(NULL)) {
-				first_run = 0;
-				return;
-			}
-		}
-		else
-			iface->message("ERROR: MusicDir is not set");
-	}
-
-	if (!(read_last_dir() && go_to_dir(NULL))) {
-		set_start_dir ();
-		if (!go_to_dir(NULL))
-			interface_fatal ("Can't enter any directory!");
-	}
-
-	first_run = 0;
-}
-
-/* Process file names passed as arguments. */
-void Client::process_args (stringlist &args)
-{
-	int size;
-	const char *arg;
-
-	size = (int)args.size();
-	arg = args[0].c_str();
-
-	if (size == 1 && is_dir(arg)) {
-		set_cwd (arg);
-		if (!go_to_dir (NULL)) enter_first_dir ();
-		return;
-	}
-
-	if (size == 1 && is_plist_file (arg))
-	{
-		iface->status("Loading playlist...");
-		playlist.load_m3u(arg);
-		iface->status("");
-		enter_first_dir ();
-		return;
-	}
-
-	for (str &arg : args)
-	{
-		if (is_dir (arg.c_str()))
-			playlist.add_directory(arg, true);
-		else if (is_sound_file(arg.c_str()) || is_url(arg.c_str())) {
-			playlist += absolute_path(arg);
-		}
-		else if (is_plist_file(arg.c_str())) {
-			playlist.load_m3u(arg);
-		}
-	}
-
-	enter_first_dir ();
-}
-
 void Client::go_dir_up ()
 {
 	if (cwd.empty() || cwd == "/") return;
@@ -391,53 +306,13 @@ void Client::go_dir_up ()
 		go_to_dir(cwd.substr(0, i).c_str());
 }
 
-void Client::play_it(const str &file)
-{
-	if (iface->in_dir_plist())
-	{
-		auto *i = iface->sel_item();
-		if (!i) return;
-		srv.send(CMD_PLAY);
-		srv.send(-1);
-		srv.send(file);
-	}
-	else
-	{
-		int i = iface->sel_index();
-		if (i < 0) return;
-		srv.send(CMD_PLAY);
-		srv.send(iface->sel_index());
-		if (!synced)
-		{
-			srv.send(playlist);
-			synced = true;
-		}
-		else srv.send("");
-	}
-}
-
-/* Action when the user selected a file. */
-void Client::go_file ()
-{
-	const plist_item *i = iface->sel_item();
-	if (!i) return;
-	if (i->type == F_SOUND || i->type == F_URL)
-		play_it (i->path);
-	else if (i->type == F_DIR && iface->in_dir_plist()) {
-		go_to_dir (i->path.c_str());
-	}
-	else if (i->type == F_PLAYLIST)
-		go_to_playlist (i->path.c_str());
-}
-
 void Client::set_mixer (int val)
 {
 	val = CLAMP(0, val, 100);
 	srv.send(CMD_SET_MIXER);
 	srv.send(val);
 }
-
-void Client::adjust_mixer (const int diff)
+void Client::adjust_mixer (int diff)
 {
 	set_mixer (get_mixer_value() + diff);
 }
@@ -476,6 +351,7 @@ void Client::add_dir_plist ()
 	}
 
 	iface->status("");
+	iface->move_sel(1);
 }
 
 /* Add the currently selected file to the playlist. */
@@ -649,35 +525,86 @@ Client::Client(int sock, stringlist &args)
 		iface->update_mixer_value(get_mixer_value());
 	}
 
-	xsignal(SIGQUIT, sig_quit);
-	xsignal(SIGTERM, sig_quit);
-	xsignal(SIGHUP, sig_quit);
-	xsignal(SIGINT, sig_interrupt);
+	xsignal(SIGQUIT,  sig_quit);
+	xsignal(SIGTERM,  sig_quit);
+	xsignal(SIGHUP,   sig_quit);
+	xsignal(SIGINT,   sig_interrupt);
 	xsignal(SIGWINCH, sig_winch);
 
-	if (!args.empty()) {
-		process_args (args);
-
-		if (playlist.size() == 0) {
-			srv.send(CMD_PLIST_GET);
-			wait_for_data();
-			srv.get(playlist);
-			ask_for_tags(playlist);
-			synced = true;
-		} else {
-			/* Now enter_first_dir() should not go to the music
-			 * directory. */
-			options::StartInMusicDir = false;
+	const size_t nargs = args.size();
+	bool want_sync = false;
+	if (nargs == 0)
+	{
+		// start in current or music dir and with server playlist
+		want_sync = true; // and leave cwd empty
+	}
+	else if (nargs > 1)
+	{
+		// start in current or music dir and with args as local playlist
+		want_sync = false;
+		for (str &arg : args)
+		{
+			if (is_url(arg.c_str())) {
+				playlist += arg;
+				continue;
+			}
+			str p = absolute_path(arg);
+			if (is_dir (p.c_str()))
+				playlist.add_directory(p, true);
+			else if (is_plist_file(p.c_str())) {
+				plist tmp; tmp.load_m3u(p);
+				playlist += std::move(tmp);
+			}
+			else if (is_sound_file(p.c_str())) {
+				playlist += p;
+			}
 		}
 	}
-	else {
+	else
+	{
+		const str &arg = args[0];
+		if (is_dir(arg.c_str())) {
+			// start there, use server playlist
+			set_cwd(arg);
+			if (!go_to_dir(NULL)) interface_fatal("Directory can not be read: %s", arg.c_str());
+			want_sync = true;
+		}
+		else if (is_plist_file (arg.c_str()))
+		{
+			// use as playlist (TODO: we should be playing this without
+			// killing the server plist instead and then start in the
+			// directory where arg is -- but for now do as for nargs > 1)
+			want_sync = false;
+			playlist.load_m3u(absolute_path(arg));
+		}
+		else
+		{
+			// go into file's directory and play it
+			want_sync = true;
+			set_cwd(containing_directory(arg));
+			srv.send(CMD_PLAY);
+			srv.send(-1);
+			srv.send(absolute_path(arg));
+		}
+	}
+
+	#define CHECK if(!go_to_dir(NULL)) cwd.clear()
+	if (cwd.empty() && options::StartInMusicDir && is_dir(options::MusicDir.c_str())) {
+		set_cwd(options::MusicDir); CHECK; }
+	if (cwd.empty() && read_last_dir()) CHECK;
+	if (cwd.empty()) { set_cwd("."); CHECK; }
+	if (cwd.empty()) { cwd = get_home(); CHECK; }
+	if (cwd.empty()) interface_fatal ("Can't enter any directory!");
+	#undef CHECK
+
+	if (want_sync)
+	{
 		srv.send(CMD_PLIST_GET);
 		wait_for_data();
 		srv.get(playlist);
-		ask_for_tags(playlist);
 		synced = true;
-		enter_first_dir ();
 	}
+	ask_for_tags(playlist);
 
 	update_state ();
 }
@@ -790,7 +717,37 @@ void Client::handle_command(key_cmd cmd)
 		case KEY_CMD_QUIT_CLIENT: want_quit = 1; return;
 		case KEY_CMD_QUIT:        want_quit = 2; return;
 
-		case KEY_CMD_GO: go_file(); break;
+		case KEY_CMD_GO:
+		{
+			const plist_item *i = iface->sel_item();
+			if (!i) break;
+			if (i->type == F_SOUND || i->type == F_URL)
+			{
+				if (iface->in_dir_plist())
+				{
+					srv.send(CMD_PLAY);
+					srv.send(-1);
+					srv.send(i->path);
+				}
+				else
+				{
+					srv.send(CMD_PLAY);
+					srv.send(iface->sel_index());
+					if (!synced)
+					{
+						srv.send(playlist);
+						synced = true;
+					}
+					else srv.send("");
+				}
+			}
+			else if (i->type == F_DIR && iface->in_dir_plist()) {
+				go_to_dir (i->path.c_str());
+			}
+			else if (i->type == F_PLAYLIST)
+				go_to_playlist (i->path.c_str());
+			break;
+		}
 		case KEY_CMD_STOP: srv.send(CMD_STOP); break;
 		case KEY_CMD_NEXT:
 		{

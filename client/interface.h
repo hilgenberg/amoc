@@ -115,7 +115,7 @@ private:
 	time_t message_display_start; // for current message, if any
 	str status_msg;
 
-	void prompt(const str &prompt, stringlist *history, std::function<void(void)> callback);
+	void prompt(const str &prompt, const str &resp0, int curs0, std::function<void(void)> callback);
 	bool prompting;
 	str prompt_str, response; int cursor, hscroll; // libreadline?
 	std::function<void(void)> callback;
