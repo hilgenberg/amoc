@@ -2,8 +2,8 @@
 #define AUDIO_H
 
 #include <stdlib.h>
-#include "../../playlist.h"
-#include "../../protocol.h"
+#include "../playlist.h"
+#include "../protocol.h"
 
 // TODO: use indices a lot more and support the same file being in a playlist more than once
 
@@ -221,7 +221,7 @@ int sfmt_Bps (const long format);
 int sfmt_same_bps (const long fmt1, const long fmt2);
 
 void audio_stop ();
-void audio_play (const char *fname);
+void audio_play (const str &fname);
 void audio_play (int idx);
 void audio_plist_set_and_play (plist &&pl, int idx);
 void audio_next ();
@@ -232,6 +232,7 @@ void audio_initialize ();
 void audio_exit ();
 void audio_seek (const int sec);
 void audio_jump_to (const int sec);
+void audio_fail_file (const str &path);
 
 int audio_open (struct sound_params *sound_params);
 int audio_send_buf (const char *buf, const size_t size);
@@ -244,14 +245,13 @@ void audio_close ();
 int audio_get_time ();
 int audio_get_state ();
 int audio_get_prev_state ();
-void audio_plist_add (const char *file);
+void audio_plist_add (const str &file);
 void audio_plist_add (const plist &pl);
 void audio_plist_clear ();
 void audio_get_plist(plist &pl);
-char *audio_get_sname ();
+void audio_get_current(str &path, int &idx);
 void audio_set_mixer (const int val);
 int audio_get_mixer ();
-void audio_plist_delete (const char *file);
 void audio_plist_delete (int idx);
 bool audio_send_plist(Socket &socket);
 void audio_plist_set_time (const char *file, const int time);

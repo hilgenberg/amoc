@@ -67,8 +67,7 @@ void plist::shuffle ()
 {
 	for (int i = 0, n = (int)items.size(); i < n; ++i)
 	{
-		int j = i + (int)(rand() / (float)RAND_MAX * (n-i));
-		if (j >= n) j = n-1; // should not happen, but floats can be weird
+		int j = random_int(i, n);
 		std::swap(items[i], items[j]);
 	}
 }
@@ -172,18 +171,18 @@ bool plist::add_directory (const str &directory, bool recursive)
 		}
 
 		str d = todo.top(); todo.pop();
-		const char *directory = d.c_str();
+		const char *dir = d.c_str();
 		
 		struct stat st;
-		if (stat (directory, &st)) {
+		if (stat (dir, &st)) {
 			char *err = xstrerror (errno);
-			error ("Can't stat %s: %s", directory, err);
+			error ("Can't stat \"%s\" (Error: \"%s\")", dir, err);
 			free (err);
 			continue;
 		}
 		if (done.count(st.st_ino))
 		{
-			logit ("Detected symlink loop on %s", directory);
+			logit ("Detected symlink loop on %s", dir);
 			continue;
 		}
 

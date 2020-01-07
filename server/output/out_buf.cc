@@ -1,5 +1,5 @@
 #include <pthread.h>
-#include "audio.h"
+#include "../audio.h"
 #include "../../fifo_buf.h"
 #include "out_buf.h"
 

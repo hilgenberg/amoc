@@ -13,7 +13,7 @@
  *
  */
 
-#include "audio.h"
+#include "../audio.h"
 #include "audio_conversion.h"
 #include "softmixer.h"
 

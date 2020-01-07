@@ -53,7 +53,6 @@ int Client::get_rate() { srv.send(CMD_GET_RATE); return get_data_int (); }
 int Client::get_bitrate() { srv.send(CMD_GET_BITRATE); return get_data_int (); }
 int Client::get_avg_bitrate() { srv.send(CMD_GET_AVG_BITRATE); return get_data_int (); }
 int Client::get_curr_time() { srv.send(CMD_GET_CTIME); return get_data_int (); }
-str Client::get_curr_file() { srv.send(CMD_GET_SNAME); return get_data_str (); }
 PlayState Client::get_state() { srv.send(CMD_GET_STATE); return (PlayState)get_data_int (); }
 
 /* Make new cwd path from CWD and this path. */
@@ -121,14 +120,6 @@ void Client::interface_message (const char *format, ...)
 	free (msg);
 }
 
-/* Update tags (and titles) for the given item on the playlist with new tags. */
-void Client::update_item_tags (plist &plist, const int num, file_tags *tags)
-{
-	if (num < 0 || num >= plist.size()) return;
-	plist_item &i = *plist.items[num];
-	if (i.tags) *i.tags = *tags; else i.tags.reset(new file_tags(*tags));
-}
-
 /* Get and show the server state. */
 void Client::update_state ()
 {
@@ -141,13 +132,14 @@ void Client::update_state ()
 	/* Silent seeking makes no sense if the state has changed. */
 	if (old_state != new_state) silent_seek_pos = -1;
 
-	str file = get_curr_file();
-	if (iface->get_curr_file() != file)
+	srv.send(CMD_GET_CURRENT);
+	wait_for_data(); int idx = srv.get_int(); str file = srv.get_str();
+	
+	if (iface->update_curr_file(file, idx))
 	{
-		iface->update_curr_file(file);
-		iface->update_curr_tags(nullptr);
 		silent_seek_pos = -1;
-		if (options::ReadTags) send_tags_request(file); // TODO: see if we already have them first
+		if (options::ReadTags && !file.empty())
+			send_tags_request(file); // TODO: see if we already have them first
 	}
 
 	iface->update_channels(get_channels());
@@ -224,8 +216,8 @@ void Client::handle_server_event (int type)
 			logit ("Received tags for %s", file.c_str());
 			iface->redraw(2);
 			int n;
-			if ((n = dir_plist.find(file)) != -1) update_item_tags (dir_plist, n, tags);
-			if ((n = playlist.find(file))  != -1) update_item_tags (playlist, n, tags);
+			playlist.set_tags(file, tags);
+			dir_plist.set_tags(file, tags);
 			if (iface->get_curr_file() == file) {
 				debug ("Tags apply to the currently played file.");
 				iface->update_curr_tags(tags);
@@ -250,8 +242,6 @@ void Client::handle_server_event (int type)
 			}
 			break;
 		}
-		case EV_AUDIO_START: break;
-		case EV_AUDIO_STOP:  break;
 		default:
 			interface_fatal ("Unknown event: 0x%02x!", type);
 			break;
@@ -691,6 +681,7 @@ Client::Client(int sock, stringlist &args)
 
 void Client::run()
 {
+	bool srv_event = false;
 	while (true)
 	{
 		fd_set fds; FD_ZERO (&fds);
@@ -698,48 +689,41 @@ void Client::run()
 		FD_SET (srv_sock, &fds);
 		FD_SET (STDIN_FILENO, &fds);
 
-		struct timespec timeout = { 1, 0 };
-		int ret = pselect (srv_sock + 1, &fds, NULL, NULL, &timeout, NULL);
-		if (ret == -1 && !want_quit && errno != EINTR)
+		timespec timeout = {0, srv_event ? 1 : 1000*1000*500}; // = {sec,nanosec}
+		int n = pselect (srv_sock + 1, &fds, NULL, NULL, &timeout, NULL);
+		if (n == -1 && !want_quit && errno != EINTR)
 			interface_fatal ("pselect() failed: %s", xstrerror (errno));
-		logit ("--client loop: ret=%d", ret);
+		if (want_quit) break;
+
+		if (n > 0 && FD_ISSET(srv_sock, &fds))
+		{
+			int type;
+			if (srv.get_int_noblock(type))
+			{
+				handle_server_event(type);
+				srv_event = true;
+				continue; // handle all events before redrawing
+			}
+			else
+				debug ("Getting event would block.");
+		}
+		srv_event = false;
+
+		if (n > 0 && FD_ISSET(STDIN_FILENO, &fds)) {
+			iface->handle_input();
+			Client::want_interrupt = false;
+		}
 
 		if (want_quit) break;
 
 		if (want_resize)
 		{
 			iface->resize();
-			logit ("resize");
 			want_resize = 0;
 		}
 
-
-
-		if (ret > 0) {
-			if (FD_ISSET(STDIN_FILENO, &fds)) {
-				logit ("--client loop: stdin");
-				iface->handle_input();
-			}
-			Client::want_interrupt = false;
-
-			if (want_quit) break;
-			
-			if (FD_ISSET(srv_sock, &fds))
-			{
-				logit ("--client loop: server");
-				int type;
-				if (srv.get_int_noblock(type))
-					handle_server_event(type);
-				else
-					debug ("Getting event would block.");
-			}
-		}
-
-		if (want_quit) break;
-		
 		if (want_plist_update && synced)
 		{
-			logit ("--client loop: sync");
 			srv.send(CMD_PLIST_GET);
 			wait_for_data();
 			want_plist_update = false;
@@ -750,7 +734,6 @@ void Client::run()
 		
 		if (want_state_update)
 		{
-			logit ("--client loop: state");
 			update_state();
 		}
 

@@ -11,7 +11,7 @@
 
 /* Fake output device - only for testing. */
 
-#include "audio.h"
+#include "../audio.h"
 
 static struct sound_params params = { 0, 0, 0 };
 

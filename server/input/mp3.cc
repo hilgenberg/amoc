@@ -25,7 +25,7 @@
 #endif
 
 #include "mp3_xing.h"
-#include "../output/audio.h"
+#include "../audio.h"
 #include "decoder.h"
 #include "io.h"
 #include "../../client/utf8.h"

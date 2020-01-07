@@ -8,7 +8,7 @@
 #include <jack/ringbuffer.h>
 #include <math.h>
 
-#include "audio.h"
+#include "../audio.h"
 
 #define RINGBUF_SZ 32768
 

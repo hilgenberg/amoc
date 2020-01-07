@@ -18,7 +18,7 @@
 #define STRERROR_FN alsa_strerror
 
 #include "../server.h"
-#include "audio.h"
+#include "../audio.h"
 
 #define BUFFER_MAX_USEC	300000
 

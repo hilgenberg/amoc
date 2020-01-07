@@ -47,7 +47,7 @@ extern "C" {
 #undef STRERROR_FN
 #define STRERROR_FN ffmpeg_strerror
 
-#include "../output/audio.h"
+#include "../audio.h"
 #include "decoder.h"
 
 /* Set SEEK_IN_DECODER to 1 if you'd prefer seeking to be delay until

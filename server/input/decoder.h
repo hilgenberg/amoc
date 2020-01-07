@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../output/audio.h"
+#include "../audio.h"
 #include "../../playlist.h"
 #include "io.h"
 

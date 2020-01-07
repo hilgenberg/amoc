@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include <strings.h>
 
-#include "../output/audio.h"
+#include "../audio.h"
 #include "decoder.h"
 #include "../server.h"
 #include "io.h"

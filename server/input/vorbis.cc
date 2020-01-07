@@ -21,7 +21,7 @@
 
 #include "decoder.h"
 #include "io.h"
-#include "../output/audio.h"
+#include "../audio.h"
 
 /* These merely silence compiler warnings about unused definitions in
  * the Vorbis library header files. */

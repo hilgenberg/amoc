@@ -28,6 +28,8 @@ void tags_response (const int client_id, const char *file,
 		const struct file_tags *tags);
 void ev_audio_start ();
 void ev_audio_stop ();
+void ev_audio_fail (const str &path); // path failed to play
+
 void server_queue_pop (const str &filename);
 
 #endif

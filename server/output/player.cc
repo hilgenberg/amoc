@@ -12,7 +12,7 @@
 #include <pthread.h>
 
 #include "../input/decoder.h"
-#include "audio.h"
+#include "../audio.h"
 #include "../server.h"
 #include "player.h"
 
@@ -206,6 +206,7 @@ static void *precache_thread (void *data)
 		logit ("Failed to open the file for precache: %s", err.err);
 		decoder_error_clear (&err);
 		precache->f->close (precache->decoder_data);
+		ev_audio_fail (precache->file);
 		return NULL;
 	}
 
@@ -234,6 +235,7 @@ static void *precache_thread (void *data)
 			logit ("Error reading file for precache: %s", err.err);
 			decoder_error_clear (&err);
 			precache->f->close (precache->decoder_data);
+			ev_audio_fail (precache->file);
 			return NULL;
 		}
 
@@ -583,6 +585,7 @@ static void play_file (const char *file, const struct decoder *f,
 			error ("%s", err.err);
 			decoder_error_clear (&err);
 			logit ("Can't open file, exiting");
+			ev_audio_fail (file);
 			return;
 		}
 
@@ -660,6 +663,7 @@ void player (const char *file, const char *next_file, struct out_buf *out_buf)
 			status_msg ("");
 			decoder_stream = NULL;
 			UNLOCK (decoder_stream_mtx);
+			ev_audio_fail (file);
 			return;
 		}
 		UNLOCK (decoder_stream_mtx);
@@ -694,6 +698,7 @@ void player (const char *file, const char *next_file, struct out_buf *out_buf)
 
 		if (!f) {
 			error ("Can't get decoder for %s", file);
+			ev_audio_fail (file);
 			return;
 		}
 

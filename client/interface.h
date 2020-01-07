@@ -62,7 +62,14 @@ public:
 	bool select_path(const str &p) { return left.select_path(p); }
 
 	// update and get info set by client:
-	void update_curr_file(const str &f) { if (curr_file==f) return; curr_file = f; redraw(2); }
+	bool update_curr_file(const str &f, int idx)
+	{
+		if (curr_file==f && curr_idx==idx) return false;
+		curr_file = f; curr_idx = idx;
+		curr_tags.reset(nullptr);
+		redraw(2);
+		return true;
+	}
 	void update_curr_tags(file_tags *t) { curr_tags.reset(t); redraw(1); }
 	int  get_total_time() const { return curr_tags ? curr_tags->time : 0; }
 	str  get_curr_file() const { return curr_file; }
@@ -88,7 +95,7 @@ public:
 	Client &client;
 
 private:
-	str curr_file;
+	str curr_file; int curr_idx;
 	std::unique_ptr<file_tags> curr_tags;
 	int bitrate, avg_bitrate; // in kbps
 	int rate;		  // in kHz

@@ -46,7 +46,6 @@ private:
 	int get_bitrate();
 	int get_avg_bitrate();
 	int get_curr_time();
-	str get_curr_file();
 	PlayState get_state();
 	
 	void set_cwd(const str &path);
@@ -54,8 +53,6 @@ private:
 	bool read_last_dir ();
 	void ask_for_tags (const plist &plist);
 	void interface_message (const char *format, ...);
-	void update_item_tags (plist &plist, const int num, file_tags *tags);
-	void update_curr_tags ();
 	void update_state ();
 	void forward_playlist ();
 	bool go_to_dir (const char *dir);

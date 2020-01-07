@@ -20,7 +20,7 @@
 
 #include "decoder.h" /* required: provides decoder structure definition */
 #include "io.h" /* if you use io_*() functions to access files. */
-#include "../output/audio.h" /* for sound_params structure */
+#include "../audio.h" /* for sound_params structure */
 
 struct wavpack_data
 {

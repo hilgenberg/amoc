@@ -21,7 +21,7 @@
 #include <pthread.h>
 
 #include "../protocol.h"
-#include "output/audio.h"
+#include "audio.h"
 #include "output/oss.h"
 #include "server.h"
 #include "../playlist.h"
@@ -479,9 +479,7 @@ static bool req_set_rating (client &cli)
 	if (!cli.socket->get(file) || !cli.socket->get(rating)) return false;
 	if (file.empty())
 	{
-		char *cur = audio_get_sname();
-		if (cur && *cur) file = cur;
-		free(cur);
+		int idx; audio_get_current(file, idx);
 		if (file.empty()) return false;
 	}
 
@@ -507,15 +505,11 @@ static bool req_jump_to (client &cli)
 		sec = -sec; /* percentage */
 		assert(sec >= 0 && sec <= 100);
 
-		char *file = audio_get_sname ();
-		if (!file || !*file)
-		{
-			free (file);
+		str path; int idx; audio_get_current(path, idx);
+		if (path.empty())
 			return false;
-		}
 	
-		struct file_tags tags = tc->get_immediate (file);
-		free (file);
+		struct file_tags tags = tc->get_immediate (path.c_str());
 
 		if (tags.time <= 0) return false;
 		sec = (tags.time * sec)/100;
@@ -679,7 +673,8 @@ static void handle_command (const int client_id)
 			{
 				plist pl, tmp; pl += std::move(file);
 				if ((err = !cli.socket->get(tmp))) break;
-				if (idx >=  pl.size())
+				pl += std::move(tmp);
+				if (idx >= pl.size())
 				{
 					logit("Invalid play index %d for given playlist of size %d", idx, (int)pl.size());
 					err = 1;
@@ -742,11 +737,12 @@ static void handle_command (const int client_id)
 			if (!req_jump_to(cli))
 				err = 1;
 			break;
-		case CMD_GET_SNAME:
+		case CMD_GET_CURRENT:
 		{
-			char *s = audio_get_sname ();
-			err = !send_data_str(&cli, s);
-			free (s);
+			Lock lock(cli);
+			str path; int idx; audio_get_current(path, idx);
+			err = !cli.socket->send(EV_DATA) || 
+				!cli.socket->send(idx) || !cli.socket->send(path);
 			break;
 		}
 		case CMD_GET_STATE:
@@ -1041,10 +1037,13 @@ void tags_response (const int client_id, const char *file, const file_tags *tags
 
 void ev_audio_start ()
 {
-	add_event_all (EV_AUDIO_START);
 }
 
 void ev_audio_stop ()
 {
-	add_event_all (EV_AUDIO_STOP);
+}
+
+void ev_audio_fail (const str &path)
+{
+	audio_fail_file(path);
 }

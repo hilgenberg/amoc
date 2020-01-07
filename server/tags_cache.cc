@@ -5,7 +5,7 @@
 #include "server.h"
 #include "../playlist.h"
 #include "tags_cache.h"
-#include "output/audio.h"
+#include "audio.h"
 
 #ifdef HAVE_DB_H
 #undef STRERROR_FN

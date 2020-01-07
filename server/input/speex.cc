@@ -21,7 +21,7 @@
 
 #include "decoder.h"
 #include "io.h"
-#include "../output/audio.h"
+#include "../audio.h"
 
 /* Use speex's audio enhancement feature */
 #define ENHANCE_AUDIO 1

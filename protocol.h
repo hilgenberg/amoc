@@ -15,21 +15,19 @@ enum ServerEvents : int
 	EV_FILE_TAGS,	/* tags in a response for tags request */
 	EV_FILE_RATING,	/* ratings changed for a file */
 	
-	EV_PLIST_NEW,	/* replaced the playlist (no data. use CMD_PLIST_GET) */
-	EV_PLIST_ADD,	/* (10) items were added, followed by the file names and "" */
+	EV_PLIST_NEW,	/* (9) replaced the playlist (no data. use CMD_PLIST_GET) */
+	EV_PLIST_ADD,	/* items were added, followed by the file names and "" */
 	EV_PLIST_DEL,	/* an item was deleted, followed by the index */
 	EV_PLIST_MOVE,	/* an item moved, followed by its old and new indices */
 
-	EV_AUDIO_START,	/* playing of audio has started */
-	EV_AUDIO_STOP,	/* playing of audio has stopped */
-	EV_STATE, 	/* (15) server has changed the play/pause/stopped state */
+	EV_STATE, 	/* (13) server has changed the play/pause/stopped state */
 	EV_CTIME,	/* current time of the song has changed */
 	EV_BITRATE,	/* the bitrate has changed */
 	EV_RATE,	/* the rate has changed */
 	EV_CHANNELS,	/* the number of channels has changed */
-	EV_OPTIONS,	/* (20) the options (repeat, shuffle, autonext) have changed */
+	EV_OPTIONS,	/* the options (repeat, shuffle, autonext) have changed */
 	EV_AVG_BITRATE,	/* average bitrate has changed */
-	EV_MIXER_CHANGE	/* the mixer channel was changed */
+	EV_MIXER_CHANGE	/* (20) the mixer channel was changed */
 };
 
 /* Definition of server commands. */
@@ -56,8 +54,8 @@ enum ServerCommands : int
 	CMD_ABORT_TAGS_REQUESTS,/* abort all previous CMD_GET_FILE_TAGS requests */
 	CMD_SET_RATING,		/* change rating for a file */
 
+	CMD_GET_CURRENT,	/* (19) get the current song index and path */
 	CMD_GET_CTIME,		/* get the current song time */
-	CMD_GET_SNAME,		/* (20) get the stream file name */
 	CMD_GET_STATE,		/* get the state */
 	CMD_GET_BITRATE,	/* get the bitrate */
 	CMD_GET_RATE,		/* get the rate */
@@ -67,7 +65,7 @@ enum ServerCommands : int
 	CMD_GET_AVG_BITRATE,	/* get the average bitrate */
 	CMD_GET_MIXER_CHANNEL_NAME,/* get the mixer channel's name */
 
-	CMD_TOGGLE_MIXER_CHANNEL,/* toggle the mixer channel */
+	CMD_TOGGLE_MIXER_CHANNEL,/* (29) toggle the mixer channel */
 	CMD_TOGGLE_SOFTMIXER,	/* toggle use of softmixer */
 	CMD_TOGGLE_EQUALIZER,	/* toggle use of equalizer */
 	CMD_EQUALIZER_REFRESH,	/* refresh EQ-presets */

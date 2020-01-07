@@ -24,7 +24,7 @@
 
 #include "decoder.h"
 #include "io.h"
-#include "../output/audio.h"
+#include "../audio.h"
 
 struct musepack_data
 {

@@ -208,6 +208,15 @@ str absolute_path(const str &p)
 	return add_path(buf, p);
 }
 
+str containing_directory(const str &path)
+{
+	assert(!path.empty() && path[0] == '/');
+	if (path == "/") return path;
+	auto i = path.rfind('/');
+	if (i == str::npos) return "";
+	return path.substr(0, i==0 ? (size_t)1 : i);
+}
+
 /* Is the string a URL? */
 int is_url (const char *str)
 {

@@ -28,7 +28,7 @@
 #include <dirent.h>
 #include <locale.h>
 
-#include "audio.h"
+#include "../audio.h"
 #include "audio_conversion.h"
 #include "equalizer.h"
 

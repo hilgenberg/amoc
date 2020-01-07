@@ -11,7 +11,7 @@
 # include <samplerate.h>
 #endif
 
-#include "audio.h"
+#include "../audio.h"
 
 struct audio_conversion
 {

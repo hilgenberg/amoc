@@ -90,6 +90,14 @@ public:
 		}
 		return sum;
 	}
+	void set_tags(const str &file, file_tags *tags)
+	{
+		for (auto &i : items)
+		{
+			if (i->path != file) continue;
+			if (i->tags) *i->tags = *tags; else i->tags.reset(new file_tags(*tags));
+		}
+	}
 	int find(const str &file) const // TODO: remove this!
 	{
 		for (int i = 0, n = (int)items.size(); i < n; ++i)

@@ -365,3 +365,18 @@ char *strcasestr (const char *haystack, const char *needle)
 }
 #endif
 
+int random_int(int m)
+{
+	if (m <= 0) return 0;
+	int i = (int)(rand() / (float)RAND_MAX * (m+1));
+	return i <= m ? i : m;
+	// TODO...
+}
+int random_int(int a, int b)
+{
+	if (b <= a) return 0;
+	int i = a + (int)(rand() / (float)RAND_MAX * (b-a+1));
+	return i <= b ? i : b;
+	// TODO...
+
+}

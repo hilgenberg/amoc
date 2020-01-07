@@ -206,6 +206,7 @@ static void start_moc (const struct parameters *params, stringlist &args)
 void interface_cmdline_play_first (Socket &srv)
 {
 	srv.send(CMD_PLAY);
+	srv.send(-1);
 	srv.send("");
 }
 
@@ -213,6 +214,7 @@ void interface_cmdline_playit (Socket &srv, stringlist &args)
 {
 	if (args.size() != 1) return;
 	srv.send(CMD_PLAY);
+	srv.send(-1);
 	srv.send(args[0]);
 }
 

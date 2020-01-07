@@ -280,7 +280,7 @@ void Interface::draw(bool force)
 		right.bounds = r2.inset(1);
 
 		left.mark_path(curr_file);
-		right.mark_path(curr_file);
+		right.mark = curr_idx;
 
 		if (layout != SINGLE) menus[1-active_menu]->draw(false);
 		menus[active_menu]->draw(true);

@@ -1,6 +1,9 @@
 #pragma once
 #include <byteswap.h>
 
+int random_int(int max); // between 0 and max, both inclusive
+int random_int(int min, int max); // between min and max, both inclusive
+
 struct timespec;
 
 #ifdef HAVE_FUNC_ATTRIBUTE_NORETURN
