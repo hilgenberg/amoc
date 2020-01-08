@@ -162,6 +162,7 @@ Interface::Interface(Client &client, plist &pl1, plist &pl2)
 	wbkgd (win, get_color(CLR_BACKGROUND));
 	nodelay (win, TRUE);
 	keypad (win, TRUE);
+	mousemask(BUTTON1_CLICKED | BUTTON1_DOUBLE_CLICKED, NULL);
 }
 
 Interface::~Interface()
@@ -183,6 +184,41 @@ void Interface::cycle_layouts()
 	++(int&)layout;
 	(int&)layout %= 3;
 	redraw(2);
+}
+
+void Interface::handle_click(int x, int y, bool dbl)
+{
+	if (layout != SINGLE && left.bounds.contains(x,y))
+	{
+		if (active_menu == 1) { active_menu = 0; redraw(2); }
+		left.handle_click(x, y, dbl);
+	}
+	else if (layout != SINGLE && right.bounds.contains(x,y))
+	{
+		if (active_menu == 0) { active_menu = 1; redraw(2); }
+		right.handle_click(x, y, dbl);
+	}
+	else if (layout == SINGLE && menus[active_menu]->bounds.contains(x,y))
+	{
+		menus[active_menu]->handle_click(x, y, dbl);
+		redraw(2);
+	}
+	// TODO: middle mouse button to cd..
+	// TODO: drag&drop to sort the playlist
+	// TODO: drag divider line to adjust HSPLIT/VSPLIT
+	else
+	{
+		const int W = COLS, H = LINES;
+		const int total_time = curr_tags ? curr_tags->time : 0;
+
+		if (y == H-1 && x >= 1 && x <= W-2 && W > 8)
+		{
+			if (total_time <= 0 || options::TimeBarLine.empty()) return;
+			client.jump_to((x-1)*total_time/(W-3));
+		}
+		// TODO: change Repeat, etc
+		// TODO: scroll wheel
+	}
 }
 
 void Interface::draw(bool force)
@@ -602,6 +638,14 @@ void Interface::handle_input()
 			case KEY_CMD_HISTORY_DOWN: /*TODO*/ return;
 			case KEY_CMD_DELETE_START: strdel(response, 0, cursor); cursor = 0; return;
 			case KEY_CMD_DELETE_END: strdel(response, cursor, strwidth(response)); return;
+		}
+	}
+	else if (f == KEY_MOUSE)
+	{
+		MEVENT ev;
+		if (getmouse(&ev) == OK)
+		{
+			handle_click(ev.x, ev.y, ev.bstate & BUTTON1_DOUBLE_CLICKED);
 		}
 	}
 	else

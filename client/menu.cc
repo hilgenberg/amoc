@@ -15,6 +15,7 @@
 #include "../server/input/decoder.h"
 #include "themes.h"
 #include "interface.h"
+#include "client.h"
 
 static str sanitize(const str &s_)
 {
@@ -112,6 +113,42 @@ bool menu::select_path(const str &f)
 		return true;
 	}
 	return false;
+}
+
+void menu::move(menu_request req)
+{
+	const int N = items.size();
+	if (!N) return;
+	if (sel < 0 && mark >= 0 && mark < N) sel = mark;
+	switch (req)
+	{
+		case REQ_UP:     sel = (sel < 0 ? N-1 : sel - 1); break;
+		case REQ_DOWN:   sel = (sel < 0 ? 0 : sel + 1); break;
+		case REQ_PGUP:
+			top -= (bounds.h - 1); if (top < 0) top = 0;
+			sel -= (bounds.h - 1);
+			break;
+		case REQ_PGDOWN:
+			top += (bounds.h - 1);
+			sel += (bounds.h - 1);
+			if (top + (bounds.h-1) >= N) top = N - bounds.h;
+			if (top < 0) top = 0;
+			break;
+		case REQ_TOP:    sel = 0; break;
+		case REQ_BOTTOM: sel = N-1; break;
+	}
+	if (sel >= N) sel = N-1;
+	if (sel <  0) sel = 0;
+}
+void menu::handle_click(int x, int y, bool dbl)
+{
+	const int N = items.size();
+	int i = top+y-bounds.y;
+	bool hit = (i >= 0 && i < N);
+	if (i >= N) i = N-1;
+	if (i <  0) i = 0;
+	if (i != sel) { sel = i; iface->redraw(2); }
+	if (dbl && hit) iface->client.handle_command(KEY_CMD_GO);
 }
 
 void menu::draw(bool active) const

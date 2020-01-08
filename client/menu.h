@@ -23,31 +23,8 @@ struct menu
 
 	void draw(bool active) const; // no frame, draws just the inside
 
-	void move(menu_request req) // move selection
-	{
-		const int N = items.size();
-		if (!N) return;
-		if (sel < 0 && mark >= 0 && mark < N) sel = mark;
-		switch (req)
-		{
-			case REQ_UP:     sel = (sel < 0 ? N-1 : sel - 1); break;
-			case REQ_DOWN:   sel = (sel < 0 ? 0 : sel + 1); break;
-			case REQ_PGUP:
-				top -= (bounds.h - 1); if (top < 0) top = 0;
-				sel -= (bounds.h - 1);
-				break;
-			case REQ_PGDOWN:
-				top += (bounds.h - 1);
-				sel += (bounds.h - 1);
-				if (top + (bounds.h-1) >= N) top = N - bounds.h;
-				if (top < 0) top = 0;
-				break;
-			case REQ_TOP:    sel = 0; break;
-			case REQ_BOTTOM: sel = N-1; break;
-		}
-		if (sel <  0) sel = 0;
-		if (sel >= N) sel = N-1;
-	}
+	void move(menu_request req); // move selection
+	void handle_click(int x, int y, bool dbl);
 
 	plist_item *current_item () const // selected (or marked if none) item
 	{

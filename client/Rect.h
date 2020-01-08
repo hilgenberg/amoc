@@ -10,4 +10,9 @@ struct Rect
 	Rect inset(int d) const { return Rect(x+d, y+d, w-2*d, h-2*d); }
 	int x, y;
 	int w, h;
+
+	bool contains(int ex, int ey) const
+	{
+		return ex >= x && ey >= y && ex < x+w && ey < y+h;
+	}
 };

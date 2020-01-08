@@ -26,6 +26,7 @@ public:
 	void redraw(int k) { need_redraw = std::max(need_redraw, k); }
 	void resize(); // Handle terminal size change.
 	void handle_input(); // read the next key stroke
+	void handle_click(int x, int y, bool dbl);
 	
 	bool in_dir_plist() const { return active_menu == 0; }
 	void go_to_dir_plist() { if (in_dir_plist()) return; active_menu = 0; redraw(2); }

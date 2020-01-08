@@ -23,6 +23,10 @@ public:
 	static volatile bool want_interrupt;
 	static volatile bool want_resize;
 
+	void seek (int sec) { srv.send(CMD_SEEK); srv.send(sec); }
+	void jump_to (int sec) { srv.send(CMD_JUMP_TO); srv.send(sec); }
+	void seek_to_percent (int percent) { srv.send(CMD_JUMP_TO); srv.send(-percent); }
+
 private:
 	Socket srv;
 	std::unique_ptr<Interface> iface;
@@ -63,9 +67,6 @@ private:
 	void add_file_plist ();
 	void set_rating (int r);
 	void switch_read_tags ();
-	void seek (int sec) { srv.send(CMD_SEEK); srv.send(sec); }
-	void jump_to (int sec) { srv.send(CMD_JUMP_TO); srv.send(sec); }
-	void seek_to_percent (int percent) { srv.send(CMD_JUMP_TO); srv.send(-percent); }
 	void delete_item ();
 	void go_to_playing_file ();
 	void seek_silent (int dt);
