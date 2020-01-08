@@ -95,7 +95,6 @@ bool menu::mark_path(const str &f)
 	bool s = (sel >= 0 && sel == mark);
 	mark = items.find(f);
 	if (s && mark >= 0) sel = mark;
-	if (mark >= 0 && (s || sel==-1)) make_visible(mark);
 	return mark >= 0;
 }
 void menu::mark_item(int i)
@@ -103,7 +102,6 @@ void menu::mark_item(int i)
 	bool s = (sel >= 0 && sel == mark);
 	mark = i;
 	if (s && mark >= 0) sel = mark;
-	if (mark >= 0 && (s || sel==-1)) make_visible(mark);
 }
 bool menu::select_path(const str &f)
 {
@@ -111,7 +109,6 @@ bool menu::select_path(const str &f)
 	if (i >= 0)
 	{
 		sel = i;
-		make_visible(sel);
 		return true;
 	}
 	return false;
@@ -123,9 +120,20 @@ void menu::draw(bool active) const
 	if (!win) return;
 
 	const int N = items.size();
-	if (sel >= N) sel = N-1;
+	const int lookahead = std::min(5, bounds.h/4);
+	
+	if (sel < -1) sel = -1; if (mark < -1) mark = -1;
+	if (sel >= N) sel = std::max(0, N-1);
+	if (mark >= N) mark = -1;
+	if (sel >= 0 && N > 0)
+	{
+		if (sel-lookahead < top) top = sel-lookahead;
+		if (sel+lookahead > top + bounds.h-1) top = sel+lookahead - (bounds.h-1);
+	}
+
 	if (top + bounds.h > N) top = N-bounds.h;
 	if (top < 0) top = 0;
+
 	const int asel = active ? sel : -1;
 
 	bool have_up = items.is_dir && N && iface->cwd() != "/";

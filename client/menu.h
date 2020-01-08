@@ -47,7 +47,6 @@ struct menu
 		}
 		if (sel <  0) sel = 0;
 		if (sel >= N) sel = N-1;
-		make_visible(sel);
 	}
 
 	plist_item *current_item () const // selected (or marked if none) item
@@ -60,29 +59,7 @@ struct menu
 	bool mark_path(const str &f); // or unmark if not found
 	void mark_item(int i); // this and mark_path take the selection along if sel==mark
 	bool select_path(const str &f); // leave selection as is if not found
-
-	void update() // call after resize or when number/position of items change
-	{
-		const int N = items.size();
-		if (!N)
-		{
-			top = 0; sel = mark = -1;
-			return;
-		}
-		if (top + bounds.h > N) top = std::max(0, N - bounds.h);
-
-		if (sel >= N) sel = N-1;
-		make_visible(sel);
-	}
-
 	bool item_visible (int i) const { return i >= top && i < top + bounds.h; };
-	void make_visible (int i)
-	{
-		if (i < 0) return;
-		int N = items.size();
-		if (i < top) top = i;
-		if (i >= top + bounds.h-1) top = i - (bounds.h-1);
-	}
 
 	Interface *iface;
 	plist  &items;

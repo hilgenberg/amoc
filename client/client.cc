@@ -613,9 +613,17 @@ Client::Client(int sock, stringlist &args)
 		srv.get(playlist);
 		synced = true;
 	}
-	ask_for_tags(playlist);
 
 	update_state ();
+
+	if (synced)
+	{
+		int idx = iface->get_curr_index();
+		if (idx >= 0) iface->set_sel_index(idx, 1);
+	}
+
+	ask_for_tags(playlist);
+
 }
 
 void Client::run()
