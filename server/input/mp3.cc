@@ -20,9 +20,6 @@
 #include <inttypes.h>
 #include <mad.h>
 #include <id3tag.h>
-#ifdef HAVE_ICONV
-# include <iconv.h>
-#endif
 
 #include "mp3_xing.h"
 #include "../audio.h"
@@ -98,13 +95,6 @@ static size_t fill_buff (struct mp3_data *data)
 	return read_size;
 }
 
-static char *id3v1_fix (const char *str)
-{
-	if (iconv_id3_fix != (iconv_t)-1)
-		return iconv_str (iconv_id3_fix, str);
-	return xstrdup (str);
-}
-
 int __unique_frame (struct id3_tag *tag, struct id3_frame *frame)
 {
     unsigned int i;
@@ -126,46 +116,29 @@ int __unique_frame (struct id3_tag *tag, struct id3_frame *frame)
 
 static char *get_tag (struct id3_tag *tag, const char *what)
 {
-	struct id3_frame *frame;
-	union id3_field *field;
-	const id3_ucs4_t *ucs4;
-	char *comm = NULL;
+	struct id3_frame *frame = id3_tag_findframe (tag, what, 0); if (!frame) return NULL;
+	union id3_field *field = &frame->fields[1]; if (!field) return NULL;
+	const id3_ucs4_t *ucs4 = id3_field_getstrings (field, 0); if (!ucs4) return NULL;
+	
+	/* Workaround for ID3 tags v1/v1.1 where the encoding is latin1. */
+	union id3_field *encoding_field = &frame->fields[0];
+	if ((!(id3_tag_options(tag, 0, 0) & ID3_TAG_OPTION_ID3V1) || !__unique_frame(tag, frame))
+		&& (options::EnforceTagsEncoding ||
+		!id3_field_gettextencoding(encoding_field) == ID3_FIELD_TEXTENCODING_ISO_8859_1))
+	return (char *)id3_ucs4_utf8duplicate (ucs4);
 
-	frame = id3_tag_findframe (tag, what, 0);
-	if (frame && (field = &frame->fields[1])) {
-		ucs4 = id3_field_getstrings (field, 0);
-		if (ucs4) {
-			/* Workaround for ID3 tags v1/v1.1 where the encoding
-			 * is latin1. */
-			union id3_field *encoding_field = &frame->fields[0];
-			if (((id3_tag_options(tag, 0, 0) & ID3_TAG_OPTION_ID3V1) &&
-						__unique_frame(tag, frame))
-					|| ((options::EnforceTagsEncoding &&
-							(id3_field_gettextencoding((encoding_field))
-							 == ID3_FIELD_TEXTENCODING_ISO_8859_1))))
-			{
-				char *t;
+	char *comm = (char *)id3_ucs4_latin1duplicate (ucs4);
 
-				comm = (char *)id3_ucs4_latin1duplicate (ucs4);
+	#ifdef HAVE_RCC
+	if (options::UseRCC) return rcc_reencode (comm);
+	#endif
 
-#ifdef HAVE_RCC
-				if (options::UseRCC)
-					comm = rcc_reencode (comm);
-				else {
-#endif /* HAVE_RCC */
-					t = comm;
-					comm = id3v1_fix (comm);
-					free (t);
-#ifdef HAVE_RCC
-				}
-#endif /* HAVE_RCC */
-			}
-			else
-				comm = (char *)id3_ucs4_utf8duplicate (ucs4);
-		}
-	}
+	if (iconv_id3_fix == (iconv_t)-1) return comm;
+	
+	str conv = iconv_str (iconv_id3_fix, str(comm));
+	free(comm);
 
-	return comm;
+	return xstrdup(conv.c_str());
 }
 
 static int count_time_internal (struct mp3_data *data)

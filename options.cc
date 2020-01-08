@@ -264,7 +264,7 @@ bool UseMMap = false;
 bool UseMimeMagic = false;
 str  ID3v1TagsEncoding = "WINDOWS-1250";
 bool UseRCC = true;
-bool UseRCCForFilesystem = true;
+bool UseRCCForFilesystem = false;
 bool EnforceTagsEncoding = false;
 bool FileNamesIconv = false;
 

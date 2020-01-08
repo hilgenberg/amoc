@@ -37,10 +37,8 @@ enum color_index
 	CLR_ERROR,
 	CLR_MESSAGE,
 	CLR_PLIST_TIME,
-	CLR_LAST, /* Fake element to get number of colors */
-	CLR_WRONG
+	CLR_LAST /* Fake element to get number of colors */
 };
 
 void theme_init ();
-int get_color (const enum color_index);
-
+int get_color (color_index);

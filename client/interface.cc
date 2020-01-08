@@ -392,7 +392,6 @@ void Interface::draw(bool force)
 		if (curr_tags)
 		{
 			xwprintfield(win, curr_file, W-5);
-			//xwprintw(win, "%d %d \"%s\"", curr_tags->time, total_time, curr_tags->title.c_str());
 		}
 		else
 			xwprintfield(win, curr_file, W-5);
@@ -489,9 +488,9 @@ void Interface::draw(bool force)
 
 			wattrset (win, get_color(CLR_SOUND_PARAMS));
 			wmove (win, H-2, x);
-			if (rate >= 0) xwprintw(win, "%3d", rate); else xwaddstr(win, "   ");
+			if (rate >= 0) waddstr(win, format("%3d", rate).c_str()); else waddstr(win, "   ");
 			wmove (win, H-2, x+7);
-			if (bitrate >= 0) xwprintw (win, "%4d", std::min(bitrate, 9999)); else xwaddstr(win, "    ");
+			if (bitrate >= 0) waddstr(win, format("%4d", std::min(bitrate, 9999)).c_str()); else waddstr(win, "    ");
 			x += 15+2;
 		}
 		

@@ -142,7 +142,7 @@
 #UseRCC = yes
 
 # Use librcc to filenames and directory names encoding.
-#UseRCCForFilesystem = yes
+#UseRCCForFilesystem = no
 
 # When this option is set the player assumes that if the encoding of
 # ID3v2 is set to ISO-8859-1 then the ID3v1TagsEncoding is actually

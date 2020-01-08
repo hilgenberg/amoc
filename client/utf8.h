@@ -1,38 +1,22 @@
-#ifndef UTF8_H
-#define UTF8_H
-
-# include <ncurses.h>
-
-#include <stdarg.h>
-#ifdef HAVE_ICONV
-# include <iconv.h>
-#endif
+#pragma once
 
 #include "Rect.h"
+# include <ncurses.h>
+# include <iconv.h>
 
 void utf8_init ();
 void utf8_cleanup ();
-int xwaddstr (WINDOW *win, const str &s);
-int xwaddstr (WINDOW *win, const char *str);
-int xwaddnstr (WINDOW *win, const char *str, const int n);
-int xmvwaddstr (WINDOW *win, const int y, const int x, const char *str);
-int xmvwaddstr (WINDOW *win, const int y, const int x, const str &s);
-int xmvwaddnstr (WINDOW *win, const int y, const int x, const char *str, const int n);
-int xwprintw (WINDOW *win, const char *fmt, ...);
 
-size_t strwidth (const char *s);
+int xwaddstr (WINDOW *win, const str &s);
+int xmvwaddstr (WINDOW *win, const int y, const int x, const str &s);
+
 size_t strwidth (const str &s);
 void strdel(str &s, int i, int n = 1);
 int  strins(str &s, int i, wchar_t c); // returns width of c
 
 void xwprintfield(WINDOW *win, const str &s, int field_width, char ellipsis = 'r');
-void clear_area (WINDOW *win, const Rect &r);
 
 str xstrtail (const str &s, int len);
-char *xstrtail (const char *str, const int len);
-char *iconv_str (const iconv_t desc, const char *str);
-char *files_iconv_str (const char *str);
-char *xterm_iconv_str (const char *str);
-str files_iconv_str (const str &s);
 
-#endif
+str iconv_str (const iconv_t desc, const str &input);
+str files_iconv_str (const str &s);
