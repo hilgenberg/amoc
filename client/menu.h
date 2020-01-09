@@ -21,7 +21,7 @@ class Interface;
 struct menu
 {
 	// c'tor gets  called before the interface is running!
-	menu(Interface *iface, plist &items) : iface(iface), items(items), top(0), sel(-1), mark(-1) {}
+	menu(Interface *iface, plist &items) : iface(iface), items(items), top(0), sel(-1), xsel(0), mark(-1) {}
 
 	void draw(bool active) const; // no frame, draws just the inside
 

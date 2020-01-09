@@ -284,6 +284,7 @@
 #include <string>
 #include <algorithm>
 #include <limits>
+#include <cmath>
 
 #include <pthread.h>
 #include <assert.h>

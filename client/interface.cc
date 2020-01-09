@@ -33,44 +33,44 @@ static struct
 	chtype urcorn;	/* upper right corner */
 	chtype llcorn;	/* lower left corner */
 	chtype lrcorn;	/* lower right corner */
-	chtype rtee;	/* right tee */
-	chtype ltee;	/* left tee */
-	chtype btee;	/* right tee */
-	chtype ttee;	/* left tee */
+	chtype rtee;	/* right tee: -| */
+	chtype ltee;	/* left tee:  |- */
+	chtype btee;	/* bottom tee */
+	chtype ttee;	/* top tee: T */
 } lines;
 
 static void init_lines ()
 {
 	if (options::ASCIILines) {
-		lines.vert = '|';
-		lines.horiz = '-';
+		lines.vert   = '|';
+		lines.horiz  = '-';
 		lines.ulcorn = '+';
 		lines.urcorn = '+';
 		lines.llcorn = '+';
 		lines.lrcorn = '+';
-		lines.rtee = '|';
-		lines.ltee = '|';
-		lines.btee = '+';
-		lines.ttee = '+';
+		lines.rtee   = '<';
+		lines.ltee   = '>';
+		lines.btee   = '+';
+		lines.ttee   = '+';
 	} else {
-		lines.vert = ACS_VLINE;
-		lines.horiz = ACS_HLINE;
+		lines.vert   = ACS_VLINE;
+		lines.horiz  = ACS_HLINE;
 		lines.ulcorn = ACS_ULCORNER;
 		lines.urcorn = ACS_URCORNER;
 		lines.llcorn = ACS_LLCORNER;
 		lines.lrcorn = ACS_LRCORNER;
-		lines.rtee = ACS_RTEE;
-		lines.ltee = ACS_LTEE;
-		lines.btee = ACS_BTEE;
-		lines.ttee = ACS_TTEE;
+		lines.rtee   = ACS_RTEE;
+		lines.ltee   = ACS_LTEE;
+		lines.btee   = ACS_BTEE;
+		lines.ttee   = ACS_TTEE;
 	}
 }
 
-static void draw_frame(WINDOW *win, const Rect &r, const str &title, int title_space = 0, bool draw_bottom = true)
+static void draw_frame(WINDOW *win, int color, const Rect &r, const str &title, int title_space = 0, bool draw_bottom = true)
 {
 	if (r.w < 2 || r.h < 2) return;
 
-	wattrset (win, get_color(CLR_FRAME));
+	wattrset (win, color);
 	wmove (win, r.y, r.x);
 	waddch (win, lines.ulcorn);
 	whline (win, lines.horiz, r.w - 2);
@@ -95,7 +95,7 @@ static void draw_frame(WINDOW *win, const Rect &r, const str &title, int title_s
 		waddch(win, lines.rtee);
 		wattrset (win, get_color(CLR_WIN_TITLE));
 		xwprintfield(win, title, tw);
-		wattrset (win, get_color(CLR_FRAME));
+		wattrset (win, color);
 		waddch (win, lines.ltee);
 	}
 }
@@ -140,8 +140,10 @@ Interface::Interface(Client &client, plist &pl1, plist &pl2)
 , curr_time(0), channels(0)
 , state(STATE_STOP), mixer_value(-1)
 , message_display_start(0)
+, drag0(-1)
 {
 	menus[0] = &left; menus[1] = &right;
+	ratio[0] = std::make_pair(1,1); ratio[1] = std::make_pair(1,1);
 
 	if (!getenv ("ESCDELAY"))
 	#ifdef HAVE_SET_ESCDELAY
@@ -165,7 +167,10 @@ Interface::Interface(Client &client, plist &pl1, plist &pl2)
 	wbkgd (win, get_color(CLR_BACKGROUND));
 	nodelay (win, TRUE);
 	keypad (win, TRUE);
-	mousemask(BUTTON1_CLICKED | BUTTON1_DOUBLE_CLICKED, NULL);
+
+	#define MOUSEMASK (REPORT_MOUSE_POSITION | BUTTON1_CLICKED | BUTTON1_DOUBLE_CLICKED | BUTTON1_PRESSED | BUTTON1_RELEASED)
+	mousemask(MOUSEMASK, NULL);
+	// leave defined, it's used below
 }
 
 Interface::~Interface()
@@ -201,6 +206,14 @@ void Interface::handle_click(int x, int y, bool dbl)
 		if (active_menu == 0) { active_menu = 1; redraw(2); }
 		right.handle_click(x, y, dbl);
 	}
+	else if (layout != SINGLE && (left.bounds+right.bounds).contains(x,y))
+	{
+		if (dbl)
+		{
+			ratio[layout==HSPLIT ? 0 : 1] = std::make_pair(1,1);
+			redraw(2);
+		}
+	}
 	else if (layout == SINGLE && menus[active_menu]->bounds.contains(x,y))
 	{
 		menus[active_menu]->handle_click(x, y, dbl);
@@ -208,7 +221,7 @@ void Interface::handle_click(int x, int y, bool dbl)
 	}
 	// TODO: middle mouse button to cd..
 	// TODO: drag&drop to sort the playlist
-	// TODO: drag divider line to adjust HSPLIT/VSPLIT
+	// TODO: shift-click, ctrl-click
 	else
 	{
 		const int W = COLS, H = LINES;
@@ -234,6 +247,55 @@ void Interface::handle_click(int x, int y, bool dbl)
 
 		// TODO: scroll wheel
 	}
+}
+
+bool Interface::handle_drag(int x, int y, int seq)
+{
+	if (layout == SINGLE) return false;
+
+	if (seq < 0)
+	{
+		if (!(left.bounds+right.bounds).contains(x,y)) return false;
+		if (layout == HSPLIT)
+		{
+			if (x != left.bounds.x1() && x != right.bounds.x-1) return false;
+			drag0 = x;
+			ratio[0].first  = right.bounds.w;
+			ratio[0].second = left.bounds.w;
+		}
+		else
+		{
+			if (y != left.bounds.y-1) return false;
+			drag0 = y;
+			ratio[1].first  = right.bounds.h;
+			ratio[1].second = left.bounds.h;
+		}
+		redraw(2);
+		return true;
+	}
+
+	if (drag0 < 0) return false;
+	
+	int p = (layout == HSPLIT ? x : y);
+	auto &r = ratio[layout == HSPLIT ? 0 : 1];
+	int s = (layout == HSPLIT ? +1 : -1);
+
+	if (p != drag0)
+	{
+		redraw(2);
+		r.first  -= s*(p-drag0);
+		r.second += s*(p-drag0);
+		if (r.first  < 0) { r.second -= r.first;  r.first  = 0; }
+		if (r.second < 0) { r.first  -= r.second; r.second = 0; }
+		drag0 = p;
+	}
+	if (seq > 0)
+	{
+		if (drag0 >= 0) redraw(2);
+		drag0 = -1;
+	}
+
+	return true;
 }
 
 void Interface::draw(bool force)
@@ -270,6 +332,8 @@ void Interface::draw(bool force)
 	auto &am = *menus[active_menu];
 	if (am.sel == -1 && am.mark == -1 && !am.items.empty())
 		am.sel = 0;
+
+	const int frame_color = drag0 > 0 ? get_color(CLR_TIME_BAR_FILL) : get_color(CLR_FRAME);
 
 	const int W = COLS, H = LINES;
 	if (W < 8 || H < 6)
@@ -312,19 +376,29 @@ void Interface::draw(bool force)
 	{
 		werase (win);
 		wbkgd (win, get_color(CLR_BACKGROUND));
-		int m; Rect r1, r2; // for left+right = dir+plist
+		Rect r1, r2; // for left+right = dir+plist
 		switch (layout)
 		{
 			case HSPLIT:
-				m = W/2;
-				r1.set(0, 0, m, H-3);
-				r2.set(m, 0, W-m, H-3);
+			{
+				auto &r = ratio[0]; int a = MAX(0, r.first), b = MAX(0, r.second);
+				if (a+b == 0) a = b = 1;
+				int w1 = CLAMP(0, std::round((W-4)*(double)b/(a+b)), W-4);
+				int w2 = (W-4)-w1;
+				r1.set(0, 0, w1+2, H-3);
+				r2.set(W-(w2+2), 0, w2+2, H-3);
 				break;
+			}
 			case VSPLIT:
-				m = (H-3)/2;
-				r2.set(0, 0, W, m+1);
-				r1.set(0, m, W, H-3-m);
+			{
+				auto &r = ratio[1]; int a = MAX(0, r.first), b = MAX(0, r.second);
+				if (a+b == 0) a = b = 1;
+				int h1 = CLAMP(0, std::round((H-6)*(double)b/(a+b)), H-6);
+				int h2 = (H-6)-h1;
+				r2.set(0, 0, W, h2+2);
+				r1.set(0, h2+1, W, h1+2);
 				break;
+			}
 			case SINGLE:
 				r1.set(0, 0, W, H-3);
 				r2 = r1;
@@ -359,12 +433,12 @@ void Interface::draw(bool force)
 			#ifdef  HAVE_RCC
 			if (options::UseRCCForFilesystem) s = rcc_reencode(s);
 			#endif
-			draw_frame(win, r1, s, layout == VSPLIT ? 14 : 0, false);
+			draw_frame(win, frame_color, r1, s, layout == VSPLIT ? 14 : 0, false);
 		}
-		if (layout != SINGLE || active_menu==1) draw_frame(win, r2, client.synced ? "Playlist" : "Playlist (local)", 0, false);
+		if (layout != SINGLE || active_menu==1) draw_frame(win, frame_color, r2, client.synced ? "Playlist" : "Playlist (local)", 0, false);
 
 		// bottom frame
-		wattrset (win, get_color(CLR_FRAME));
+		wattrset (win, frame_color);
 		mvwaddch (win, H-4, 0, lines.ltee);
 		whline (win, lines.horiz, W-2);
 		mvwaddch (win, H-4, W-1, lines.rtee);
@@ -397,7 +471,7 @@ void Interface::draw(bool force)
 			int y = left.bounds.y1();
 			wmove(win, y, x0+1);
 			xwaddstr (win, s);
-			wattrset (win, get_color(CLR_FRAME));
+			wattrset (win, frame_color);
 			mvwaddch (win, y, x0, '[');
 			mvwaddch (win, y, x1, ']');
 		}
@@ -409,7 +483,7 @@ void Interface::draw(bool force)
 			int y = right.bounds.y1();
 			wmove(win, y, x0+1);
 			xwaddstr (win, s);
-			wattrset (win, get_color(CLR_FRAME));
+			wattrset (win, frame_color);
 			mvwaddch (win, y, x0, '[');
 			mvwaddch (win, y, x1, ']');
 		}
@@ -425,14 +499,19 @@ void Interface::draw(bool force)
 
 		if (layout == HSPLIT)
 		{
-			w = left.bounds.w - 17;
-			if (w < sw) w = left.bounds.w - 4;
+			if (left.bounds.w >= 30) w = left.bounds.w - 15;
+			if (w < sw) w = left.bounds.w - 2;
+			if (w < sw && right.bounds.w >= 30) w = W - 17;
 		}
-		if (w < sw) w = W - 17;
+		else
+		{
+			if (w < sw && W >= 32) w = W - 17;
+		}
+	
 		if (w < sw) w = W - 4;
 		if (w < sw) sw = w;
 
-		wattrset (win, get_color(CLR_FRAME));
+		wattrset (win, frame_color);
 		wmove (win, H-4, 1);
 		whline (win, lines.horiz, w+2); // overwrite playlist times if needed
 		int x0 = 1+(w-sw)/2;
@@ -492,7 +571,7 @@ void Interface::draw(bool force)
 	if (total_time <= 0 || c1.empty())
 	{
 		wmove (win, H-1, 1);
-		wattrset (win, get_color(CLR_FRAME));
+		wattrset (win, frame_color);
 		whline (win, lines.horiz, W-2);
 	}
 	else
@@ -700,13 +779,46 @@ void Interface::handle_input()
 	else if (f == KEY_MOUSE)
 	{
 		MEVENT ev;
-		if (getmouse(&ev) == OK)
+		while (getmouse(&ev) == OK)
 		{
-			handle_click(ev.x, ev.y, ev.bstate & BUTTON1_DOUBLE_CLICKED);
+			// if dragging does not work, the following might help:
+			// $ export TERM=xterm-1002
+
+			//#define MOUSE_DEBUG(T) status(format("MOUSE %s (%d,%d) %d", T, ev.x, ev.y, (int)ev.bstate))
+			#define MOUSE_DEBUG(...) 
+
+			if ((ev.bstate & BUTTON1_RELEASED))
+			{
+				MOUSE_DEBUG("UP");
+				//mousemask(MOUSEMASK, NULL);
+				handle_drag(ev.x, ev.y, 1);
+			}
+			else if ((ev.bstate & REPORT_MOUSE_POSITION))
+			{
+				MOUSE_DEBUG(drag0 >= 0 ? "DRAG" : "MOVE");
+				handle_drag(ev.x, ev.y, 0);
+			}
+			else if ((ev.bstate & BUTTON1_PRESSED))
+			{
+				MOUSE_DEBUG("DOWN");
+				if (handle_drag(ev.x, ev.y, -1))
+					;//mousemask(BUTTON1_RELEASED /*| REPORT_MOUSE_POSITION*/, NULL);
+					 // ^-- did not work at all
+			}
+			else if ((ev.bstate & (BUTTON1_CLICKED|BUTTON1_DOUBLE_CLICKED)))
+			{
+				MOUSE_DEBUG("CLICK");
+				handle_click(ev.x, ev.y, ev.bstate & BUTTON1_DOUBLE_CLICKED);
+			}
+			else
+			{
+				MOUSE_DEBUG("GARBAGE");
+			}
 		}
 	}
 	else
 	{
+		//status(format("KEY %d %d", (int)c, (int)f));
 		auto cmd = get_key_cmd (CON_MENU, c, f);
 		switch (cmd)
 		{

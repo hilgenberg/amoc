@@ -16,3 +16,13 @@ struct Rect
 		return ex >= x && ey >= y && ex < x+w && ey < y+h;
 	}
 };
+
+inline Rect operator+ (const Rect &a, const Rect &b)
+{
+	Rect r; // no support for negative w or h or empty Rects!
+	r.x = std::min(a.x, b.x);
+	r.y = std::min(a.y, b.y);
+	r.w = std::max(a.x1(), b.x1()) - r.x;
+	r.h = std::max(a.y1(), b.y1()) - r.y;
+	return r;
+}

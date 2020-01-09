@@ -16,6 +16,7 @@ class plist;
 
 extern void interface_error (const char *msg);
 extern void interface_fatal (const char *format, ...);
+typedef std::pair<int,int> Ratio;
 
 class Interface
 {
@@ -27,7 +28,8 @@ public:
 	void resize(); // Handle terminal size change.
 	void handle_input(); // read the next key stroke
 	void handle_click(int x, int y, bool dbl);
-	
+	bool handle_drag(int x, int y, int seq);
+
 	bool in_dir_plist() const { return active_menu == 0; }
 	void go_to_dir_plist() { if (in_dir_plist()) return; active_menu = 0; redraw(2); }
 
@@ -53,7 +55,7 @@ public:
 	void status(const str &s)
 	{
 		if (s == status_msg) return;
-		redraw(s.empty() ? 2 : 1); // redraw the frame when needed
+		redraw(2); // may need to redraw the frame and total time
 		status_msg = s;
 	}
 
@@ -123,7 +125,9 @@ private:
 
 	enum Layout { HSPLIT=0, VSPLIT=1, SINGLE=2 };
 	Layout layout;
+	Ratio ratio[2]; // playlist:dirlist ratios for HSPLIT and VSPLIT
 	void cycle_layouts();
+	int drag0;
 
 	int need_redraw; // 1: info only, 2: everything
 
