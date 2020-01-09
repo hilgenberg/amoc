@@ -782,35 +782,6 @@ void Interface::move_sel(int dy)
 	redraw(2);
 }
 
-bool Interface::sel_item(const plist_item *what, int k)
-{
-	auto *panel = menus[k==0 || k==1 ? k : active_menu];
-	if (!what) { panel->sel = -1; return true; }
-
-	auto &plist = panel->items;
-	int i = 0; const int n = plist.size();
-
-	// match the item if possible
-	for (i = 0; i < n; ++i)
-	{
-		if (what == plist.items[i].get())
-		{
-			panel->sel = i;
-			return true;
-		}
-	}
-	// otherwise try the path (take last matching item)
-	for (i = n-1; i >= 0; --i)
-	{
-		if (what->path == plist.items[i]->path)
-		{
-			panel->sel = i;
-			return true;
-		}
-	}
-	return false;
-}
-
 void Interface::prompt(const str &prompt, const str &s0, int cur0, std::function<void(void)> cb)
 {
 	prompting = true;

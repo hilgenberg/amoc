@@ -36,6 +36,7 @@ struct menu
 	bool mark_path(const str &f); // or unmark if not found
 	void mark_item(int i); // this and mark_path take the selection along if sel==mark
 	bool select_path(const str &f); // leave selection as is if not found
+	void select_item(int i);
 	bool item_visible (int i) const { return i >= top && i < top + bounds.h; };
 
 	Interface *iface;

@@ -30,12 +30,13 @@ public:
 	
 	bool in_dir_plist() const { return active_menu == 0; }
 	void go_to_dir_plist() { if (in_dir_plist()) return; active_menu = 0; redraw(2); }
-	plist &sel_plist() { return menus[active_menu]->items; }
-	plist_item *sel_item() { auto &m = *menus[active_menu]; return m.sel < 0 ? NULL : m.items.items[m.sel].get(); }
-	bool sel_item(const plist_item *what, int where); // where: -1=active menu, 0=left, 1=right
-	int sel_index(int where=-1) { auto &m = *menus[where<0 ? active_menu : where]; return m.sel; }
-	void set_sel_index(int sel, int where=-1) { auto &m = *menus[where<0 ? active_menu : where]; m.sel = sel; redraw(2); }
+
+	void select_song(int i) { right.select_item(i); }
+	bool select_path(const str &p) { go_to_dir_plist(); return left.select_path(p); }
 	void move_sel(int dy);
+
+	int  selected_song() { assert(!in_dir_plist()); return right.sel; }
+	plist_item *sel_item() { auto &m = *menus[active_menu]; return (m.sel < 0 || m.sel >= m.items.size()) ? NULL : m.items.items[m.sel].get(); }
 
 	void status(const str &s)
 	{
@@ -62,7 +63,6 @@ public:
 			messages.push(msg);
 		}
 	}
-	bool select_path(const str &p) { return left.select_path(p); }
 
 	// update and get info set by client:
 	bool update_curr_file(const str &f, int idx)

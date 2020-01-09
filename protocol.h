@@ -120,12 +120,10 @@ public:
 		static_assert(std::is_integral<T>::value, "Integral required.");
 		SOCKET_DEBUG(">>> sending %d = 0x%X %s", (int)x, (int)x, buffering ? " (B)" : "");
 		return send(&x, sizeof(T)); }
-	bool send(const str &s)
-	{
+	bool send(const str &s) {
 		SOCKET_DEBUG(">>> sending \"%s\" %s", s.c_str(), buffering ? " (B)" : "");
 		return send((size_t)s.length()) && send(s.data(), s.length()); }
-	bool send(const char *s)
-	{
+	bool send(const char *s) {
 		SOCKET_DEBUG(">>> sending \"%s\" %s", s ? s : "NULL", buffering ? " (B)" : "");
 		size_t n = s ? strlen(s) : 0; return send(n) && send(s, n); }
 	bool send(const plist_item *i) { return send(i ? i->path : str()); }

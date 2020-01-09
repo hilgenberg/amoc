@@ -96,10 +96,17 @@ bool menu::select_path(const str &f)
 	int i = items.find(f);
 	if (i >= 0)
 	{
-		sel = i;
+		select_item(i);
 		return true;
 	}
 	return false;
+}
+void menu::select_item(int i)
+{
+	if (i >= items.size()) i = items.size()-1;
+	if (i == sel) return;
+	iface->redraw(2);
+	sel = i;
 }
 
 void menu::move(menu_request req)

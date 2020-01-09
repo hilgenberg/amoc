@@ -417,7 +417,7 @@ void Client::delete_item ()
 	}
 
 	assert (playlist.size() > 0);
-	int i = iface->sel_index();
+	int i = iface->selected_song();
 	if (i < 0) return;
 
 	if (synced)
@@ -440,7 +440,7 @@ void Client::go_to_playing_file ()
 		int idx = iface->get_curr_index();
 		if (idx >= 0)
 		{
-			iface->set_sel_index(idx, 1);
+			iface->select_song(idx);
 			return;
 		}
 	}
@@ -497,7 +497,7 @@ void Client::move_item (int direction)
 	}
 
 	assert (direction == -1 || direction == 1);
-	int i = iface->sel_index(), j = i+direction;
+	int i = iface->selected_song(), j = i+direction;
 	if (i < 0 || j < 0 || j >= playlist.size()) return;
 
 	if (synced)
@@ -619,7 +619,7 @@ Client::Client(int sock, stringlist &args)
 	if (synced)
 	{
 		int idx = iface->get_curr_index();
-		if (idx >= 0) iface->set_sel_index(idx, 1);
+		if (idx >= 0) iface->select_song(idx);
 	}
 
 	ask_for_tags(playlist);
@@ -749,7 +749,7 @@ void Client::handle_command(key_cmd cmd)
 				else
 				{
 					srv.send(CMD_PLAY);
-					srv.send(iface->sel_index());
+					srv.send(iface->selected_song());
 					if (!synced)
 					{
 						srv.send(playlist);
