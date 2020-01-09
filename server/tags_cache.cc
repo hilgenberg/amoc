@@ -107,12 +107,12 @@ static bool cache_record_deserialize (cache_record &rec, const char *buf, size_t
 		assert(var.length() == len-1); \
 	} while (0)
 
-	extract_num (rec.mod_time); logit("   ds1");
-	extract_str (tags.artist); logit("   ds2 %s", tags.artist.c_str());
-	extract_str (tags.album); logit("   ds3");
-	extract_str (tags.title); logit("   ds4");
-	extract_num (tags.track); logit("   ds5");
-	extract_num (tags.time); logit("   ds6");
+	extract_num (rec.mod_time);
+	extract_str (tags.artist);
+	extract_str (tags.album);
+	extract_str (tags.title);
+	extract_num (tags.track);
+	extract_num (tags.time);
 
 	if (!bytes_left) goto err;
 	tags.rating = *p++;

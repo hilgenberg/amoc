@@ -41,6 +41,8 @@ namespace options
 	extern str  ALSAMixer2;
 	extern bool ALSAStutterDefeat;
 
+	extern str  TiMidity_Config;
+
 	extern bool Softmixer_SaveState;
 	extern bool Equalizer_SaveState;
 	extern bool ShowMixer;

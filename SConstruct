@@ -47,7 +47,7 @@ fdbg = '-Og -DDEBUG -D_DEBUG -g'
 env.Append(CCFLAGS=Split(frel if release else fdbg))
 
 # libs
-libs = 'z m id3tag pthread faad avcodec avutil avformat speex modplug ogg vorbis vorbisfile popt ltdl sidplay2 sidutils resid-builder sndfile FLAC sidplay wavpack mad ncurses curl asound jack db rcc tag tag_c sndio magic mpcdec resample samplerate'
+libs = 'z m id3tag pthread faad avcodec avutil avformat speex modplug ogg vorbis vorbisfile popt ltdl sidplay2 sidutils resid-builder sndfile FLAC sidplay wavpack mad ncurses curl asound jack db rcc tag tag_c sndio magic mpcdec resample samplerate timidity'
 env.Append(LIBS=libs.split());
 env.ParseConfig('pkg-config --cflags --libs pangocairo')
 

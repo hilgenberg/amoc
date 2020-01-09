@@ -17,20 +17,17 @@
 #include <string.h>
 #include <strings.h>
 #include <assert.h>
-//#include <timidity.h>
+#include <timidity.h>
 
-#include "../io.h"
+#include "io.h"
 #include "decoder.h"
 
 
 // former options:
-	int  TiMidity_Rate = 44100, CHECK_RANGE(1), 8000, 48000;
-		// not sure about the limits... I like 44100
-	int  TiMidity_Bits = 16, CHECK_DISCRETE(2), 8, 16;
-	int  TiMidity_Channels = 2, CHECK_DISCRETE(2), 1, 2;
-	int  TiMidity_Volume = 100, CHECK_RANGE(1), 0, 800;
-	str  TiMidity_Config = NULL;
-
+static int   TiMidity_Rate = 44100;
+static int   TiMidity_Bits = 16;
+static int   TiMidity_Channels = 2;
+static int   TiMidity_Volume = 100;
 
 
 MidSongOptions midioptions;
@@ -82,7 +79,7 @@ static void *timidity_open (const char *file)
   if(data->midisong) {
     debug ("Opened file %s", file);
 
-    mid_song_set_volume(data->midisong, options_get_int("TiMidity_Volume"));
+    mid_song_set_volume(data->midisong, TiMidity_Volume);
     mid_song_start(data->midisong);
   }
 
@@ -143,7 +140,7 @@ static int timidity_decode (void *void_data, char *buf, int buf_len,
   sound_params->rate = midioptions.rate;
   sound_params->fmt = (midioptions.format==MID_AUDIO_S16LSB)?(SFMT_S16 | SFMT_LE):SFMT_S8;
 
-  return mid_song_read_wave(data->midisong, buf, buf_len);
+  return mid_song_read_wave(data->midisong, (sint8*)buf, buf_len);
 }
 
 static int timidity_get_bitrate (void *unused ATTR_UNUSED)
@@ -164,7 +161,7 @@ static void timidity_get_name (const char *unused ATTR_UNUSED, char buf[4])
 
 static int timidity_our_format_ext(const char *ext)
 {
-  return !strcasecmp (ext, "MID");
+  return !strcasecmp (ext, "mid");
 }
 
 static int timidity_our_format_mime (const char *mime)
@@ -187,7 +184,6 @@ static void timidity_destroy()
 
 static struct decoder timidity_decoder =
 {
-  DECODER_API_VERSION,
   NULL,
   timidity_destroy,
   timidity_open,
@@ -208,32 +204,33 @@ static struct decoder timidity_decoder =
   NULL
 };
 
-struct decoder *plugin_init ()
+struct decoder *timidity_plugin ()
 {
-  char *config;
   int initresult;
 
-  config = options_get_str("TiMidity_Config");
-  if (config == NULL || strcasecmp(config, "yes") == 0)
+  str config = options::TiMidity_Config;
+  if (config.empty() || config == "yes")
     initresult = mid_init(NULL);
-  else if (strcasecmp(config, "no") == 0)
+  else if (config == "no")
     initresult = mid_init_no_config();
   else
-    initresult = mid_init(config);
+    initresult = mid_init(config.c_str());
+
+logit("Timidity: %s: %d", config.c_str(), initresult);
 
   // Is there a better way to signal failed init?
   // The decoder-init-function may not return errors AFAIK...
   if(initresult < 0)
   {
-    if (config == NULL || strcasecmp(config, "yes") == 0)
+    if (config.empty() || config == "yes")
       config = "<default>";
     fatal("TiMidity-Plugin: Error processing TiMidity-Configuration!\n"
-          "                              Configuration file is: %s", config);
+          "                              Configuration file is: %s", config.c_str());
   }
 
-  midioptions.rate = options_get_int("TiMidity_Rate");
-  midioptions.format = (options_get_int("TiMidity_Bits")==16)?MID_AUDIO_S16LSB:MID_AUDIO_S8;
-  midioptions.channels = options_get_int("TiMidity_Channels");
+  midioptions.rate = TiMidity_Rate;
+  midioptions.format = (TiMidity_Bits==16)?MID_AUDIO_S16LSB:MID_AUDIO_S8;
+  midioptions.channels = TiMidity_Channels;
   midioptions.buffer_size = midioptions.rate;
 
   return &timidity_decoder;

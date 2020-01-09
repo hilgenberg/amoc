@@ -670,8 +670,6 @@ char *audio_conv (struct audio_conversion *conv, const char *buf,
 			free (curr_sound);
 		curr_sound = new_sound;
 		*conv_len /= 2;
-
-		logit ("Fast conversion!");
 	}
 
 	/* convert to float if necessary */

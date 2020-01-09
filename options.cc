@@ -184,6 +184,7 @@ void init(const char *config_file)
 		OPT(UseRCCForFilesystem);
 		OPT(EnforceTagsEncoding);
 		OPT(FileNamesIconv);
+		OPT(TiMidity_Config);
 
 		OPT(RatingFile);
 
@@ -267,6 +268,7 @@ bool UseRCC = true;
 bool UseRCCForFilesystem = false;
 bool EnforceTagsEncoding = false;
 bool FileNamesIconv = false;
+str  TiMidity_Config = "no";
 
 str  RatingFile = "ratings";
 
