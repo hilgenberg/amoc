@@ -450,13 +450,30 @@ static void decode_loop (const struct decoder *f, void *decoder_data,
 			break;
 		}
 		else if (request == REQ_SEEK) {
-			int decoder_seek;
-
 			logit ("seeking");
 			req_seek = MAX(0, req_seek);
-			if ((decoder_seek = f->seek(decoder_data, req_seek)) == -1)
-				logit ("error when seeking");
-			else {
+			int decoder_seek = f->seek(decoder_data, req_seek);
+			if (decoder_seek == -1 && f->get_duration)
+			{
+				logit ("error when seeking - checking for end of song");
+				int m = f->get_duration(decoder_data);
+				if (m > 0 && m <= req_seek)
+				{
+					logit ("seeking to EOF");
+					req_seek = m;
+					out_buf_stop (out_buf);
+					out_buf_reset (out_buf);
+					out_buf_time_set (out_buf, m);
+					bitrate_list_empty (&bitrate_list);
+					decode_time = m;
+					eof = true;
+					decoded = 0;
+				}
+				else logit ("true error when seeking");
+			}
+			else logit ("error when seeking");
+
+			if (decoder_seek != -1) {
 				out_buf_stop (out_buf);
 				out_buf_reset (out_buf);
 				out_buf_time_set (out_buf, decoder_seek);
