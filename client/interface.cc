@@ -21,6 +21,9 @@
 #include "../server/output/softmixer.h"
 #include "../server/ratings.h"
 
+// width of the toggles for shuffle, repeat, ...
+static constexpr int w_toggles = 6+3+7+6+4+5*2+4*1;
+
 /* Chars used to make lines (for borders etc.). */
 static struct
 {
@@ -216,7 +219,19 @@ void Interface::handle_click(int x, int y, bool dbl)
 			if (total_time <= 0 || options::TimeBarLine.empty()) return;
 			client.jump_to((x-1)*total_time/(W-3));
 		}
-		// TODO: change Repeat, etc
+
+		if (y == H-2 && W >= w_toggles+2 && x >= W-w_toggles-1 && x <= W-2)
+		{
+			x -= W-w_toggles-1;
+			#define CHK(len, cmd) if (x >= 0 && x < (len)+2) client.handle_command(cmd); x -= (len)+3
+			CHK(6,KEY_CMD_TOGGLE_MAKE_MONO); // STEREO
+			x -= 3+3; // NET
+			CHK(7,KEY_CMD_TOGGLE_SHUFFLE); // SHUFFLE
+			CHK(6,KEY_CMD_TOGGLE_REPEAT); // REPEAT
+			CHK(4,KEY_CMD_TOGGLE_AUTO_NEXT); // NEXT
+			#undef CHK
+		}
+
 		// TODO: scroll wheel
 	}
 }
@@ -429,7 +444,7 @@ void Interface::draw(bool force)
 		xwprintfield(win, status_msg, sw);
 	}
 
-	// play/pause state
+	// current song: play/pause state
 	wattrset (win, get_color(CLR_BACKGROUND));
 	wmove (win, H-3, 1); whline (win, ' ', W-2);
 	wattrset (win, get_color(CLR_STATE));
@@ -534,16 +549,32 @@ void Interface::draw(bool force)
 		whline (win, ' ', W-2);
 
 		curs_set(0);
-		int x = 1;
+		int w = W-2, x = 1;
+
+		// toggles
+		if (w >= w_toggles)
+		{
+			wmove(win, H-2, x+w-w_toggles);
+			#define SW(x, v) wattrset(win, get_color((v) ? CLR_INFO_ENABLED : CLR_INFO_DISABLED));\
+				xwaddstr(win, "[" #x "]")
+			SW(STEREO, channels==2); waddch(win, ' ');
+			SW(NET, is_url(curr_file.c_str())); waddch(win, ' ');
+			SW(SHUFFLE, options::Shuffle); waddch(win, ' ');
+			SW(REPEAT, options::Repeat); waddch(win, ' ');
+			SW(NEXT, options::AutoNext);
+			#undef SW
+			w -= w_toggles + 1;
+		}
 
 		// time for current song
 		wattrset (win, get_color(CLR_TIME_CURRENT));
-		if (x+5 <= W-1)
+		if (w >= 5)
 		{
 			xmvwaddstr(win, H-2, x, time_str(curr_time));
 			x += 5+1; // time + one space
+			w -= 5+1;
 		}
-		if (x+13 <= W-1)
+		if (w >= 13)
 		{
 			xmvwaddstr(win, H-2, x, time_str(total_time - curr_time));
 			xmvwaddstr(win, H-2, x+7, time_str(total_time));
@@ -551,11 +582,12 @@ void Interface::draw(bool force)
 			mvwaddch (win, H-2, x+6, '[');
 			mvwaddch (win, H-2, x+12, ']');
 			x += 13+1; // printed stuff + one space
+			w -= 13+1;
 		}
-		x += 1; // two spaces to whatever comes next
+		++x; --w; // two spaces to whatever comes next
 
 		// rate, bitrate, volume
-		if (x+15 <= W-1)
+		if (w >= 15)
 		{
 			wmove (win, H-2, x);
 			wattrset (win, get_color(CLR_LEGEND));
@@ -567,32 +599,18 @@ void Interface::draw(bool force)
 			wmove (win, H-2, x+7);
 			if (bitrate >= 0) waddstr(win, format("%4d", std::min(bitrate, 9999)).c_str()); else waddstr(win, "    ");
 			x += 15+2;
-		}
-		
-		// toggles
-		if (x+6+3+7+6+4+2*5+4 <= W-1)
-		{
-			wmove (win, H-2, x);
-			#define SW(x, v) wattrset(win, get_color((v) ? CLR_INFO_ENABLED : CLR_INFO_DISABLED));\
-				xwaddstr(win, "[" #x "]")
-			SW(STEREO, channels==2); waddch(win, ' ');
-			SW(NET, is_url(curr_file.c_str())); waddch(win, ' ');
-			SW(SHUFFLE, options::Shuffle); waddch(win, ' ');
-			SW(REPEAT, options::Repeat); waddch(win, ' ');
-			SW(NEXT, options::AutoNext);
-			#undef SW
-			x += 6+3+7+6+4+2*5+4 + 2;
+			w -= 15+2;
 		}
 
 		if (options::ShowMixer)
 		{
 			str ms = format("%s: %02d%%", mixer_name.c_str(), mixer_value);
-			if (x + ms.length() <= W-1)
+			if (w >= ms.length())
 			{
 				wattrset (win, get_color(CLR_SOUND_PARAMS));
 				wmove(win, H-2, x);
 				xwaddstr(win, ms);
-				//x += ms.length() + 2;
+				//x += ms.length()+2; w -= ms.length()+2
 			}
 		}
 	}
