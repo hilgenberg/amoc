@@ -177,9 +177,11 @@ static int client_index (const client &cli)
 
 static void del_client (client &cli)
 {
-	delete cli.socket; cli.socket = NULL;
+	int i = client_index(cli);
 	LOCK (cli.events_mtx);
-	tc->clear_queue (client_index(cli));
+	close (cli.socket->fd());
+	delete cli.socket; cli.socket = NULL;
+	tc->clear_queue(i);
 	UNLOCK (cli.events_mtx);
 }
 
@@ -434,10 +436,7 @@ static void send_events (fd_set *fds)
 	for (int i = 0; i < CLIENTS_MAX; i++)
 		if (clients[i].socket && FD_ISSET(clients[i].socket->fd(), fds)) {
 			debug ("Flushing events for client %d", i);
-			if (!flush_events (clients[i])) {
-				close (clients[i].socket->fd());
-				del_client (clients[i]);
-			}
+			if (!flush_events (clients[i])) del_client (clients[i]);
 		}
 }
 
@@ -632,7 +631,6 @@ static void handle_command (const int client_id)
 
 	if (!cli.socket->get(cmd)) {
 		logit ("Failed to get command from the client");
-		close (cli.socket->fd());
 		del_client (cli);
 		return;
 	}
@@ -640,7 +638,6 @@ static void handle_command (const int client_id)
 	switch (cmd) {
 		case CMD_QUIT:
 			logit ("Exit request from the client");
-			close (cli.socket->fd());
 			del_client (cli);
 			server_quit = 1;
 			break;
@@ -714,7 +711,6 @@ static void handle_command (const int client_id)
 		}
 		case CMD_DISCONNECT:
 			logit ("Client disconnected");
-			close (cli.socket->fd());
 			del_client (cli);
 			break;
 		case CMD_PAUSE: audio_pause(); break;
@@ -856,7 +852,6 @@ static void handle_command (const int client_id)
 
 	if (err) {
 		logit ("Closing client connection due to error");
-		close (cli.socket->fd());
 		del_client (cli);
 	}
 }
@@ -904,7 +899,6 @@ static void close_clients ()
 	for (i = 0; i < CLIENTS_MAX; i++)
 		if (clients[i].socket) {
 			clients[i].socket->send(EV_EXIT);
-			close (clients[i].socket->fd());
 			del_client (clients[i]);
 		}
 }

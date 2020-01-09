@@ -203,8 +203,6 @@ void Client::handle_server_event (int type)
 			str file = srv.get_str();
 			file_tags *tags = srv.get_tags();
 			logit ("Received tags for %s", file.c_str());
-			iface->redraw(2);
-			int n;
 			playlist.set_tags(file, tags);
 			dir_plist.set_tags(file, tags);
 			if (iface->get_curr_file() == file) {
@@ -212,6 +210,7 @@ void Client::handle_server_event (int type)
 				iface->update_curr_tags(tags);
 			}
 			else delete tags;
+			iface->redraw(2);
 			break;
 		}
 		case EV_FILE_RATING:
@@ -219,16 +218,9 @@ void Client::handle_server_event (int type)
 			str file = srv.get_str();
 			int rating = srv.get_int();
 			debug ("Received rating for %s", file.c_str());
+			playlist.set_rating(file, rating);
+			dir_plist.set_rating(file, rating);
 			iface->redraw(2);
-			int n;
-			if ((n = dir_plist.find(file)) != -1) {
-				plist_item &i = *dir_plist.items[n];
-				if (i.tags) i.tags->rating = rating;
-			}
-			if ((n = playlist.find(file)) != -1) {
-				plist_item &i = *playlist.items[n];
-				if (i.tags) i.tags->rating = rating;
-			}
 			break;
 		}
 		default:

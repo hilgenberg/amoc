@@ -99,6 +99,14 @@ public:
 			if (i->tags) *i->tags = *tags; else i->tags.reset(new file_tags(*tags));
 		}
 	}
+	void set_rating(const str &file, int rating)
+	{
+		for (auto &i : items)
+		{
+			if (i->path != file) continue;
+			if (i->tags) i->tags->rating = rating;
+		}
+	}
 	int find(const str &file) const // TODO: remove this!
 	{
 		for (int i = 0, n = (int)items.size(); i < n; ++i)

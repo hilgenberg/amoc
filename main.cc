@@ -241,35 +241,34 @@ static void server_command (struct parameters *params, stringlist &args)
 	if (!ping_server (srv))
 		fatal ("Can't connect to the server!");
 
-
 	if (params->playit)
 		interface_cmdline_playit (srv, args);
-	if (params->play)
+	else if (params->play)
 		interface_cmdline_play_first (srv);
-	if (params->rate)
+	else if (params->rate)
 		interface_cmdline_set_rating (srv, params->new_rating);
-	if (params->exit) {
+	else if (params->exit) {
 		if (!srv.send(CMD_QUIT))
 			fatal ("Can't send command!");
 	}
 	else if (params->stop) {
-		if (!srv.send(CMD_STOP) || !srv.send(CMD_DISCONNECT))
+		if (!srv.send(CMD_STOP))
 			fatal ("Can't send commands!");
 	}
 	else if (params->pause) {
-		if (!srv.send(CMD_PAUSE) || !srv.send(CMD_DISCONNECT))
+		if (!srv.send(CMD_PAUSE))
 			fatal ("Can't send commands!");
 	}
 	else if (params->next) {
-		if (!srv.send(CMD_NEXT) || !srv.send(CMD_DISCONNECT))
+		if (!srv.send(CMD_NEXT))
 			fatal ("Can't send commands!");
 	}
 	else if (params->previous) {
-		if (!srv.send(CMD_PREV) || !srv.send(CMD_DISCONNECT))
+		if (!srv.send(CMD_PREV))
 			fatal ("Can't send commands!");
 	}
 	else if (params->unpause) {
-		if (!srv.send(CMD_UNPAUSE) || !srv.send(CMD_DISCONNECT))
+		if (!srv.send(CMD_UNPAUSE))
 			fatal ("Can't send commands!");
 	}
 	else if (params->toggle_pause) {
@@ -287,10 +286,9 @@ static void server_command (struct parameters *params, stringlist &args)
 
 		if (cmd != -1 && !srv.send(cmd))
 			fatal ("Can't send commands!");
-		if (!srv.send(CMD_DISCONNECT))
-			fatal ("Can't send commands!");
 	}
 
+	if (!srv.send(CMD_DISCONNECT)) error ("Can't send disconnect command!");
 	close (srv_sock);
 }
 
