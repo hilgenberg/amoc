@@ -58,6 +58,7 @@ str iconv_str(const iconv_t desc, const str &input)
 				if (m) { *t++ = '#'; --m; } else ret.push_back('#');
 			}
 			else if (errno != E2BIG) {
+				assert(false);
 				break;
 			}
 		}

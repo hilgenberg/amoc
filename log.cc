@@ -133,7 +133,7 @@ void internal_logit (const char *file LOGIT_ONLY,
 	char *msg;
 	va_list va;
 
-	LOCK(logging_mtx);
+	LOCK_(logging_mtx);
 
 	if (!logfp) {
 		switch (logging_state) {
@@ -163,7 +163,7 @@ void internal_logit (const char *file LOGIT_ONLY,
 	log_signals_raised ();
 
 end:
-	UNLOCK(logging_mtx);
+	UNLOCK_(logging_mtx);
 
 	errno = saved_errno;
 #endif
@@ -175,7 +175,7 @@ void log_init_stream (FILE *f LOGIT_ONLY, const char *fn LOGIT_ONLY)
 #ifndef NDEBUG
 	char *msg;
 
-	LOCK(logging_mtx);
+	LOCK_(logging_mtx);
 
 	logfp = f;
 
@@ -204,14 +204,14 @@ void log_init_stream (FILE *f LOGIT_ONLY, const char *fn LOGIT_ONLY)
 	flush_log ();
 
 end:
-	UNLOCK(logging_mtx);
+	UNLOCK_(logging_mtx);
 #endif
 }
 
 void log_close ()
 {
 #ifndef NDEBUG
-	LOCK(logging_mtx);
+	LOCK_(logging_mtx);
 
 	if (!(logfp == stdout || logfp == stderr || logfp == NULL)) {
 		fclose (logfp);
@@ -221,6 +221,6 @@ void log_close ()
 	buffered_log.clear();
 	log_records_spilt = 0;
 
-	UNLOCK(logging_mtx);
+	UNLOCK_(logging_mtx);
 #endif
 }

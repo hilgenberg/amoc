@@ -19,8 +19,15 @@ struct timespec;
 #endif
 
 #define CONFIG_DIR      ".moc"
+#define LOCK_(mutex)     pthread_mutex_lock (&mutex)
+#define UNLOCK_(mutex)   pthread_mutex_unlock (&mutex)
+#if 0
+#define LOCK(mutex)     do{ logit("}}} Locking " #mutex); pthread_mutex_lock (&mutex);}while(0)
+#define UNLOCK(mutex)   do{ logit("{{{ Unlocking " #mutex); pthread_mutex_unlock (&mutex);}while(0)
+#else
 #define LOCK(mutex)     pthread_mutex_lock (&mutex)
 #define UNLOCK(mutex)   pthread_mutex_unlock (&mutex)
+#endif
 #define ARRAY_SIZE(x)   (sizeof(x)/sizeof(x[0]))
 #define ssizeof(x)      ((ssize_t) sizeof(x))
 

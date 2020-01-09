@@ -119,24 +119,29 @@ static char *get_tag (struct id3_tag *tag, const char *what)
 	struct id3_frame *frame = id3_tag_findframe (tag, what, 0); if (!frame) return NULL;
 	union id3_field *field = &frame->fields[1]; if (!field) return NULL;
 	const id3_ucs4_t *ucs4 = id3_field_getstrings (field, 0); if (!ucs4) return NULL;
-	
-	/* Workaround for ID3 tags v1/v1.1 where the encoding is latin1. */
 	union id3_field *encoding_field = &frame->fields[0];
-	if ((!(id3_tag_options(tag, 0, 0) & ID3_TAG_OPTION_ID3V1) || !__unique_frame(tag, frame))
-		&& (options::EnforceTagsEncoding ||
-		!id3_field_gettextencoding(encoding_field) == ID3_FIELD_TEXTENCODING_ISO_8859_1))
-	return (char *)id3_ucs4_utf8duplicate (ucs4);
+	if (
+	!((id3_tag_options(tag, 0, 0) & ID3_TAG_OPTION_ID3V1) && __unique_frame(tag, frame))
+	&&
+	!(
+		options::EnforceTagsEncoding
+		&&
+		id3_field_gettextencoding((encoding_field)) == ID3_FIELD_TEXTENCODING_ISO_8859_1
+	) 
+	)
+		return (char *)id3_ucs4_utf8duplicate (ucs4);
 
+	/* Workaround for ID3 tags v1/v1.1 where the encoding is latin1. */
 	char *comm = (char *)id3_ucs4_latin1duplicate (ucs4);
 
 	#ifdef HAVE_RCC
 	if (options::UseRCC) return rcc_reencode (comm);
 	#endif
 
-	if (iconv_id3_fix == (iconv_t)-1) return comm;
-	
-	str conv = iconv_str (iconv_id3_fix, str(comm));
-	free(comm);
+	if (!comm || iconv_id3_fix == (iconv_t)-1) return comm;
+
+	str conv = iconv_str(iconv_id3_fix, comm);
+	free (comm);
 
 	return xstrdup(conv.c_str());
 }
@@ -398,6 +403,8 @@ static int count_time (const char *file)
 	return time;
 }
 
+inline void CP2STR(str &s, const char *cp) { if (!cp) s.clear(); else s = cp; }
+
 /* Fill info structure with data from the id3 tag */
 static void mp3_info (const char *file_name, struct file_tags *info,
 		const int tags_sel)
@@ -412,9 +419,9 @@ static void mp3_info (const char *file_name, struct file_tags *info,
 			return;
 		tag = id3_file_tag (id3file);
 		if (tag) {
-			info->artist = get_tag (tag, ID3_FRAME_ARTIST);
-			info->title = get_tag (tag, ID3_FRAME_TITLE);
-			info->album = get_tag (tag, ID3_FRAME_ALBUM);
+			CP2STR(info->artist, get_tag (tag, ID3_FRAME_ARTIST));
+			CP2STR(info->title, get_tag (tag, ID3_FRAME_TITLE));
+			CP2STR(info->album, get_tag (tag, ID3_FRAME_ALBUM));
 			track = get_tag (tag, ID3_FRAME_TRACK);
 
 			if (track) {
