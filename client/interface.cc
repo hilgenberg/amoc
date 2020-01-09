@@ -220,7 +220,7 @@ void Interface::handle_click(int x, int y, bool dbl)
 			client.jump_to((x-1)*total_time/(W-3));
 		}
 
-		if (y == H-2 && W >= w_toggles+2 && x >= W-w_toggles-1 && x <= W-2)
+		if (!prompting && y == H-2 && W >= w_toggles+2 && x >= W-w_toggles-1 && x <= W-2)
 		{
 			x -= W-w_toggles-1;
 			#define CHK(len, cmd) if (x >= 0 && x < (len)+2) client.handle_command(cmd); x -= (len)+3
