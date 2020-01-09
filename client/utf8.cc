@@ -29,6 +29,17 @@ static bool    using_utf8 = false; // terminal is UTF-8 and term_iconv_desc is n
 static iconv_t term_iconv_desc = (iconv_t)(-1); // from UTF-8 to terminal
 static iconv_t files_iconv_desc = (iconv_t)(-1); // from auto-detect to UTF-8
 
+str sanitized(const str &s_)
+{
+	str s(s_);
+	for (char &c : s) if (c != ' ' && isspace(c)) c = ' ';
+	return s;
+}
+void sanitize(str &s)
+{
+	for (char &c : s) if (c != ' ' && isspace(c)) c = ' ';
+}
+
 str iconv_str(const iconv_t desc, const str &input)
 {
 	if (input.empty() || desc == (iconv_t)-1) return input;

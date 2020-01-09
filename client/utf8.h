@@ -20,3 +20,7 @@ str xstrtail (const str &s, int len);
 
 str iconv_str (const iconv_t desc, const str &input);
 str files_iconv_str (const str &s);
+
+// replace tabs and such by spaces
+void sanitize(str &s);
+str sanitized(const str &s);

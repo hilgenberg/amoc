@@ -17,19 +17,6 @@
 #include "interface.h"
 #include "client.h"
 
-static str sanitize(const str &s_)
-{
-	str s(s_);
-	for (int i = 0, n = (int)s.length(); i < n; ++i)
-	{
-		if (s[i] != ' ' && isspace (s[i]))
-		{
-			s[i] = ' ';
-		}
-	}
-	return s;
-}
-
 /* Convert time in second to min:sec text format. buff must be 6 chars long. */
 static str sec_to_min(int sec)
 {
@@ -174,6 +161,8 @@ void menu::draw(bool active) const
 	const int asel = active ? sel : -1;
 
 	bool have_up = items.is_dir && N && iface->cwd() != "/";
+	str mhome = options::MusicDir; if (!mhome.empty() && mhome.back() != '/') mhome += '/'; if (mhome.length() < 2) mhome.clear();
+	str uhome = get_home(); if (!uhome.empty() && uhome.back() != '/') uhome += '/'; if (uhome.length() < 2) uhome.clear();
 
 	// gather layout data: widths for three columns (artist, album, title)
 	// and maximum track number
@@ -198,9 +187,9 @@ void menu::draw(bool active) const
 		else
 		{
 			M  = std::max(M,  tags.track);
-			c0 = std::max(c0, (int)strwidth(sanitize(tags.artist)));
-			c1 = std::max(c1, (int)strwidth(sanitize(tags.album)));
-			c2 = std::max(c2, (int)strwidth(sanitize(tags.title)));
+			c0 = std::max(c0, (int)strwidth(sanitized(tags.artist)));
+			c1 = std::max(c1, (int)strwidth(sanitized(tags.album)));
+			c2 = std::max(c2, (int)strwidth(sanitized(tags.title)));
 		}
 	}
 
@@ -225,6 +214,7 @@ void menu::draw(bool active) const
 		}
 		prefix_len = (int)common_prefix.length();
 		while (prefix_len > 0 && common_prefix[prefix_len-1] != '/') --prefix_len;
+		if (prefix_len == 1) prefix_len = 0;
 	}
 	int cn = 0;
 	if (!items.is_dir)
@@ -324,9 +314,9 @@ void menu::draw(bool active) const
 		if (!is_up_dir && readtags && it.tags && !it.tags->title.empty())
 		{
 			auto &tags = *it.tags;
-			xwprintfield(win, sanitize(tags.artist), c0);
+			xwprintfield(win, sanitized(tags.artist), c0);
 			waddstr(win, "   ");
-			xwprintfield(win, sanitize(tags.album), c1);
+			xwprintfield(win, sanitized(tags.album), c1);
 			waddstr(win, "   ");
 			if (items.is_dir)
 			{
@@ -335,37 +325,49 @@ void menu::draw(bool active) const
 				else
 					waddstr(win, spaces(cn).c_str());
 			}
-			xwprintfield(win, sanitize(tags.title), c2);
-		}
-		else if (it.type == F_URL)
-		{
-			xwprintfield(win, sanitize(it.path), x1-x0+1, 'c');
+			xwprintfield(win, sanitized(tags.title), c2);
 		}
 		else if (is_up_dir && it.type == F_DIR)
 		{
 			xwprintfield(win, "../", x1-x0+1, 'l');
 		}
+		else if (it.type == F_URL)
+		{
+			xwprintfield(win, sanitized(it.path), x1-x0+1, 'c');
+		}
 		else
 		{
 			str s = it.path;
-			if (prefix_len > 0 && it.type != F_DIR) s = s.substr(prefix_len);
-			if (it.type == F_DIR && s.back() != '/') s += '/';
 			if (items.is_dir || !options::PlaylistFullPaths)
 			{
 				auto i = s.rfind('/', s.length()-2);
 				if (i != str::npos) s = s.substr(i+1);
 			}
-			s = sanitize(s);
-			if (options::HideFileExtension)
+			else if (prefix_len > 0)
+			{
+				s = s.substr(prefix_len);
+			}
+			else if (!mhome.empty() && has_prefix(s, mhome, false))
+			{
+				s = s.substr(mhome.length());
+			}
+			else if (!uhome.empty() && has_prefix(s, uhome, false))
+			{
+				assert(uhome.length() >= 3);
+				s = s.substr(uhome.length()-2);
+				s[0] = '~'; s[1] = '/';
+			}
+
+			if (it.type == F_DIR && s.back() != '/') s += '/';
+			if (it.type == F_SOUND && options::HideFileExtension)
 			{
 				const char *file = s.c_str(), *ext = ext_pos(file);
 				if (ext) s = s.substr(0, ext-1-file);
 			}
-			if (options::FileNamesIconv)
-				s = files_iconv_str (s);
+			sanitize(s);
+			if (options::FileNamesIconv) s = files_iconv_str (s);
 			#ifdef  HAVE_RCC
-			if (options::UseRCCForFilesystem)
-				s = rcc_reencode(s);
+			if (options::UseRCCForFilesystem) s = rcc_reencode(s);
 			#endif
 			xwprintfield(win, s, x1-x0+1, 'l');
 		}

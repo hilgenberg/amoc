@@ -290,6 +290,9 @@ void Interface::draw(bool force)
 		channels = 0;
 	}
 	
+	str mhome = options::MusicDir; if (!mhome.empty() && mhome.back() != '/') mhome += '/'; if (mhome.length() < 2) mhome.clear();
+	str uhome = get_home(); if (!uhome.empty() && uhome.back() != '/') uhome += '/'; if (uhome.length() < 2) uhome.clear();
+
 	if (need_redraw > 1) // tags or sizes changed?
 	{
 		werase (win);
@@ -320,8 +323,29 @@ void Interface::draw(bool force)
 
 		if (layout != SINGLE) menus[1-active_menu]->draw(false);
 		menus[active_menu]->draw(true);
-		str &curr_dir = client.cwd;
-		if (layout != SINGLE || active_menu==0) draw_frame(win, r1, options::FileNamesIconv ? files_iconv_str(curr_dir) : curr_dir, layout == VSPLIT ? 14 : 0, false);
+
+		if (layout != SINGLE || active_menu==0)
+		{
+			str s = client.cwd; normalize_path(s);
+
+			if (!mhome.empty() && has_prefix(s, mhome, false))
+			{
+				s = s.substr(mhome.length());
+			}
+			else if (!uhome.empty() && has_prefix(s, uhome, false))
+			{
+				assert(uhome.length() >= 3);
+				s = s.substr(uhome.length()-2);
+				s[0] = '~'; s[1] = '/';
+			}
+			else if (s+"/" == uhome) s = "~";
+			sanitize(s);
+			if (options::FileNamesIconv) s = files_iconv_str (s);
+			#ifdef  HAVE_RCC
+			if (options::UseRCCForFilesystem) s = rcc_reencode(s);
+			#endif
+			draw_frame(win, r1, s, layout == VSPLIT ? 14 : 0, false);
+		}
 		if (layout != SINGLE || active_menu==1) draw_frame(win, r2, client.synced ? "Playlist" : "Playlist (local)", 0, false);
 
 		// bottom frame
@@ -406,6 +430,8 @@ void Interface::draw(bool force)
 	}
 
 	// play/pause state
+	wattrset (win, get_color(CLR_BACKGROUND));
+	wmove (win, H-3, 1); whline (win, ' ', W-2);
 	wattrset (win, get_color(CLR_STATE));
 	wmove(win, H-3, 1);
 	switch (state) {
@@ -425,12 +451,25 @@ void Interface::draw(bool force)
 	else
 	{
 		wattrset (win, get_color (CLR_TITLE));
-		if (curr_tags)
+
+		str s = curr_file;
+		if (!mhome.empty() && has_prefix(s, mhome, false))
 		{
-			xwprintfield(win, curr_file, W-5);
+			s = s.substr(mhome.length());
 		}
-		else
-			xwprintfield(win, curr_file, W-5);
+		else if (!uhome.empty() && has_prefix(s, uhome, false))
+		{
+			assert(uhome.length() >= 3);
+			s = s.substr(uhome.length()-2);
+			s[0] = '~'; s[1] = '/';
+		}
+		sanitize(s);
+		if (options::FileNamesIconv) s = files_iconv_str (s);
+		#ifdef  HAVE_RCC
+		if (options::UseRCCForFilesystem) s = rcc_reencode(s);
+		#endif
+
+		xwprintfield(win, s, W-6, 'l');
 	}
 
 	// time bar
