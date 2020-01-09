@@ -882,10 +882,10 @@ void audio_set_mixer (const int val)
 		hw.set_mixer (val);
 }
 
-void audio_plist_delete (int i)
+void audio_plist_delete (int i, int n)
 {
 	LOCK (plist_mtx);
-	playlist.remove(i);
+	playlist.remove(i, n);
 	UNLOCK (plist_mtx);
 }
 
@@ -947,10 +947,8 @@ void audio_state_started_playing ()
 /* Swap 2 files on the playlist. */
 void audio_plist_move (int i1, int i2)
 {
-	assert(i1 == i2+1 || i1 == i2-1); // TODO: everything else for multi-selection!
 	LOCK (plist_mtx);
-	if (i1 >= 0 && i2 >= 0 && i1 != i2)
-		playlist.move(i1, i2);
+	playlist.move(i1, i2);
 	UNLOCK (plist_mtx);
 }
 

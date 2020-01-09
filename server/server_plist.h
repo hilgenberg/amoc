@@ -10,7 +10,7 @@ public:
 	void clear();
 	void add(const str &path);
 	void add(const plist &pl);
-	void remove(int i);
+	void remove(int i, int n);
 	void move(int i, int j);
 
 	const plist &list() const { return playlist; }

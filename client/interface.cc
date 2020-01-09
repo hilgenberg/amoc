@@ -716,6 +716,8 @@ void Interface::handle_input()
 		case KEY_CMD_MENU_PPAGE: panel.move(REQ_PGUP);   redraw(2); break;
 		case KEY_CMD_MENU_FIRST: panel.move(REQ_TOP);    redraw(2); break;
 		case KEY_CMD_MENU_LAST:  panel.move(REQ_BOTTOM); redraw(2); break;
+		case KEY_CMD_MENU_EXTEND_DOWN: panel.move(REQ_XDOWN); redraw(2); break;
+		case KEY_CMD_MENU_EXTEND_UP:   panel.move(REQ_XUP);   redraw(2); break;
 		case KEY_CMD_TOGGLE_MENU: active_menu = 1-active_menu; redraw(2); break;
 		case KEY_CMD_REFRESH: redraw(2); break;
 		case KEY_CMD_TOGGLE_LAYOUT: cycle_layouts(); break;
@@ -774,14 +776,6 @@ void Interface::handle_input()
 	}
 }
 
-void Interface::move_sel(int dy)
-{
-	auto &panel = *menus[active_menu];
-	for (int i = 0; i < abs(dy); ++i)
-		panel.move(dy > 0 ? REQ_DOWN : REQ_UP);
-	redraw(2);
-}
-
 void Interface::prompt(const str &prompt, const str &s0, int cur0, std::function<void(void)> cb)
 {
 	prompting = true;
@@ -791,141 +785,3 @@ void Interface::prompt(const str &prompt, const str &s0, int cur0, std::function
 	callback = cb;
 	redraw(1);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#if 0
-/* Add a char to the entry where the cursor is placed. */
-static void entry_add_char (struct entry *e, const wchar_t c)
-{
-	size_t len;
-
-	assert (e != NULL);
-
-	len = wcslen (e->text_ucs);
-	if (len >= ARRAY_SIZE(e->text_ucs) - sizeof(wchar_t))
-		return;
-
-	memmove (e->text_ucs + e->cur_pos + 1,
-			e->text_ucs + e->cur_pos,
-			(len - e->cur_pos + 1) * sizeof(e->text_ucs[0]));
-	e->text_ucs[e->cur_pos] = c;
-	e->cur_pos++;
-
-	if (e->cur_pos - e->display_from > e->width)
-		e->display_from++;
-}
-
-/* Delete 'count' chars before the cursor. */
-static void entry_del_chars (struct entry *e, int count)
-{
-	assert (e != NULL);
-	assert (e->cur_pos > 0);
-
-	int width = wcslen (e->text_ucs);
-	if (e->cur_pos < count)
-		count = e->cur_pos;
-
-	memmove (e->text_ucs + e->cur_pos - count,
-	         e->text_ucs + e->cur_pos,
-	         (width - e->cur_pos) * sizeof (e->text_ucs[0]));
-	width -= count;
-	e->text_ucs[width] = L'\0';
-	e->cur_pos -= count;
-
-	if (e->cur_pos < e->display_from)
-		e->display_from = e->cur_pos;
-
-	/* Can we show more after deleting the chars? */
-	if (e->display_from > 0 && width - e->display_from < e->width)
-		e->display_from = width - e->width;
-	if (e->display_from < 0)
-		e->display_from = 0;
-}
-
-/* Delete the char before the cursor. */
-static void entry_back_space (struct entry *e)
-{
-	assert (e != NULL);
-
-	if (e->cur_pos > 0)
-		entry_del_chars (e, 1);
-}
-
-/* Delete the char under the cursor. */
-static void entry_del_char (struct entry *e)
-{
-	int len;
-
-	assert (e != NULL);
-
-	len = wcslen (e->text_ucs);
-	if (e->cur_pos < len) {
-		e->cur_pos += 1;
-		entry_del_chars (e, 1);
-	}
-}
-/* Delete the chars from cursor to start of line. */
-static void entry_del_to_start (struct entry *e)
-{
-	assert (e != NULL);
-
-	if (e->cur_pos > 0)
-		entry_del_chars (e, e->cur_pos);
-}
-
-/* Delete the chars from cursor to end of line. */
-static void entry_del_to_end (struct entry *e)
-{
-	int len;
-
-	assert (e != NULL);
-
-	len = wcslen (e->text_ucs);
-	if (e->cur_pos < len) {
-		int count;
-
-		count = len - e->cur_pos;
-		e->cur_pos = len;
-		entry_del_chars (e, count);
-	}
-}
-
-static char *entry_get_text (const struct entry *e)
-{
-	char *text;
-	int len;
-
-	assert (e != NULL);
-
-	len = wcstombs (NULL, e->text_ucs, -1) + 1;
-	assert (len >= 1);
-	text = (char *) xmalloc (sizeof (char) * len);
-	wcstombs (text, e->text_ucs, len);
-
-	return text;
-}
-#endif

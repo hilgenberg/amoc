@@ -63,8 +63,7 @@ private:
 	void go_dir_up ();
 	void set_mixer (int val);
 	void adjust_mixer (int diff);
-	void add_dir_plist ();
-	void add_file_plist ();
+	void add_to_plist (bool recursive);
 	void set_rating (int r);
 	void switch_read_tags ();
 	void delete_item ();

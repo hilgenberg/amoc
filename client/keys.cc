@@ -70,6 +70,22 @@ static struct command commands[] = {
 		1
 	},
 	{
+		KEY_CMD_MENU_EXTEND_DOWN,
+		"menu_extend_down",
+		"Extend selection downwards",
+		CON_MENU,
+		{ 336, -1 }, // seems to be Shift+Down
+		1
+	},
+	{
+		KEY_CMD_MENU_EXTEND_UP,
+		"menu_extend_up",
+		"Extend selection upwards",
+		CON_MENU,
+		{ 337, -1 }, // seems to be Shift+Up
+		1
+	},
+	{
 		KEY_CMD_MENU_NPAGE,
 		"menu_page_down",
 		"Move one page down",

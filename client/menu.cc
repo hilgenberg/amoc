@@ -80,14 +80,14 @@ static void distribute(int W, int &c0, int &c1, int &c2)
 
 bool menu::mark_path(const str &f)
 {
-	bool s = (sel >= 0 && sel == mark);
+	bool s = (sel >= 0 && sel == mark && !xsel);
 	mark = items.find(f);
 	if (s && mark >= 0) sel = mark;
 	return mark >= 0;
 }
 void menu::mark_item(int i)
 {
-	bool s = (sel >= 0 && sel == mark);
+	bool s = (sel >= 0 && sel == mark && !xsel);
 	mark = i;
 	if (s && mark >= 0) sel = mark;
 }
@@ -104,32 +104,44 @@ bool menu::select_path(const str &f)
 void menu::select_item(int i)
 {
 	if (i >= items.size()) i = items.size()-1;
-	if (i == sel) return;
+	if (i == sel && xsel == 0) return;
+	sel = i; xsel = 0;
 	iface->redraw(2);
-	sel = i;
 }
 
 void menu::move(menu_request req)
 {
 	const int N = items.size();
 	if (!N) return;
+	if (sel < 0) xsel = 0;
 	if (sel < 0 && mark >= 0 && mark < N) sel = mark;
 	switch (req)
 	{
-		case REQ_UP:     sel = (sel < 0 ? N-1 : sel - 1); break;
-		case REQ_DOWN:   sel = (sel < 0 ? 0 : sel + 1); break;
+		case REQ_UP:
+			sel = std::min(sel, sel+xsel); xsel = 0;
+			sel = (sel < 0 ? N-1 : sel - 1);
+			break;
+		case REQ_DOWN:
+			sel = std::max(sel, sel+xsel); xsel = 0;
+			sel = (sel < 0 ? 0 : sel + 1);
+			break;
 		case REQ_PGUP:
+			sel = std::min(sel, sel+xsel); xsel = 0;
 			top -= (bounds.h - 1); if (top < 0) top = 0;
 			sel -= (bounds.h - 1);
 			break;
 		case REQ_PGDOWN:
+			sel = std::max(sel, sel+xsel); xsel = 0;
 			top += (bounds.h - 1);
 			sel += (bounds.h - 1);
 			if (top + (bounds.h-1) >= N) top = N - bounds.h;
 			if (top < 0) top = 0;
 			break;
-		case REQ_TOP:    sel = 0; break;
-		case REQ_BOTTOM: sel = N-1; break;
+		case REQ_TOP:    sel = 0; xsel = 0; break;
+		case REQ_BOTTOM: sel = N-1; xsel = 0; break;
+
+		case REQ_XUP:  if (sel > 0) { --sel; ++xsel; } break;
+		case REQ_XDOWN: if (sel >= 0 && sel+1 < N) { ++sel; --xsel; } break;
 	}
 	if (sel >= N) sel = N-1;
 	if (sel <  0) sel = 0;
@@ -141,7 +153,7 @@ void menu::handle_click(int x, int y, bool dbl)
 	bool hit = (i >= 0 && i < N);
 	if (i >= N) i = N-1;
 	if (i <  0) i = 0;
-	if (i != sel) { sel = i; iface->redraw(2); }
+	if (i != sel || xsel) { sel = i; xsel = 0; iface->redraw(2); }
 	if (dbl && hit) iface->client.handle_command(KEY_CMD_GO);
 }
 
@@ -153,6 +165,7 @@ void menu::draw(bool active) const
 	const int N = items.size();
 	const int lookahead = std::min(5, bounds.h/4);
 	
+	if (sel < 0) xsel = 0;
 	if (sel < -1) sel = -1; if (mark < -1) mark = -1;
 	if (sel >= N) sel = std::max(0, N-1);
 	if (mark >= N) mark = -1;
@@ -164,8 +177,6 @@ void menu::draw(bool active) const
 
 	if (top + bounds.h > N) top = N-bounds.h;
 	if (top < 0) top = 0;
-
-	const int asel = active ? sel : -1;
 
 	bool have_up = items.is_dir && N && iface->cwd() != "/";
 	str mhome = options::MusicDir; if (!mhome.empty() && mhome.back() != '/') mhome += '/'; if (mhome.length() < 2) mhome.clear();
@@ -266,17 +277,22 @@ void menu::draw(bool active) const
 		const auto &it = *items.items[i];
 		int y = bounds.y + i-top, x0 = bounds.x, x1 = bounds.x + bounds.w-1;
 
+		bool selected = active && sel >= 0 && (
+			(xsel >= 0 && i >= sel && i <= sel+xsel) ||
+			(xsel <  0 && i >= sel+xsel && i <= sel));
+
+
 		int info_color = get_color(
-			i == asel && i == mark ? CLR_MENU_ITEM_INFO_MARKED_SELECTED :
-			i == asel ? CLR_MENU_ITEM_INFO_SELECTED :
+			selected && i == mark ? CLR_MENU_ITEM_INFO_MARKED_SELECTED :
+			selected ? CLR_MENU_ITEM_INFO_SELECTED :
 			i == mark ? CLR_MENU_ITEM_INFO_MARKED :
 			CLR_MENU_ITEM_INFO);
 		int file_color = get_color(
-			i == asel && i == mark ? CLR_MENU_ITEM_FILE_MARKED_SELECTED :
+			selected && i == mark ? CLR_MENU_ITEM_FILE_MARKED_SELECTED :
 			i == mark ? CLR_MENU_ITEM_FILE_MARKED :
-			it.type == F_DIR ? (i == asel ? CLR_MENU_ITEM_DIR_SELECTED : CLR_MENU_ITEM_DIR) :
-			it.type == F_PLAYLIST ? (i == asel ? CLR_MENU_ITEM_PLAYLIST_SELECTED : CLR_MENU_ITEM_PLAYLIST) :
-			i == asel ? CLR_MENU_ITEM_FILE_SELECTED : CLR_MENU_ITEM_FILE);
+			it.type == F_DIR ? (selected ? CLR_MENU_ITEM_DIR_SELECTED : CLR_MENU_ITEM_DIR) :
+			it.type == F_PLAYLIST ? (selected ? CLR_MENU_ITEM_PLAYLIST_SELECTED : CLR_MENU_ITEM_PLAYLIST) :
+			selected ? CLR_MENU_ITEM_FILE_SELECTED : CLR_MENU_ITEM_FILE);
 		
 		wattrset (win, info_color);
 

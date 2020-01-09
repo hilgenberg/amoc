@@ -28,8 +28,6 @@
 #                     ESCAPE
 #                     F1 - F12
 #
-# Note that the use of a digit as a KEY is deprecated.
-#
 # Maximum number of KEYs for one COMMAND is 5.
 #
 # Omitting the KEY for a COMMAND will unbind all its default keys.  They
@@ -114,6 +112,8 @@ quit                  = Q
 go                    = ENTER
 menu_down             = DOWN
 menu_up               = UP
+menu_extend_down      = SHIFT-DOWN
+menu_extend_up        = SHIFT-UP
 menu_page_down        = PAGE_DOWN
 menu_page_up          = PAGE_UP
 menu_first_item       = HOME

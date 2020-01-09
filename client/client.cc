@@ -178,8 +178,9 @@ void Client::handle_server_event (int type)
 		case EV_PLIST_DEL:
 		{
 			int i = srv.get_int();
+			int n = srv.get_int();
 			if (!synced || want_plist_update) break;
-			playlist.remove(i);
+			playlist.remove(i, n);
 			iface->redraw(2);
 			break;
 		}
@@ -318,27 +319,30 @@ void Client::adjust_mixer (int diff)
 }
 
 /* Recursively add the content of a directory to the playlist. */
-void Client::add_dir_plist ()
+void Client::add_to_plist (bool recursive)
 {
 	if (!iface->in_dir_plist()) return;
 
-	auto *item = iface->sel_item ();
-	if (!item) return;
-
-	auto type = item->type;
-	if (type != F_DIR && type != F_PLAYLIST) {
-		iface->message("ERROR: This is not a directory or a playlist.");
-		return;
-	}
-
-	iface->status("Reading directories...");
+	auto r = iface->selection();
+	if (r.first < 0) return;
 
 	plist pl;
-	if (type == F_DIR)
-		pl.add_directory(item->path.c_str());
-	else
-		pl.load_m3u(item->path.c_str());
-
+	for (int i = r.first; i <= r.second; ++i)
+	{
+		auto &item = *dir_plist.items[i];
+		switch (item.type)
+		{
+			case F_SOUND: pl += item; break;
+			case F_DIR: pl.add_directory(item.path, recursive); break;
+			case F_PLAYLIST:
+			{
+				plist tmp;
+				if (tmp.load_m3u(item.path)) pl += std::move(tmp);
+				break;
+			}
+		}
+	}
+	if (pl.empty()) return;
 	if (synced)
 	{
 		srv.send(CMD_PLIST_ADD);
@@ -350,39 +354,7 @@ void Client::add_dir_plist ()
 		iface->redraw(2);
 	}
 
-	iface->status("");
-	iface->move_sel(1);
-}
-
-/* Add the currently selected file to the playlist. */
-void Client::add_file_plist ()
-{
-	if (!iface->in_dir_plist()) return;
-
-	auto *item = iface->sel_item();
-	if (!item) return;
-	
-	if (item->type == F_DIR) {
-		add_dir_plist();
-		return;
-	}
-
-	if (item->type != F_SOUND) {
-		iface->message("You can only add a file using this command.");
-		return;
-	}
-
-	if (synced) {
-		srv.send(CMD_PLIST_ADD);
-		srv.send(item->path);
-		srv.send("");
-	}
-	else
-	{
-		playlist += *item;
-		iface->redraw(2);
-	}
-	iface->move_sel(1);
+	iface->left.move(REQ_DOWN);
 }
 
 void Client::set_rating (int r)
@@ -417,19 +389,22 @@ void Client::delete_item ()
 	}
 
 	assert (playlist.size() > 0);
-	int i = iface->selected_song();
-	if (i < 0) return;
+	auto r = iface->selection();
+	int i = r.first, n = r.second-r.first+1;
+	if (i < 0 || n <= 0) return;
 
 	if (synced)
 	{
 		srv.send(CMD_PLIST_DEL);
 		srv.send(i);
+		srv.send(n);
 	}
 	else
 	{
-		playlist.remove(i);
+		playlist.remove(i, n);
 		iface->redraw(2);
 	}
+	iface->select_song(i);
 }
 
 /* Select the file that is currently played. */
@@ -497,8 +472,14 @@ void Client::move_item (int direction)
 	}
 
 	assert (direction == -1 || direction == 1);
-	int i = iface->selected_song(), j = i+direction;
-	if (i < 0 || j < 0 || j >= playlist.size()) return;
+
+	auto r = iface->selection();
+	if (r.first < 0 || r.second >= playlist.size() ||
+		r.first+direction < 0 || r.second+direction >= playlist.size())
+	return;
+
+	int i = (direction > 0 ? r.second : r.first) + direction;
+	int j = (direction > 0 ? r.first : r.second);
 
 	if (synced)
 	{
@@ -511,7 +492,7 @@ void Client::move_item (int direction)
 		playlist.move(i, j);
 		iface->redraw(2);
 	}
-	iface->move_sel(direction);
+	iface->move_selection(direction);
 }
 
 Client::Client(int sock, stringlist &args)
@@ -805,7 +786,7 @@ void Client::handle_command(key_cmd cmd)
 			iface->redraw(2);
 			break;
 		case KEY_CMD_PLIST_ADD_FILE:
-			add_file_plist ();
+			add_to_plist (false);
 			break;
 		case KEY_CMD_PLIST_CLEAR:
 			if (synced)
@@ -828,7 +809,7 @@ void Client::handle_command(key_cmd cmd)
 			iface->redraw(2);
 			break;
 		case KEY_CMD_PLIST_ADD_DIR:
-			add_dir_plist ();
+			add_to_plist (true);
 			break;
 		case KEY_CMD_MIXER_DEC_1: adjust_mixer (-1); break;
 		case KEY_CMD_MIXER_DEC_5: adjust_mixer (-5); break;

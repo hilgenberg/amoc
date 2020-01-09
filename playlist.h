@@ -55,16 +55,17 @@ public:
 
 	bool empty() const { return items.empty(); }
 	void clear() { items.clear(); }
-	void remove(int i)
+	void remove(int i, int n = 1)
 	{
-		if (i < 0 || (size_t)i >= items.size()) return;
-		items.erase(items.begin() + i);
+		if (i < 0 || n <= 0 || (size_t)(i+n) > items.size()) return;
+		items.erase(items.begin() + i, items.begin() + i + n);
 	}
 	void move(int i, int j)
 	{
 		int n = (int)items.size();
 		if (i == j || i < 0 || j < 0 || i >= n || j >= n) return;
-		std::swap(items[i], items[j]);
+		while (i < j) { std::swap(items[i], items[i+1]); ++i; }
+		while (i > j) { std::swap(items[i], items[i-1]); --i; }
 	}
 
 	bool load_directory(const str &directory, bool include_updir=true);

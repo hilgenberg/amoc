@@ -8,6 +8,8 @@ enum menu_request
 {
 	REQ_UP,
 	REQ_DOWN,
+	REQ_XUP,
+	REQ_XDOWN,
 	REQ_PGUP,
 	REQ_PGDOWN,
 	REQ_TOP,
@@ -26,13 +28,6 @@ struct menu
 	void move(menu_request req); // move selection
 	void handle_click(int x, int y, bool dbl);
 
-	plist_item *current_item () const // selected (or marked if none) item
-	{
-		const auto N = items.size();
-		if (sel >= 0 && sel < N) return items.items[sel].get();
-		if (mark >= 0 && mark < N) return items.items[mark].get();
-		return NULL;
-	}
 	bool mark_path(const str &f); // or unmark if not found
 	void mark_item(int i); // this and mark_path take the selection along if sel==mark
 	bool select_path(const str &f); // leave selection as is if not found
@@ -44,4 +39,5 @@ struct menu
 	Rect    bounds;
 	mutable int top; // first visible item
 	mutable int sel, mark; // selected and marked items, -1 if none
+	mutable int xsel; // if != 0: multi-sel from sel to sel+xsel (both inclusive)
 };

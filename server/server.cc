@@ -687,12 +687,13 @@ static void handle_command (const int client_id)
 		}
 		case CMD_PLIST_DEL:
 		{
-			int idx;
-			if ((err = !cli.socket->get(idx))) break;
-			debug ("Request for deleting %d", idx);
-			audio_plist_delete (idx);
+			int i, n;
+			if ((err = !cli.socket->get(i))) break;
+			if ((err = !cli.socket->get(n))) break;
+			debug ("Request for deleting %d..%d", i, i+n-1);
+			audio_plist_delete (i, n);
 			debug ("Sending EV_PLIST_DEL");
-			add_event_all (EV_PLIST_DEL, idx);
+			add_event_all (EV_PLIST_DEL, i, n);
 			break;
 		}
 		case CMD_PLIST_GET:

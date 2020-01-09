@@ -231,14 +231,17 @@ void ServerPlaylist::add(const plist &pl)
 	playlist += pl;
 	for (auto &it : pl.items) if (valid_type(it->type)) ++nv[0];
 }
-void ServerPlaylist::remove(int i)
+void ServerPlaylist::remove(int i, int n)
 {
-	playlist.remove(i);
-	if (!dir && i1 >= i) --i1;
+	playlist.remove(i, n);
+	if (!dir)
+	{
+		if (i1 >= i) i1 -= std::min(n, i1-i);
+	}
 	// TODO: shuffle and make sure i1 != i
 }
 void ServerPlaylist::move(int i, int j)
 {
-	playlist.move(i,j); if (!dir && i == i1 && i != -1) i1 = j; 
+	playlist.move(i, j); if (!dir && i == i1 && i != -1) i1 = j; 
 	// TODO: shuffle...
 }

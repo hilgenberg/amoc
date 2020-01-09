@@ -33,10 +33,22 @@ public:
 
 	void select_song(int i) { right.select_item(i); }
 	bool select_path(const str &p) { go_to_dir_plist(); return left.select_path(p); }
-	void move_sel(int dy);
+	void move_selection(int dy) // moves the entire multi-selection!
+	{
+		auto &panel = *menus[active_menu];
+		panel.sel += dy;
+		redraw(2);
+	}
 
-	int  selected_song() { assert(!in_dir_plist()); return right.sel; }
+	int  selected_song() { assert(!in_dir_plist()); return right.xsel ? -1 : right.sel; }
 	plist_item *sel_item() { auto &m = *menus[active_menu]; return (m.sel < 0 || m.sel >= m.items.size()) ? NULL : m.items.items[m.sel].get(); }
+	std::pair<int,int>  selection()
+	{
+		// returns [min, max]
+		auto &m = *menus[active_menu];
+		return m.xsel < 0 ? std::make_pair(m.sel+m.xsel, m.sel)
+		                  : std::make_pair(m.sel, m.sel+m.xsel);
+	}
 
 	void status(const str &s)
 	{
