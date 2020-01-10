@@ -185,6 +185,7 @@ void init(const char *config_file)
 		OPT(EnforceTagsEncoding);
 		OPT(FileNamesIconv);
 		OPT(TiMidity_Config);
+		OPT(TERM);
 
 		OPT(RatingFile);
 
@@ -199,22 +200,10 @@ void init(const char *config_file)
 		OPT(ForceSampleRate);
 		OPT(Allow24bitOutput);
 		OPT(UseRealtimePriority);
-		OPT(PlaylistNumbering);
-
-		OPT(FollowPlayedFile);
-		OPT(CanStartInPlaylist);
 
 		OPT(PlaylistFullPaths);
 
 		OPT(MessageLingerTime);
-		OPT(PrefixQueuedMessages);
-		OPT(ErrorMessagesQueued);
-
-		OPT(OnSongChange);
-		OPT(RepeatSongChange);
-		OPT(OnStop);
-		OPT(QueueNextSongReturn);
-
 	}
 
 	build_rating_strings(RatingSpace.c_str(), RatingStar.c_str());
@@ -269,6 +258,7 @@ bool UseRCCForFilesystem = false;
 bool EnforceTagsEncoding = false;
 bool FileNamesIconv = false;
 str  TiMidity_Config = "no";
+str  TERM = "";
 
 str  RatingFile = "ratings";
 
@@ -283,20 +273,9 @@ ResampleMethod_t ResampleMethod = ResampleMethod_t::Linear;
 int  ForceSampleRate = 0;
 bool Allow24bitOutput = false;
 bool UseRealtimePriority = false;
-bool PlaylistNumbering = true;
-
-bool FollowPlayedFile = true;
-bool CanStartInPlaylist = true;
 
 bool PlaylistFullPaths = true;
 
 int  MessageLingerTime = 2;
-bool PrefixQueuedMessages = true;
-str  ErrorMessagesQueued = "!";
-
-str  OnSongChange = "";
-bool RepeatSongChange = false;
-str  OnStop = "";
-bool QueueNextSongReturn = false;
 
 } // end of namespace

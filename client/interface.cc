@@ -152,6 +152,9 @@ Interface::Interface(Client &client, plist &pl1, plist &pl2)
 		setenv ("ESCDELAY", "25", 0);
 	#endif
 
+	if (!options::TERM.empty())
+		setenv ("TERM", options::TERM.c_str(), 1);
+
 	utf8_init ();
 	if (!initscr ()) fatal ("Can't initialize terminal!");
 	cbreak();

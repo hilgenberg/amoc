@@ -5,29 +5,121 @@
 # anyone other than its owner.  All options are given with their default
 # values, and therefore commented.
 
-# Show file titles (title, author, album) instead of file names?
-#ReadTags = yes
-
 # In which directory do you store your music files?  If you specify it
-# you will be able to jump straight to this directory with the '-m'
-# parameter or the 'm' command.  This can also point to a playlist.
+# you will be able to jump straight to this directory with the 'm'
+# command.
 #
 # Example:    MusicDir = "/home/joe/music"
 #
 #MusicDir =
 
-# Start in the music directory by default?  If set to 'no', start
-# in the last visited or the current directory by default.  A single
-# directory on the command line takes precedence.
+# Always start in the music directory?  If set to 'no', start in the
+# last visited or the current directory.  A single directory on the
+# command line takes precedence.
 #StartInMusicDir = no
+
+# Show files with dot at the beginning?
+#ShowHiddenFiles = no
+
+# Hide file name extensions?
+#HideFileExtension = no
+
+# Sound driver - JACK, ALSA, OSS, SNDIO (or NULL for debugging).
+# When not set, it will try all (except NULL) in the above order
+#SoundDriver = 
+
+# Override the TERM environment variable? This can be useful to get
+# the mouse to work properly (if dragging does not work).
+#
+# Example:    TERM = xterm-1003
+#
+#TERM =
 
 # Set playback toggles.
 #Repeat = no
 #Shuffle = no
 #AutoNext = yes
 
+# Show file titles (title, author, album) instead of file names?
+#ReadTags = yes
+
+# Display the mixer/volume with the other information?
+#ShowMixer = yes
+
+# Save software mixer state?
+# If enabled, a file 'softmixer' will be created in '~/.moc/' storing the
+# mixersetting set when the server is shut down.
+# Note that there is a "hidden" 'Amplification' setting in that file.
+# Amplification (0-200) is used to scale the mixer setting (0-100).  This
+# results in a higher signal amplitude but may also produce clipping.
+#Softmixer_SaveState = yes
+
+# Save equalizer state?
+# If enabled, a file 'equalizer' will be created in '~/.moc/' storing the
+# equalizer settings when the server is shut down.
+# Note that there is a "hidden" 'Mixin' setting in that file.
+# Mixin (0.0-1.0) is used to determine how much of the original signal is
+# used after equalizing.  0 means to only use the equalized sound, while 1
+# effectively disabled the mixer.  The default is 0.25.
+#Equalizer_SaveState = yes
+
+# Draw a line as the time progress bar? TimeBarLine is for the filled part
+# of the bar, TimeBarSpace for the rest. If only TimeBarLine is set, it is
+# used for both. If only TimeBarSpace is set, it is ignored.
+#
+# Example:    
+#     TimeBarLine  = "╼"
+#     TimeBarSpace = "─"
+#
+#TimeBarLine = 
+#TimeBarSpace = 
+
+# How fast to seek (in number of seconds per keystroke).  The first
+# option is for normal seek and the second for silent seek.
+#SeekTime = 1
+#SilentSeekTime = 5
+
+# Use realtime priority for output buffer thread.  This will prevent gaps
+# while playing even with heavy load.  The user who runs MOC must have
+# permissions to set such a priority.  This could be dangerous, because it
+# is possible that a bug in MOC will freeze your computer.
+#UseRealtimePriority = no
+
+# Display full paths instead of just file names in the playlist.
+#PlaylistFullPaths = yes
+
+# How long (in seconds) to leave a message displayed on the screen.
+# Setting this to a high value allows you to scroll through the messages
+# using the 'hide_message' key.  Setting it to zero means you'll have to
+# be quick to see any message at all.  Any new messages will be queued up
+# and displayed after the current message's linger time expires.
+#MessageLingerTime = 2
+
+# RatingFile is searched in every directory containing music files.
+# Ratings files are plaintext files where every line starts with a
+# rating (0..5), followed by a single space and a filename the rating
+# applies to. Example:
+#
+# 5 song1.mp3
+# 3 song2.mp3
+# 4 song3.mp3
+# 1 song42.ogg
+#
+# For shared libraries "ratings_alice", "ratings_bob", etc can be used.
+#
+#RatingFile = "ratings"
+
+# RatingStar and RatingSpace are used to generate the rating strings.
+# They can be UTF-8, but must be single characters.
+#RatingStar  = "*"
+#RatingSpace = " "
+
+# MOC directory (where pid file, socket and state files are stored).
+# You can use ~ at the beginning.
+#MOCDir = ~/.moc
+
 # Input and output buffer sizes (in kilobytes).
-#InputBuffer = 512                  # Minimum value is 32KB
+#InputBuffer  = 512                 # Minimum value is 32KB
 #OutputBuffer = 512                 # Minimum value is 128KB
 
 # How much to fill the input buffer before playing (in kilobytes)?
@@ -43,14 +135,10 @@
 #
 #HTTPProxy =
 
-# Sound driver - JACK, ALSA, OSS, SNDIO (or NULL for debugging).
-# When not set, it will try all (except NULL) in the above order
-#SoundDriver = ALSA
-
 # Jack output settings.
 #JackClientName = "moc"
 #JackStartServer = no
-#JackOutLeft = "system:playback_1"
+#JackOutLeft  = "system:playback_1"
 #JackOutRight = "system:playback_2"
 
 # OSS output settings.
@@ -83,53 +171,11 @@
 #
 #ALSAStutterDefeat = no
 
-# Display the mixer/volume with the other information?
-#ShowMixer = no
-
-# Save software mixer state?
-# If enabled, a file 'softmixer' will be created in '~/.moc/' storing the
-# mixersetting set when the server is shut down.
-# Note that there is a "hidden" 'Amplification' setting in that file.
-# Amplification (0-200) is used to scale the mixer setting (0-100).  This
-# results in a higher signal amplitude but may also produce clipping.
-#Softmixer_SaveState = yes
-
-# Save equalizer state?
-# If enabled, a file 'equalizer' will be created in '~/.moc/' storing the
-# equalizer settings when the server is shut down.
-# Note that there is a "hidden" 'Mixin' setting in that file.
-# Mixin (0.0-1.0) is used to determine how much of the original signal is
-# used after equalizing.  0 means to only use the equalized sound, while 1
-# effectively disabled the mixer.  The default is 0.25.
-#Equalizer_SaveState = yes
-
-# Show files with dot at the beginning?
-#ShowHiddenFiles = no
-
-# Hide file name extensions?
-#HideFileExtension = no
-
-# Draw a line as the time progress bar? To do so, set either or both
-# characters. TimeBarLine is for the filled part of the bar, TimeBarSpace
-# for the rest. If only TimeBarLine is set, it is used for both. If only
-# TimeBarSpace is set, it is ignored.
-#
-# Example:    
-#     TimeBarLine  = "╼"
-#     TimeBarSpace = "─"
-#
-#TimeBarLine = ""
-#TimeBarSpace = ""
-
-# MOC directory (where pid file, socket and state files are stored).
-# You can use ~ at the beginning.
-#MOCDir = ~/.moc
-
 # Use mmap() to read files.  mmap() is much slower on NFS.
 #UseMMap = no
 
 # Use MIME to identify audio files.  This can make for slower loading
-# of playlists but is more accurate than using "extensions".
+# of playlists but is more accurate than using extensions.
 #UseMimeMagic = no
 
 # Assume this encoding for ID3 version 1/1.1 tags (MP3 files).  Unlike
@@ -151,11 +197,6 @@
 
 # Enable the conversion of filenames from the local encoding to UTF-8.
 #FileNamesIconv = no
-
-# How fast to seek (in number of seconds per keystroke).  The first
-# option is for normal seek and the second for silent seek.
-#SeekTime = 1
-#SilentSeekTime = 5
 
 # Which resampling method to use.  There are a few methods of resampling
 # sound supported by libresamplerate.  The default is 'Linear') which is
@@ -191,112 +232,3 @@
 # This is disabled by default because there were reports that it prevents
 # MP3 files from playing on some soundcards.
 #Allow24bitOutput = no
-
-# Use realtime priority for output buffer thread.  This will prevent gaps
-# while playing even with heavy load.  The user who runs MOC must have
-# permissions to set such a priority.  This could be dangerous, because it
-# is possible that a bug in MOC will freeze your computer.
-#UseRealtimePriority = no
-
-# Number items in the playlist.
-#PlaylistNumbering = yes
-
-# When the song changes, should the menu be scrolled so that the currently
-# played file is visible?
-#FollowPlayedFile = yes
-
-# What to do if the interface was started and the server is already playing
-# something from the playlist?  If CanStartInPlaylist is set to 'yes', the
-# interface will switch to the playlist.  When set to 'no' it will start
-# from the last directory.
-#CanStartInPlaylist = yes
-
-# Display full paths instead of just file names in the playlist.
-#PlaylistFullPaths = yes
-
-# The following setting describes how block markers are displayed in
-# the play time progress bar.  Its value is a string of exactly three
-# characters.  The first character is displayed in a position which
-# corresponds to the time marked as the start of a block and the last
-# character to the time marked as the end of the block.  The middle
-# character is displayed instead if both the start and the end of the block
-# would fall in the same position (within the resolution of the interface).
-# You can turn off the displaying of these block marker positions by using
-# three space characters.
-#BlockDecorators = "`\"'"
-
-# How long (in seconds) to leave a message displayed on the screen.
-# Setting this to a high value allows you to scroll through the messages
-# using the 'hide_message' key.  Setting it to zero means you'll have to
-# be quick to see any message at all.  Any new messages will be queued up
-# and displayed after the current message's linger time expires.
-#MessageLingerTime = 3
-
-# Does MOC display a prefix on delayed messages indicating
-# the number of queued messages still to be displayed?
-#PrefixQueuedMessages = yes
-
-# String to append to the queued message count if any
-# error messages are still waiting to be displayed.
-#ErrorMessagesQueued = "!"
-
-# Run the OnSongChange command when a new song starts playing.
-# Specify the full path (i.e. no leading '~') of an executable to run.
-# Arguments will be passed, and you can use the following escapes:
-#
-#     %a artist
-#     %r album
-#     %f filename
-#     %t title
-#     %n track
-#     %d file duration in XX:YY form
-#     %D file duration, number of seconds
-#
-# No pipes/redirects can be used directly, but writing a shell script
-# can do the job.
-#
-# Example:    OnSongChange = "/home/jack/.moc/myscript %a %r"
-#
-#OnSongChange =
-
-# If RepeatSongChange is 'yes' then MOC will execute the command every time
-# a song starts playing regardless of whether or not it is just repeating.
-# Otherwise the command will only be executed when a different song is
-# started.
-#RepeatSongChange = no
-
-# Run the OnStop command (full path, no arguments) when MOC changes state
-# to stopped (i.e., when user stopped playing or changes a song).
-#
-# Example:    OnStop = "/home/jack/.moc/myscript_on_stop"
-#
-#OnStop =
-
-# This option determines which song to play after finishing all the songs
-# in the queue.  Setting this to 'yes' causes MOC to play the song which
-# follows the song being played before queue playing started. If set to
-# 'no', MOC will play the song following the last song in the queue if it
-# is in the playlist.  The default is 'yes' because this is the way other
-# players usually behave.  (Note that this option previously took the
-# values 1 and 0; these are now deprecated in favour of 'yes' and 'no'.)
-#QueueNextSongReturn = yes
-
-# RatingStar and RatingSpace are used to generate the rating strings.
-# They can be UTF-8, but must be single characters.
-#RatingStar  = "*"
-#RatingSpace = " "
-
-# RatingFile is searched in every directory containing music files.
-# Ratings files are plaintext files where every line starts with a
-# rating (0..5), followed by a single space and a filename the rating
-# applies to. Example:
-#
-# 5 song1.mp3
-# 3 song2.mp3
-# 4 song3.mp3
-# 1 song42.ogg
-#
-# For shared libraries "ratings_alice", "ratings_bob", etc can be used.
-#
-#RatingFile = "ratings"
-

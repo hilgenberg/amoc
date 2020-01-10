@@ -58,6 +58,7 @@ namespace options
 	extern bool UseRCCForFilesystem;
 	extern bool EnforceTagsEncoding;
 	extern bool FileNamesIconv;
+	extern str  TERM;
 
 	extern str  RatingStar;
 	extern str  RatingSpace;
@@ -75,22 +76,9 @@ namespace options
 	extern int  ForceSampleRate;
 	extern bool Allow24bitOutput;
 	extern bool UseRealtimePriority;
-	extern bool PlaylistNumbering;
-
-	extern bool FollowPlayedFile;
-	extern bool CanStartInPlaylist;
 
 	extern bool PlaylistFullPaths;
 
-	extern str  BlockDecorators;
 	extern int  MessageLingerTime;
-	extern bool PrefixQueuedMessages;
-	extern str  ErrorMessagesQueued;
-
-	extern str  OnSongChange;
-	extern bool RepeatSongChange;
-	extern str  OnStop;
-
-	extern bool QueueNextSongReturn;
 }
 
