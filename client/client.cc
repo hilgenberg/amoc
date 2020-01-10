@@ -193,7 +193,7 @@ void Client::handle_server_event (int type)
 			break;
 		}
 
-		case EV_STATUS_MSG: iface->status(srv.get_str()); break;
+		case EV_STATUS_MSG: iface->message(srv.get_str()); break;
 		case EV_MIXER_CHANGE:
 			iface->update_mixer_name(srv.get_str());
 			iface->update_mixer_value(srv.get_int());

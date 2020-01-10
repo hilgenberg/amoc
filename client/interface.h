@@ -62,6 +62,7 @@ public:
 	void error_message(const str &msg) { message(str("ERROR: " + msg)); }
 	void message(const str &msg)
 	{
+		if (msg.empty()) return;
 		if (!messages.empty() && messages.back() == msg)
 		{
 			// avoid collecting hours of displaytime on the same message

@@ -374,8 +374,6 @@ static void decode_loop (const struct decoder *f, void *decoder_data,
 	else
 		logit ("No get_stream() function");
 
-	status_msg ("Playing...");
-
 	while (1) {
 		LOCK (request_cond_mtx);
 		if (!eof && !decoded) {
@@ -388,7 +386,6 @@ static void decode_loop (const struct decoder *f, void *decoder_data,
 				prebuffering = 1;
 				io_prebuffer (decoder_stream, options::Prebuffering * 1024);
 				prebuffering = 0;
-				status_msg ("Playing...");
 			}
 
 			decoded = f->decode (decoder_data, buf, sizeof(buf),
@@ -512,8 +509,6 @@ static void decode_loop (const struct decoder *f, void *decoder_data,
 		}
 	}
 
-	status_msg ("");
-
 	LOCK (decoder_stream_mtx);
 	decoder_stream = NULL;
 	f->close (decoder_data);
@@ -593,12 +588,10 @@ static void play_file (const char *file, const struct decoder *f,
 	else {
 		struct decoder_error err;
 
-		status_msg ("Opening...");
 		decoder_data = f->open(file);
 		f->get_error (decoder_data, &err);
 		if (err.type != ERROR_OK) {
 			f->close (decoder_data);
-			status_msg ("");
 			error ("%s", err.err);
 			decoder_error_clear (&err);
 			logit ("Can't open file, exiting");
@@ -640,7 +633,6 @@ static void play_stream (const struct decoder *f, struct out_buf *out_buf)
 
 		f->close (decoder_data);
 		error ("%s", err.err);
-		status_msg ("");
 		decoder_error_clear (&err);
 		logit ("Can't open file");
 	}
@@ -651,18 +643,6 @@ static void play_stream (const struct decoder *f, struct out_buf *out_buf)
 	}
 }
 
-/* Callback for io buffer fill - show the prebuffering state. */
-static void fill_cb (struct io_stream *unused1 ATTR_UNUSED, size_t fill,
-		size_t unused2 ATTR_UNUSED, void *unused3 ATTR_UNUSED)
-{
-	if (prebuffering) {
-		char msg[32];
-
-		sprintf (msg, "Prebuffering %zu/%d KB", fill / 1024U, options::Prebuffering);
-		status_msg (msg);
-	}
-}
-
 /* Open a file, decode it and put output into the buffer. At the end, start
  * precaching next_file. */
 void player (const char *file, const char *next_file, struct out_buf *out_buf)
@@ -670,14 +650,11 @@ void player (const char *file, const char *next_file, struct out_buf *out_buf)
 	struct decoder *f;
 
 	if (is_url(file)) {
-		status_msg ("Connecting...");
-
 		LOCK (decoder_stream_mtx);
 		decoder_stream = io_open (file, 1);
 		if (!io_ok(decoder_stream)) {
 			error ("Could not open URL: %s", io_strerror(decoder_stream));
 			io_close (decoder_stream);
-			status_msg ("");
 			decoder_stream = NULL;
 			UNLOCK (decoder_stream_mtx);
 			ev_audio_fail (file);
@@ -689,20 +666,15 @@ void player (const char *file, const char *next_file, struct out_buf *out_buf)
 		if (!f) {
 			LOCK (decoder_stream_mtx);
 			io_close (decoder_stream);
-			status_msg ("");
 			decoder_stream = NULL;
 			UNLOCK (decoder_stream_mtx);
 			return;
 		}
 
-		status_msg ("Prebuffering...");
 		prebuffering = 1;
-		io_set_buf_fill_callback (decoder_stream, fill_cb, NULL);
-		io_prebuffer (decoder_stream,
-				options::Prebuffering * 1024);
+		io_prebuffer (decoder_stream, options::Prebuffering * 1024);
 		prebuffering = 0;
 
-		status_msg ("Playing...");
 		ev_audio_start ();
 		play_stream (f, out_buf);
 		ev_audio_stop ();

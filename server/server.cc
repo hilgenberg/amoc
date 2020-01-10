@@ -521,47 +521,22 @@ static bool req_jump_to (client &cli)
 
 void update_eq_name()
 {
-	char buffer[27];
-
 	char *n = equalizer_current_eqname();
-
-	int l = strlen(n);
-
-	/* Status message can only take strings up to 25 chars
-	 * (Without terminating zero).
-	 * The message header has 11 chars (EQ set to...).
-	 */
-	if (l > 14)
-	{
-		n[14] = 0;
-		n[13] = '.';
-		n[12] = '.';
-		n[11] = '.';
-	}
-
-	sprintf(buffer, "EQ set to: %s", n);
-
-	logit("%s", buffer);
-
+	str msg = format("EQ set to %s", n);
 	free(n);
-
-	status_msg(buffer);
+	status_msg(msg.c_str());
 }
 
 void req_toggle_equalizer ()
 {
 	equalizer_set_active(!equalizer_is_active());
-
 	update_eq_name();
 }
 
 void req_equalizer_refresh()
 {
 	equalizer_refresh();
-
 	status_msg("Equalizer refreshed");
-
-	logit("Equalizer refreshed");
 }
 
 void req_equalizer_prev() { equalizer_prev(); update_eq_name(); }
@@ -569,13 +544,8 @@ void req_equalizer_next() { equalizer_next(); update_eq_name(); }
 
 void req_toggle_make_mono()
 {
-	char buffer[128];
-
 	softmixer_set_mono(!softmixer_is_mono());
-
-	sprintf(buffer, "Mono-Mixing set to: %s", softmixer_is_mono()?"on":"off");
-
-	status_msg(buffer);
+	status_msg(format("Mono-Mixing set to: %s", softmixer_is_mono()?"on":"off").c_str());
 }
 
 /* Handle CMD_GET_FILE_TAGS. Return 0 on error. */
@@ -1014,6 +984,7 @@ void ctime_change ()
 
 void status_msg (const char *msg)
 {
+	logit("%s", msg);
 	add_event_all (EV_STATUS_MSG, msg);
 }
 
