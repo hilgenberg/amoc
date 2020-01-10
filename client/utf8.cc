@@ -18,7 +18,6 @@
 #include <langinfo.h>
 #include <ncurses.h>
 #include <wchar.h>
-#include <utf8cpp/utf8.h>
 #include <codecvt>
 #include <string>
 #include <locale>
