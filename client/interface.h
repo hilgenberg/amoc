@@ -25,8 +25,9 @@ public:
 	void redraw(int k) { need_redraw = std::max(need_redraw, k); }
 	void resize(); // Handle terminal size change.
 	void handle_input(); // read the next key stroke
-	void handle_click(int x, int y, bool dbl);
+	bool handle_click(int x, int y, bool dbl);
 	bool handle_drag(int x, int y, int seq);
+	bool handle_scroll(int x, int y, int dy);
 
 	bool in_dir_plist() const { return active_menu == 0; }
 	void go_to_dir_plist() { if (in_dir_plist()) return; active_menu = 0; redraw(2); }
@@ -126,7 +127,8 @@ private:
 	Layout layout;
 	Ratio ratio[2]; // playlist:dirlist ratios for HSPLIT and VSPLIT
 	void cycle_layouts();
-	int drag0;
+	int  drag0; // last x or y value or -1 if not dragging anything
+	bool dragTime; // dragging in the time bar?
 
 	int need_redraw; // 1: info only, 2: everything
 

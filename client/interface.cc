@@ -164,7 +164,8 @@ Interface::Interface(Client &client, plist &pl1, plist &pl2)
 	nodelay (win, TRUE);
 	keypad (win, TRUE);
 
-	#define MOUSEMASK (REPORT_MOUSE_POSITION | BUTTON1_CLICKED | BUTTON1_DOUBLE_CLICKED | BUTTON1_PRESSED | BUTTON1_RELEASED)
+	#define MOUSEMASK (REPORT_MOUSE_POSITION | BUTTON1_CLICKED | BUTTON1_DOUBLE_CLICKED | \
+		BUTTON1_PRESSED | BUTTON1_RELEASED | BUTTON4_PRESSED|BUTTON5_PRESSED)
 	mousemask(MOUSEMASK, NULL);
 	// leave defined, it's used below
 }
@@ -190,17 +191,19 @@ void Interface::cycle_layouts()
 	redraw(2);
 }
 
-void Interface::handle_click(int x, int y, bool dbl)
+bool Interface::handle_click(int x, int y, bool dbl)
 {
 	if (layout != SINGLE && left.bounds.contains(x,y))
 	{
 		if (active_menu == 1) { active_menu = 0; redraw(2); }
 		left.handle_click(x, y, dbl);
+		return true;
 	}
 	else if (layout != SINGLE && right.bounds.contains(x,y))
 	{
 		if (active_menu == 0) { active_menu = 1; redraw(2); }
 		right.handle_click(x, y, dbl);
+		return true;
 	}
 	else if (layout != SINGLE && (left.bounds+right.bounds).contains(x,y))
 	{
@@ -208,12 +211,14 @@ void Interface::handle_click(int x, int y, bool dbl)
 		{
 			ratio[layout==HSPLIT ? 0 : 1] = std::make_pair(1,1);
 			redraw(2);
+			return true;
 		}
 	}
 	else if (layout == SINGLE && menus[active_menu]->bounds.contains(x,y))
 	{
 		menus[active_menu]->handle_click(x, y, dbl);
 		redraw(2);
+		return true;
 	}
 	// TODO: middle mouse button to cd..
 	// TODO: drag&drop to sort the playlist
@@ -223,26 +228,73 @@ void Interface::handle_click(int x, int y, bool dbl)
 		const int W = COLS, H = LINES;
 		const int total_time = curr_tags ? curr_tags->time : 0;
 
+		// time bar --> seek
 		if (y == H-1 && x >= 1 && x <= W-2 && W > 8)
 		{
-			if (total_time <= 0 || options::TimeBarLine.empty()) return;
+			if (total_time <= 0 || options::TimeBarLine.empty()) return false;
 			client.jump_to((x-1)*total_time/(W-3));
+			return true;
+		}
+
+		// play/pause state --> toggle play/pause
+		if (y == H-3 && x > 0 && x < 4)
+		{
+			client.handle_command(KEY_CMD_PAUSE);
+			return true;
+		}
+
+		// file --> show file in menu
+		if (dbl && y == H-3 && x >= 4 && x < W-1)
+		{
+			go_to_dir_plist();
+			client.handle_command(KEY_CMD_GO_TO_PLAYING_FILE);
+			return true;
 		}
 
 		if (!prompting && y == H-2 && W >= w_toggles+2 && x >= W-w_toggles-1 && x <= W-2)
 		{
 			x -= W-w_toggles-1;
-			#define CHK(len, cmd) if (x >= 0 && x < (len)+2) client.handle_command(cmd); x -= (len)+3
+			#define CHK(len, cmd) if (x >= 0 && x < (len)+2) { client.handle_command(cmd); return true; } x -= (len)+3
 			CHK(6,KEY_CMD_TOGGLE_MAKE_MONO); // STEREO
 			x -= 3+3; // NET
 			CHK(7,KEY_CMD_TOGGLE_SHUFFLE); // SHUFFLE
 			CHK(6,KEY_CMD_TOGGLE_REPEAT); // REPEAT
 			CHK(4,KEY_CMD_TOGGLE_AUTO_NEXT); // NEXT
 			#undef CHK
+			return true;
 		}
-
-		// TODO: scroll wheel
 	}
+
+	return false;
+}
+
+bool Interface::handle_scroll(int x, int y, int dy)
+{
+	int m = -1;
+	if (layout != SINGLE && left.bounds.contains(x,y)) m = 0;
+	else if (layout != SINGLE && right.bounds.contains(x,y)) m = 1;
+	else if (layout != SINGLE && menus[active_menu]->bounds.contains(x,y)) m = active_menu;
+	if (m != -1)
+	{
+		active_menu = m;
+		while (dy < 0) { menus[m]->move(REQ_SCROLL_UP);   ++dy; }
+		while (dy > 0) { menus[m]->move(REQ_SCROLL_DOWN); --dy; }
+		redraw(2);
+		return true;
+	}
+
+	const int W = COLS, H = LINES;
+	const int total_time = curr_tags ? curr_tags->time : 0;
+
+	// time bar --> seek
+	if (y == H-1 && x >= 1 && x <= W-2 && W > 8)
+	{
+		if (total_time <= 0 || options::TimeBarLine.empty()) return false;
+		client.handle_command(dy < 0 ? KEY_CMD_SEEK_BACKWARD : KEY_CMD_SEEK_FORWARD);
+		return true;
+	}
+
+	return false;
 }
 
 bool Interface::handle_drag(int x, int y, int seq)
@@ -251,45 +303,69 @@ bool Interface::handle_drag(int x, int y, int seq)
 
 	if (seq < 0)
 	{
-		if (!(left.bounds+right.bounds).contains(x,y)) return false;
-		if (layout == HSPLIT)
+		drag0 = -1;
+
+		if (y == LINES-1)
 		{
-			if (x != left.bounds.x1() && x != right.bounds.x-1) return false;
+			if (!handle_click(x, y, false)) return false;
+			dragTime = true;
 			drag0 = x;
-			ratio[0].first  = right.bounds.w;
-			ratio[0].second = left.bounds.w;
+			return true;
 		}
 		else
 		{
-			if (y != left.bounds.y-1) return false;
-			drag0 = y;
-			ratio[1].first  = right.bounds.h;
-			ratio[1].second = left.bounds.h;
+			dragTime = false;
+			if (!(left.bounds+right.bounds).contains(x,y)) return false;
+			if (layout == HSPLIT)
+			{
+				if (x != left.bounds.x1() && x != right.bounds.x-1) return false;
+				drag0 = x;
+				ratio[0].first  = right.bounds.w;
+				ratio[0].second = left.bounds.w;
+			}
+			else
+			{
+				if (y != left.bounds.y-1) return false;
+				drag0 = y;
+				ratio[1].first  = right.bounds.h;
+				ratio[1].second = left.bounds.h;
+			}
+			redraw(2); // draw frame in selected color
+			return true;
 		}
-		redraw(2);
-		return true;
 	}
 
 	if (drag0 < 0) return false;
 	
-	int p = (layout == HSPLIT ? x : y);
-	auto &r = ratio[layout == HSPLIT ? 0 : 1];
-	int s = (layout == HSPLIT ? +1 : -1);
+	if (dragTime)
+	{
+		x = std::min(COLS-2, std::max(1, x));
+		if (seq == 0 && x != drag0) // don't fire on mouse-up
+		{
+			handle_click(x, LINES-1, false);
+			drag0 = x;
+		}
+	}
+	else
+	{
+		int p = (layout == HSPLIT ? x : y);
+		auto &r = ratio[layout == HSPLIT ? 0 : 1];
+		int s = (layout == HSPLIT ? +1 : -1);
 
-	if (p != drag0)
-	{
-		redraw(2);
-		r.first  -= s*(p-drag0);
-		r.second += s*(p-drag0);
-		if (r.first  < 0) { r.second -= r.first;  r.first  = 0; }
-		if (r.second < 0) { r.first  -= r.second; r.second = 0; }
-		drag0 = p;
+		if (p != drag0)
+		{
+			redraw(2);
+			r.first  -= s*(p-drag0);
+			r.second += s*(p-drag0);
+			if (r.first  < 0) { r.second -= r.first;  r.first  = 0; }
+			if (r.second < 0) { r.first  -= r.second; r.second = 0; }
+			drag0 = p;
+		}
+
+		if (seq > 0) redraw(2); // put frame back to normal color
 	}
-	if (seq > 0)
-	{
-		if (drag0 >= 0) redraw(2);
-		drag0 = -1;
-	}
+
+	if (seq > 0) drag0 = -1;
 
 	return true;
 }
@@ -329,7 +405,7 @@ void Interface::draw(bool force)
 	if (am.sel == -1 && am.mark == -1 && !am.items.empty())
 		am.sel = 0;
 
-	const int frame_color = drag0 > 0 ? get_color(CLR_TIME_BAR_FILL) : get_color(CLR_FRAME);
+	const int frame_color = (drag0 > 0 && !dragTime) ? get_color(CLR_TIME_BAR_FILL) : get_color(CLR_FRAME);
 
 	const int W = COLS, H = LINES;
 	if (W < 8 || H < 6)
@@ -801,6 +877,12 @@ void Interface::handle_input()
 			{
 				MOUSE_DEBUG("CLICK");
 				handle_click(ev.x, ev.y, ev.bstate & BUTTON1_DOUBLE_CLICKED);
+			}
+			else if ((ev.bstate & (BUTTON4_PRESSED|BUTTON5_PRESSED)))
+			{
+				bool up = ev.bstate & BUTTON4_PRESSED;
+				MOUSE_DEBUG(up ? "SCROLL UP" : "SCROLL DOWN");
+				handle_scroll(ev.x, ev.y, up ? -1 : 1);
 			}
 			else
 			{

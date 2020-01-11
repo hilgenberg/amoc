@@ -125,6 +125,18 @@ void menu::move(menu_request req)
 			sel = std::max(sel, sel+xsel); xsel = 0;
 			sel = (sel < 0 ? 0 : sel + 1);
 			break;
+		case REQ_SCROLL_UP:
+			sel = std::min(sel, sel+xsel); xsel = 0;
+			top -= (bounds.h - 1)/2; if (top < 0) top = 0;
+			sel -= (bounds.h - 1)/2;
+			break;
+		case REQ_SCROLL_DOWN:
+			sel = std::max(sel, sel+xsel); xsel = 0;
+			top += (bounds.h - 1)/2;
+			sel += (bounds.h - 1)/2;
+			if (top + (bounds.h-1) >= N) top = N - bounds.h;
+			if (top < 0) top = 0;
+			break;
 		case REQ_PGUP:
 			sel = std::min(sel, sel+xsel); xsel = 0;
 			top -= (bounds.h - 1); if (top < 0) top = 0;
