@@ -1,7 +1,5 @@
 #pragma once
 #include "interface.h"
-#include "../lists.h"
-#include "../files.h"
 #include "../playlist.h"
 #include "keys.h"
 #include "../protocol.h"

@@ -127,10 +127,10 @@ static inline snd_pcm_format_t format_to_mask (long format)
 }
 
 #ifndef NDEBUG
-static void alsa_log_cb (const char *unused1 ATTR_UNUSED,
-                         int unused2 ATTR_UNUSED,
-                         const char *unused3 ATTR_UNUSED,
-                         int unused4 ATTR_UNUSED, const char *fmt, ...)
+static void alsa_log_cb (const char *unused1,
+                         int unused2,
+                         const char *unused3,
+                         int unused4, const char *fmt, ...)
 {
 	char *msg;
 	va_list va;

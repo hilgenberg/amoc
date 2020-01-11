@@ -33,7 +33,7 @@ static volatile int our_xrun = 0;
 static volatile int jack_shutdown = 0;
 
 /* this is the function that jack calls to get audio samples from us */
-static int process_cb(jack_nframes_t nframes, void *unused ATTR_UNUSED)
+static int process_cb(jack_nframes_t nframes, void *unused)
 {
 	jack_default_audio_sample_t *out[2];
 
@@ -96,7 +96,7 @@ static int process_cb(jack_nframes_t nframes, void *unused ATTR_UNUSED)
 
 /* this is called if jack changes its sample rate */
 static int update_sample_rate_cb(jack_nframes_t new_rate,
-		void *unused ATTR_UNUSED)
+		void *unused)
 {
 	rate = new_rate;
 	return 0;
@@ -108,7 +108,7 @@ static void error_cb (const char *msg)
 	error ("JACK: %s", msg);
 }
 
-static void shutdown_cb (void *unused ATTR_UNUSED)
+static void shutdown_cb (void *unused)
 {
 	jack_shutdown = 1;
 }
@@ -120,8 +120,6 @@ static int moc_jack_init (struct output_driver_caps *caps)
 	client_name = options::JackClientName.c_str();
 
 	jack_set_error_function (error_cb);
-
-#ifdef HAVE_JACK_CLIENT_OPEN
 
 	jack_status_t status;
 	jack_options_t options;
@@ -140,17 +138,6 @@ static int moc_jack_init (struct output_driver_caps *caps)
 
 	if (status & JackServerStarted)
 		printf ("JACK server started\n");
-
-#else
-
-	/* try to become a client of the JACK server */
-	client = jack_client_new (client_name);
-	if (client == NULL) {
-		error ("Cannot create client; JACK server not running?");
-		return 0;
-	}
-
-#endif
 
 	jack_shutdown = 0;
 	jack_on_shutdown (client, shutdown_cb, NULL);

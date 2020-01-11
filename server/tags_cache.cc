@@ -7,7 +7,6 @@
 #include "tags_cache.h"
 #include "audio.h"
 
-#ifdef HAVE_DB_H
 #undef STRERROR_FN
 #define STRERROR_FN bdb_strerror
 /* BerkleyDB-provided error code to description function wrapper. */
@@ -16,7 +15,7 @@ static inline char *bdb_strerror (int errnum)
 	return errnum > 0 ? xstrerror(errnum) : xstrdup(db_strerror (errnum));
 }
 #ifndef NDEBUG
-static void db_err_cb (const DB_ENV *unused ATTR_UNUSED, const char *errpfx, const char *msg)
+static void db_err_cb (const DB_ENV *unused, const char *errpfx, const char *msg)
 {
 	assert (msg);
 	if (errpfx && errpfx[0])
@@ -24,20 +23,15 @@ static void db_err_cb (const DB_ENV *unused ATTR_UNUSED, const char *errpfx, con
 	else
 		logit ("BDB said: %s", msg);
 }
-static void db_msg_cb (const DB_ENV *unused ATTR_UNUSED, const char *msg)
+static void db_msg_cb (const DB_ENV *unused, const char *msg)
 {
 	assert (msg);
 	logit ("BDB said: %s", msg);
 }
-static void db_panic_cb (DB_ENV *unused ATTR_UNUSED, int errval)
+static void db_panic_cb (DB_ENV *unused, int errval)
 {
 	log_errno ("BDB said", errval);
 }
-#endif
-
-#define DB_ONLY
-#else
-#define DB_ONLY ATTR_UNUSED
 #endif
 
 /* The name of the tags database in the cache directory. */
@@ -128,7 +122,6 @@ err:
 /* This function ensures that a DB function takes place while holding a
  * database record lock.  It also provides an initialised database thang
  * for the key and record. */
-#ifdef HAVE_DB_H
 tags_cache::Lock::Lock(tags_cache &c, DBT &key)
 : db_env(c.db_env)
 {
@@ -192,8 +185,6 @@ void tags_cache::add (DBT &key, const cache_record &rec)
 	sync();
 }
 
-#endif
-
 /* Read the selected tags for this file and add it to the cache.
  * If client_id != -1, the server is notified using tags_response().
  * If client_id == -1, copy of file_tags is returned. */
@@ -203,8 +194,6 @@ file_tags tags_cache::read_add (const char *file, int client_id)
 	debug ("Getting tags for %s", file);
 
 	cache_record rec;
-	#ifdef HAVE_DB_H
-	{
 	DBT key, record;
 	memset (&key, 0, sizeof (key));
 	memset (&record, 0, sizeof (record));
@@ -239,10 +228,6 @@ file_tags tags_cache::read_add (const char *file, int client_id)
 	rec.tags.read_file_tags(file);
 	rec.mod_time = current_mtime;
 	add (key, rec);
-	}
-	#else
-	rec.tags = read_missing_tags (file, tags, tags_sel);
-	#endif
 
 	if (client_id != -1) tags_response (client_id, file, &rec.tags);
 
@@ -251,7 +236,6 @@ file_tags tags_cache::read_add (const char *file, int client_id)
 
 void tags_cache::ratings_changed(const char *file, int rating)
 {
-	#ifdef HAVE_DB_H
 	assert (file != NULL);
 	debug ("Updating tags for %s", file);
 
@@ -296,8 +280,6 @@ void tags_cache::ratings_changed(const char *file, int rating)
 
 	rec.tags.rating = rating;
 	add (key, rec);
-
-	#endif
 }
 
 
@@ -336,10 +318,7 @@ void *tags_cache::reader_thread(void *cache_ptr)
 
 tags_cache::tags_cache()
 : stop_reader_thread(false)
-#ifdef HAVE_DB_H
-	, db_env(NULL)
-	, db(NULL)
-#endif
+, db(NULL), db_env(NULL)
 {
 	pthread_mutex_init (&mutex, NULL);
 	int rc = pthread_cond_init (&request_cond, NULL);
@@ -355,7 +334,6 @@ tags_cache::~tags_cache()
 	pthread_cond_signal (&request_cond);
 	UNLOCK (mutex);
 
-	#ifdef HAVE_DB_H
 	if (db) {
 		#ifndef NDEBUG
 		db->set_errcall (db, NULL);
@@ -375,7 +353,6 @@ tags_cache::~tags_cache()
 		db_env->close (db_env, 0);
 		db_env = NULL;
 	}
-	#endif
 
 	int rc = pthread_join (reader_thread_id, NULL);
 	if (rc != 0) fatal ("pthread_join() on cache reader thread failed: %s", xstrerror (rc));
@@ -393,8 +370,6 @@ void tags_cache::add_request (const char *file, int client_id)
 
 	debug ("Request for tags for '%s' from client %d", file, client_id);
 
-	#ifdef HAVE_DB_H
-	{
 	DBT key, record;
 	memset (&key, 0, sizeof (key));
 	key.data = (void *) file;
@@ -422,8 +397,6 @@ void tags_cache::add_request (const char *file, int client_id)
 		}
 		debug ("Found outdated tags in the cache");
 	}
-	}
-	#endif
 
 	LOCK (mutex);
 	queues[client_id].push(file);
@@ -461,7 +434,6 @@ void tags_cache::clear_up_to (const char *file, int client_id)
  *
  * @param buf Output buffer (at least VERSION_TAG_MAX chars long)
  */
-#ifdef HAVE_DB_H
 static const char *create_version_tag (char *buf)
 {
 	int db_major, db_minor;
@@ -575,13 +547,11 @@ static int prepare_cache_dir (const char *cache_dir)
 
 	return 1;
 }
-#endif
 
 void tags_cache::load(const str &cache_dir)
 {
 	assert (!cache_dir.empty());
 
-#ifdef HAVE_DB_H
 	int ret;
 
 	if (!prepare_cache_dir (cache_dir.c_str())) {
@@ -657,7 +627,6 @@ err:
 		db_env = NULL;
 	}
 	error ("Failed to initialise tags cache: caching disabled");
-#endif
 }
 
 /* Immediately read tags for a file bypassing the request queue. */

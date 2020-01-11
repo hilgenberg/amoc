@@ -160,8 +160,8 @@ static long sfmt_best_matching (const long formats_with_endian,
 	long req = req_with_endian & SFMT_MASK_FORMAT;
 	long best = 0;
 
-	char fmt_name1[SFMT_STR_MAX] DEBUG_ONLY;
-	char fmt_name2[SFMT_STR_MAX] DEBUG_ONLY;
+	char fmt_name1[SFMT_STR_MAX];
+	char fmt_name2[SFMT_STR_MAX];
 
 	if (formats & req)
 		best = req;
@@ -266,7 +266,7 @@ void audio_fail_file (const str &path)
 	UNLOCK (plist_mtx);
 }
 
-static void *play_thread (void *unused ATTR_UNUSED)
+static void *play_thread (void *unused)
 {
 	logit ("Entering playing thread");
 
@@ -531,7 +531,7 @@ int audio_open (struct sound_params *sound_params)
 	res = hw.open (&driver_sound_params);
 
 	if (res) {
-		char fmt_name[SFMT_STR_MAX] LOGIT_ONLY;
+		char fmt_name[SFMT_STR_MAX];
 
 		driver_sound_params.rate = hw.get_rate ();
 		if (driver_sound_params.fmt != req_sound_params.fmt
@@ -735,9 +735,9 @@ static void find_working_driver (struct hw_funcs *funcs)
 }
 
 static void print_output_capabilities
-            (const struct output_driver_caps *caps LOGIT_ONLY)
+            (const struct output_driver_caps *caps)
 {
-	char fmt_name[SFMT_STR_MAX] LOGIT_ONLY;
+	char fmt_name[SFMT_STR_MAX];
 
 	logit ("Sound driver capabilities: channels %d - %d, formats: %s",
 			caps->min_channels, caps->max_channels,

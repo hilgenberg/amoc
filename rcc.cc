@@ -9,10 +9,7 @@
  *
  */
 
-#ifdef HAVE_RCC
-# include <librcc.h>
-#endif
-
+#include <librcc.h>
 #include "rcc.h"
 
 char *rcc_reencode (char *str)
@@ -21,7 +18,6 @@ char *rcc_reencode (char *str)
 
 	assert (str != NULL);
 
-#ifdef HAVE_RCC
 	rcc_string rccstring;
 
 	rccstring = rccFrom (NULL, 0, str);
@@ -38,14 +34,12 @@ char *rcc_reencode (char *str)
 
 		free (rccstring);
 	}
-#endif /* HAVE_RCC */
 
 	return result;
 }
 
 str rcc_reencode (const str &s)
 {
-#ifdef HAVE_RCC
 	rcc_string rs = rccFrom (NULL, 0, s.c_str());
 	if (rs) {
 		if (*rs) {
@@ -59,13 +53,11 @@ str rcc_reencode (const str &s)
 		}
 		free (rs);
 	}
-#endif /* HAVE_RCC */
 	return s;
 }
 
 void rcc_init ()
 {
-#ifdef HAVE_RCC
 	rcc_class classes[] = {
 		{"input", RCC_CLASS_STANDARD, NULL, NULL, "Input Encoding", 0},
 		{"output", RCC_CLASS_KNOWN, NULL, NULL, "Output Encoding", 0},
@@ -78,12 +70,9 @@ void rcc_init ()
 	rccSetOption (NULL, RCC_OPTION_TRANSLATE,
 	                    RCC_OPTION_TRANSLATE_SKIP_PARRENT);
 	rccSetOption (NULL, RCC_OPTION_AUTODETECT_LANGUAGE, 1);
-#endif /* HAVE_RCC */
 }
 
 void rcc_cleanup ()
 {
-#ifdef HAVE_RCC
 	rccFree ();
-#endif /* HAVE_RCC */
 }

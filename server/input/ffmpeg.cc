@@ -32,11 +32,7 @@
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavutil/mathematics.h>
-#if HAVE_LIBAVUTIL_CHANNEL_LAYOUT_H
-# include <libavutil/channel_layout.h>
-#else
-# include <libavutil/audioconvert.h>
-#endif
+#include <libavutil/channel_layout.h>
 }
 
 /* FFmpeg also likes common names, without that, our common.h and log.h
@@ -97,7 +93,7 @@ struct extn_list {
 
 static std::set<std::string> supported_extns;
 
-static void ffmpeg_log_repeats (char *msg LOGIT_ONLY)
+static void ffmpeg_log_repeats (char *msg)
 {
 #ifndef NDEBUG
 	static int msg_count = 0;
@@ -131,7 +127,7 @@ static void ffmpeg_log_repeats (char *msg LOGIT_ONLY)
 }
 
 #ifndef NDEBUG
-static void ffmpeg_log_cb (void *unused ATTR_UNUSED, int level,
+static void ffmpeg_log_cb (void *unused, int level,
                            const char *fmt, va_list vl)
 {
 	int len;
@@ -144,7 +140,7 @@ static void ffmpeg_log_cb (void *unused ATTR_UNUSED, int level,
 
 	msg = format_msg_va (fmt, vl);
 
-#if defined(HAVE_FFMPEG) && LIBAVFORMAT_VERSION_INT >= AV_VERSION_INT(56,33,101)
+#if LIBAVFORMAT_VERSION_INT >= AV_VERSION_INT(56,33,101)
 	/* Drop this message because it is issued repeatedly and is pointless. */
 	const char skipping[] = "Skipping 0 bytes of junk";
 
@@ -506,11 +502,7 @@ static bool is_seek_broken (struct ffmpeg_data *data)
 	 *             Seeking from the decoder works for false errors (but
 	 *             probably not for real ones) because the player doesn't
 	 *             get to see them. */
-# ifdef HAVE_FFMPEG
 	if (avcodec_version () < AV_VERSION_INT(55,8,100))
-# else
-	if (avcodec_version () < AV_VERSION_INT(55,57,1))
-# endif
 	{
 		if (!strcmp (data->ic->iformat->name, "flv"))
 			return true;
@@ -787,9 +779,7 @@ static int ffmpeg_can_decode (struct io_stream *stream)
 	probe_data.filename = NULL;
 	probe_data.buf = (unsigned char*)buf;
 	probe_data.buf_size = sizeof (buf) - AVPROBE_PADDING_SIZE;
-#ifdef HAVE_STRUCT_AVPROBEDATA_MIME_TYPE
 	probe_data.mime_type = NULL;
-#endif
 
 	fmt = av_probe_input_format (&probe_data, 1);
 
@@ -869,16 +859,7 @@ static inline AVPacket *new_packet (struct ffmpeg_data *data)
 
 	assert (data->stream);
 
-#if HAVE_AV_PACKET_FNS
 	pkt = av_packet_alloc ();
-#else
-	pkt = (AVPacket *)av_malloc (sizeof (AVPacket));
-	if (!pkt)
-		fatal ("av_malloc() failed to allocate memory");
-	av_init_packet (pkt);
-	pkt->data = NULL;
-	pkt->size = 0;
-#endif
 
 	pkt->stream_index = data->stream->index;
 
@@ -887,12 +868,7 @@ static inline AVPacket *new_packet (struct ffmpeg_data *data)
 
 static inline void free_packet (AVPacket *pkt)
 {
-#if HAVE_AV_PACKET_FNS
 	av_packet_free (&pkt);
-#else
-	av_free_packet (pkt);
-	av_free (pkt);
-#endif
 }
 
 /* Read a packet from the file or empty packet if flushing delayed
@@ -946,11 +922,7 @@ static int decode_packet (struct ffmpeg_data *data, AVPacket *pkt,
 	char *packed;
 	AVFrame *frame;
 
-#ifdef HAVE_AV_FRAME_FNS
 	frame = av_frame_alloc ();
-#else
-	frame = avcodec_alloc_frame ();
-#endif
 
 	do {
 		int len, got_frame, is_planar, packed_size, copied;
@@ -1003,11 +975,7 @@ static int decode_packet (struct ffmpeg_data *data, AVPacket *pkt,
 			free (packed);
 	} while (pkt->size > 0);
 
-#ifdef HAVE_AV_FRAME_FNS
 	av_frame_free (&frame);
-#else
-	avcodec_free_frame (&frame);
-#endif
 
 	return filled;
 }

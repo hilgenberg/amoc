@@ -11,11 +11,9 @@
 
 #include "themes.h"
 #include "interface.h"
-#include "../files.h"
 #include <ncurses.h>
 #include <iostream>
 #include <fstream>
-#include <string>
 using namespace std;
 
 /* ncurses extension */

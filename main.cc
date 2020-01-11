@@ -146,7 +146,6 @@ static void start_moc (const struct parameters *params, stringlist &args)
 			io_cleanup ();
 			files_cleanup ();
 			rcc_cleanup ();
-			common_cleanup ();
 			exit (EXIT_SUCCESS);
 		case -1:
 			fatal ("fork() failed: %s", xstrerror (errno));
@@ -266,31 +265,6 @@ static void show_version ()
 	putchar ('\n');
 #endif
 
-	/* Show compiled-in components */
-	printf ("    Compiled with :");
-#ifdef HAVE_OSS
-	printf (" OSS");
-#endif
-#ifdef HAVE_SNDIO
-	printf (" SNDIO");
-#endif
-#ifdef HAVE_ALSA
-	printf (" ALSA");
-#endif
-#ifdef HAVE_JACK
-	printf (" JACK");
-#endif
-#ifndef NDEBUG
-	printf (" DEBUG");
-#endif
-#ifdef HAVE_CURL
-	printf (" Network streams");
-#endif
-#ifdef HAVE_SAMPLERATE
-	printf (" resample");
-#endif
-	putchar ('\n');
-
 	rc = uname (&uts);
 	if (rc == 0)
 		printf ("       Running on : %s %s %s\n", uts.sysname, uts.release,
@@ -332,10 +306,10 @@ static void show_help (poptContext ctx)
 
 /* Disambiguate the user's request. */
 static void show_misc_cb (poptContext ctx,
-                          enum poptCallbackReason unused1 ATTR_UNUSED,
+                          enum poptCallbackReason unused1,
                           const struct poptOption *opt,
-                          const char *unused2 ATTR_UNUSED,
-                          void *unused3 ATTR_UNUSED)
+                          const char *unused2,
+                          void *unused3)
 {
 	switch (opt->shortName) {
 	case 'V':
@@ -508,7 +482,6 @@ int main (int argc, const char *argv[])
 	io_cleanup ();
 	rcc_cleanup ();
 	files_cleanup ();
-	common_cleanup ();
 
 	return EXIT_SUCCESS;
 }

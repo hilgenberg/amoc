@@ -18,7 +18,6 @@
 
 #include "keys.h"
 #include "interface.h"
-#include "../files.h"
 
 /* ^c version of c */
 #ifndef CTRL

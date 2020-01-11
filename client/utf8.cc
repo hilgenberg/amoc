@@ -277,24 +277,15 @@ void xwprintfield(WINDOW *win, const str &s, int W, char ellipsis)
 
 void utf8_init ()
 {
-	const char *terminal_charset = NULL;
+	const char *terminal_charset = nl_langinfo(CODESET);
+	assert (terminal_charset != NULL);
 
-	#ifdef HAVE_NL_LANGINFO_CODESET
-	#ifdef HAVE_NL_LANGINFO
-		terminal_charset = nl_langinfo(CODESET);
-		assert (terminal_charset != NULL);
-
-		if (!strcmp(terminal_charset, "UTF-8")) {
-			logit ("Using UTF8 output");
-			using_utf8 = true;
-		}
-		else
-			logit ("Terminal character set: %s", terminal_charset);
-	#else
-		terminal_charset = "US-ASCII";
-		logit ("Assuming US-ASCII terminal character set");
-	#endif
-	#endif
+	if (!strcmp(terminal_charset, "UTF-8")) {
+		logit ("Using UTF8 output");
+		using_utf8 = true;
+	}
+	else
+		logit ("Terminal character set: %s", terminal_charset);
 
 	if (!using_utf8 && terminal_charset) {
 		term_iconv_desc = iconv_open (terminal_charset, "UTF-8");

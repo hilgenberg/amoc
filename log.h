@@ -31,18 +31,6 @@
 void internal_logit (const char *file, const int line, const char *function,
 		const char *format, ...);
 
-#ifndef NDEBUG
-# define LOGIT_ONLY
-#else
-# define LOGIT_ONLY ATTR_UNUSED
-#endif
-
-#if !defined(NDEBUG) && defined(DEBUG)
-# define DEBUG_ONLY
-#else
-# define DEBUG_ONLY ATTR_UNUSED
-#endif
-
 void log_init_stream (FILE *f, const char *fn);
 void log_close ();
 

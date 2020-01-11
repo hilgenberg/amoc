@@ -429,7 +429,7 @@ static void aac_info (const char *file_name,
 	}
 }
 
-static int aac_seek (void *unused ATTR_UNUSED, int sec ASSERT_ONLY)
+static int aac_seek (void *unused, int sec)
 {
 	assert (sec >= 0);
 
@@ -560,7 +560,7 @@ static int aac_get_duration (void *prv_data)
 	return data->duration;
 }
 
-static void aac_get_name (const char *unused ATTR_UNUSED, char buf[4])
+static void aac_get_name (const char *unused, char buf[4])
 {
 	strcpy (buf, "AAC");
 }

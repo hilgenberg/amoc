@@ -4,8 +4,6 @@
 #include <wchar.h>
 #include <functional>
 
-#include "../lists.h"
-#include "../files.h"
 #include "keys.h"
 #include "../playlist.h"
 #include "menu.h"

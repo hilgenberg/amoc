@@ -242,7 +242,7 @@ static int wav_decode (void *prv_data, char *buf, int buf_len,
 	return ret * oBps ;
 }
 
-static int wav_our_mime (const char *mime ATTR_UNUSED)
+static int wav_our_mime (const char *mime)
 {
 	/* We don't support internet streams for now. */
 #if 0
@@ -253,7 +253,7 @@ static int wav_our_mime (const char *mime ATTR_UNUSED)
 	return 0;
 }
 
-static void wav_get_name (const char *unused ATTR_UNUSED, char buf[4])
+static void wav_get_name (const char *unused, char buf[4])
 {
 	strcpy (buf, "WV");
 }

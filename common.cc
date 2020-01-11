@@ -13,9 +13,7 @@
 #include <sys/types.h>
 #include <pthread.h>
 #include <signal.h>
-#ifdef HAVE_SYSLOG
 #include <syslog.h>
-#endif
 
 #include "common.h"
 #include "server/server.h"
@@ -47,8 +45,8 @@ void internal_error (const char *file, int line, const char *function,
 
 /* End program with a message. Use when an error occurs and we can't recover.
  * If we're the server, then also log the message to the system log. */
-void internal_fatal (const char *file LOGIT_ONLY, int line LOGIT_ONLY,
-                 const char *function LOGIT_ONLY, const char *format, ...)
+void internal_fatal (const char *file, int line,
+                 const char *function, const char *format, ...)
 {
 	va_list va;
 	char *msg;
@@ -63,10 +61,8 @@ void internal_fatal (const char *file LOGIT_ONLY, int line LOGIT_ONLY,
 
 	log_close ();
 
-#ifdef HAVE_SYSLOG
 	if (im_server)
 		syslog (LOG_USER|LOG_ERR, "%s", msg);
-#endif
 
 	free (msg);
 
@@ -75,14 +71,9 @@ void internal_fatal (const char *file LOGIT_ONLY, int line LOGIT_ONLY,
 
 void *xmalloc (size_t size)
 {
-	void *p;
+	void *p = malloc(size);
 
-#ifndef HAVE_MALLOC
-	size = MAX(1, size);
-#endif
-
-	if ((p = malloc(size)) == NULL)
-		fatal ("Can't allocate memory!");
+	if (!p) fatal ("Can't allocate memory!");
 	return p;
 }
 
@@ -145,31 +136,7 @@ void xsleep (size_t ticks, size_t ticks_per_sec)
 	}
 }
 
-#if !HAVE_DECL_STRERROR_R
-static pthread_mutex_t xstrerror_mtx = PTHREAD_MUTEX_INITIALIZER;
-#endif
 
-#if !HAVE_DECL_STRERROR_R
-/* Return error message in malloc() buffer (for strerror(3)). */
-char *xstrerror (int errnum)
-{
-	char *result;
-
-	/* The client is not threaded. */
-	if (!im_server)
-		return xstrdup (strerror (errnum));
-
-	LOCK (xstrerror_mtx);
-
-	result = xstrdup (strerror (errnum));
-
-	UNLOCK (xstrerror_mtx);
-
-	return result;
-}
-#endif
-
-#if HAVE_DECL_STRERROR_R
 /* Return error message in malloc() buffer (for strerror_r(3)). */
 char *xstrerror (int errnum)
 {
@@ -193,7 +160,6 @@ char *xstrerror (int errnum)
 
 	return xstrdup (err_str);
 }
-#endif
 
 /* A signal(2) which is both thread safe and POSIXly well defined. */
 void xsignal (int signum, void (*func)(int))
@@ -211,33 +177,6 @@ void xsignal (int signum, void (*func)(int))
 void set_me_server ()
 {
 	im_server = 1;
-}
-
-char *str_repl (char *target, const char *oldstr, const char *newstr)
-{
-	size_t oldstr_len = strlen(oldstr);
-	size_t newstr_len = strlen(newstr);
-	size_t target_len = strlen(target);
-	size_t target_max = target_len;
-	size_t s, p;
-	char *needle;
-
-	for (s = 0; (needle = strstr(target + s, oldstr)) != NULL;
-	            s = p + newstr_len) {
-		target_len += newstr_len - oldstr_len;
-		p = needle - target;
-		if (target_len + 1 > target_max) {
-			target_max = MAX(target_len + 1, target_max * 2);
-			target = (char*) xrealloc(target, target_max);
-		}
-		memmove(target + p + newstr_len, target + p + oldstr_len,
-		                                 target_len - p - newstr_len + 1);
-		memcpy(target + p, newstr, newstr_len);
-	}
-
-	target = (char*) xrealloc(target, target_len + 1);
-
-	return target;
 }
 
 /* Extract a substring starting at 'src' for length 'len' and remove
@@ -302,68 +241,8 @@ char *format_msg_va (const char *format, va_list va)
 
 int get_realtime (struct timespec *ts)
 {
-	int result;
-#ifdef HAVE_CLOCK_GETTIME
-	result = clock_gettime (CLOCK_REALTIME, ts);
-#else
-	struct timeval tv;
-
-	result = gettimeofday (&tv, NULL);
-	if (result == 0) {
-		ts->tv_sec = tv.tv_sec;
-		ts->tv_nsec = tv.tv_usec * 1000L;
-	}
-#endif
-    return result;
+	return clock_gettime (CLOCK_REALTIME, ts);
 }
-
-void common_cleanup ()
-{
-#if !HAVE_DECL_STRERROR_R
-	int rc;
-
-	if (im_server)
-		return;
-
-	rc = pthread_mutex_destroy (&xstrerror_mtx);
-	if (rc != 0)
-		logit ("Can't destroy xstrerror_mtx: %s", strerror (rc));
-#endif
-}
-
-
-#ifndef HAVE_STRCASESTR
-#include <string.h>
-#include <ctype.h>
-
-/* Case insensitive version of strstr(). */
-char *strcasestr (const char *haystack, const char *needle)
-{
-	char *haystack_i, *needle_i;
-	char *c;
-	char *res;
-
-	haystack_i = xstrdup (haystack);
-	needle_i = xstrdup (needle);
-
-	c = haystack_i;
-	while (*c) {
-		*c = tolower (*c);
-		c++;
-	}
-
-	c = needle_i;
-	while (*c) {
-		*c = tolower (*c);
-		c++;
-	}
-
-	res = strstr (haystack_i, needle_i);
-	free (haystack_i);
-	free (needle_i);
-	return res ? res - haystack_i + (char *)haystack : NULL;
-}
-#endif
 
 int random_int(int m)
 {

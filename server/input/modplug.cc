@@ -223,7 +223,7 @@ static int modplug_decode (void *void_data, char *buf, int buf_len,
   return ModPlug_Read(data->modplugfile, buf, buf_len);
 }
 
-static int modplug_get_bitrate (void *unused ATTR_UNUSED)
+static int modplug_get_bitrate (void *unused)
 {
   return -1;
 }

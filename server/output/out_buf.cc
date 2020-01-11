@@ -97,7 +97,6 @@ void out_buf_free (struct out_buf *buf)
 
 static void set_realtime_prio ()
 {
-#ifdef HAVE_SCHED_GET_PRIORITY_MAX
 	int rc;
 
 	if (options::UseRealtimePriority) {
@@ -108,10 +107,6 @@ static void set_realtime_prio ()
 		if (rc != 0)
 			log_errno ("Can't set realtime priority", rc);
 	}
-#else
-	logit ("No sched_get_priority_max() function: "
-	                  "realtime priority not used.");
-#endif
 }
 
 /* Reading thread of the buffer. */

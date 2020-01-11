@@ -1,9 +1,6 @@
 #pragma once
 #include "server.h"
-
-#ifdef HAVE_DB_H
 # include <db.h>
-#endif
 
 // TODO: handle load() failing!
 
@@ -31,7 +28,6 @@ public:
 	void ratings_changed(const char *file, int rating);
 
 private:
-	#ifdef HAVE_DB_H
 	DB_ENV *db_env;
 	DB *db;
 	u_int32_t locker;
@@ -49,7 +45,6 @@ private:
 	void remove_rec(const char *fname);
 	void sync();
 	void add(DBT &key, const cache_record &rec);
-	#endif
 	file_tags read_add(const char *file, int client_id);
 	static void *reader_thread (void *cache_ptr);
 

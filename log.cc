@@ -123,10 +123,10 @@ static void log_signals_raised (void)
 /* Put something into the log.  If built with logging disabled,
  * this function is provided as a stub so independant plug-ins
  * configured with logging enabled can still resolve it. */
-void internal_logit (const char *file LOGIT_ONLY,
-                     const int line LOGIT_ONLY,
-                     const char *function LOGIT_ONLY,
-                     const char *format LOGIT_ONLY, ...)
+void internal_logit (const char *file,
+                     const int line,
+                     const char *function,
+                     const char *format, ...)
 {
 #ifndef NDEBUG
 	int saved_errno = errno;
@@ -170,7 +170,7 @@ end:
 }
 
 /* Initialize logging stream */
-void log_init_stream (FILE *f LOGIT_ONLY, const char *fn LOGIT_ONLY)
+void log_init_stream (FILE *f, const char *fn)
 {
 #ifndef NDEBUG
 	char *msg;

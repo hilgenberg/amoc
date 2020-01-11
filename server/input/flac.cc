@@ -102,7 +102,7 @@ static size_t pack_pcm_signed (FLAC__byte *data,
 }
 
 static FLAC__StreamDecoderWriteStatus write_cb (
-		const FLAC__StreamDecoder *unused ATTR_UNUSED,
+		const FLAC__StreamDecoder *unused,
 		const FLAC__Frame *frame,
 		const FLAC__int32 * const buffer[], void *client_data)
 {
@@ -120,7 +120,7 @@ static FLAC__StreamDecoderWriteStatus write_cb (
 }
 
 static void metadata_cb (
-		const FLAC__StreamDecoder *unused ATTR_UNUSED,
+		const FLAC__StreamDecoder *unused,
 		const FLAC__StreamMetadata *metadata, void *client_data)
 {
 	struct flac_data *data = (struct flac_data *)client_data;
@@ -138,7 +138,7 @@ static void metadata_cb (
 }
 
 static void error_cb (
-		const FLAC__StreamDecoder *unused ATTR_UNUSED,
+		const FLAC__StreamDecoder *unused,
 		FLAC__StreamDecoderErrorStatus status, void *client_data)
 {
 	struct flac_data *data = (struct flac_data *)client_data;
@@ -152,7 +152,7 @@ static void error_cb (
 }
 
 static FLAC__StreamDecoderReadStatus read_cb (
-		const FLAC__StreamDecoder *unused ATTR_UNUSED,
+		const FLAC__StreamDecoder *unused,
 		FLAC__byte buffer[], size_t *bytes, void *client_data)
 {
 	struct flac_data *data = (struct flac_data *)client_data;
@@ -177,7 +177,7 @@ static FLAC__StreamDecoderReadStatus read_cb (
 }
 
 static FLAC__StreamDecoderSeekStatus seek_cb (
-		const FLAC__StreamDecoder *unused ATTR_UNUSED,
+		const FLAC__StreamDecoder *unused,
 		FLAC__uint64 absolute_byte_offset, void *client_data)
 {
 	struct flac_data *data = (struct flac_data *)client_data;
@@ -188,7 +188,7 @@ static FLAC__StreamDecoderSeekStatus seek_cb (
 }
 
 static FLAC__StreamDecoderTellStatus tell_cb (
-		const FLAC__StreamDecoder *unused ATTR_UNUSED,
+		const FLAC__StreamDecoder *unused,
 		FLAC__uint64 *absolute_byte_offset, void *client_data)
 {
 	struct flac_data *data = (struct flac_data *)client_data;
@@ -199,7 +199,7 @@ static FLAC__StreamDecoderTellStatus tell_cb (
 }
 
 static FLAC__StreamDecoderLengthStatus length_cb (
-		const FLAC__StreamDecoder *unused ATTR_UNUSED,
+		const FLAC__StreamDecoder *unused,
 		FLAC__uint64 *stream_length, void *client_data)
 {
 	off_t file_size;
@@ -215,7 +215,7 @@ static FLAC__StreamDecoderLengthStatus length_cb (
 }
 
 static FLAC__bool eof_cb (
-		const FLAC__StreamDecoder *unused ATTR_UNUSED,
+		const FLAC__StreamDecoder *unused,
 		void *client_data)
 {
 	struct flac_data *data = (struct flac_data *)client_data;
@@ -525,7 +525,7 @@ static int flac_get_duration (void *void_data)
 	return result;
 }
 
-static void flac_get_name (const char *unused ATTR_UNUSED, char buf[4])
+static void flac_get_name (const char *unused, char buf[4])
 {
 	strcpy (buf, "FLC");
 }

@@ -12,9 +12,7 @@
 #include <sys/wait.h>
 #include <sys/socket.h>
 #include <sys/select.h>
-#ifdef HAVE_GETRLIMIT
-# include <sys/resource.h>
-#endif
+#include <sys/resource.h>
 #include <sys/un.h>
 #include <time.h>
 #include <signal.h>
@@ -108,7 +106,7 @@ static pid_t check_pid_file ()
 	return pid;
 }
 
-static void sig_chld (int sig LOGIT_ONLY)
+static void sig_chld (int sig)
 {
 	int saved_errno;
 	pid_t rc;
@@ -217,7 +215,7 @@ static void redirect_output (FILE *stream)
 
 static void log_process_stack_size ()
 {
-#if !defined(NDEBUG) && defined(HAVE_GETRLIMIT)
+#if !defined(NDEBUG)
 	int rc;
 	struct rlimit limits;
 
@@ -229,7 +227,7 @@ static void log_process_stack_size ()
 
 static void log_pthread_stack_size ()
 {
-#if !defined(NDEBUG) && defined(HAVE_PTHREAD_ATTR_GETSTACKSIZE)
+#if !defined(NDEBUG)
 	int rc;
 	size_t stack_size;
 	pthread_attr_t attr;

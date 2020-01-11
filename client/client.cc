@@ -55,18 +55,7 @@ PlayState Client::get_state() { srv.send(CMD_GET_STATE); return (PlayState)get_d
 /* Make new cwd path from CWD and this path. */
 void Client::set_cwd(const str &path)
 {
-	if (!path.empty() && path[0] == '/')
-		cwd = path;
-	else
-	{
-		if (cwd.empty()) {
-			char buf[PATH_MAX];
-			if (!getcwd(buf, sizeof(buf))) fatal ("Can't get CWD: %s", xstrerror (errno));
-			cwd = buf;
-		}
-		if (cwd.back() != '/') cwd += '/';
-		cwd += path;
-	}
+	cwd = absolute_path(add_path(cwd, path));
 	normalize_path(cwd);
 }
 

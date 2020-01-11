@@ -389,9 +389,7 @@ void menu::draw(bool active) const
 			}
 			sanitize(s);
 			if (options::FileNamesIconv) s = files_iconv_str (s);
-			#ifdef  HAVE_RCC
 			if (options::UseRCCForFilesystem) s = rcc_reencode(s);
-			#endif
 			xwprintfield(win, s, x1-x0+1, 'l');
 		}
 	}

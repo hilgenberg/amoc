@@ -11,10 +11,7 @@
  *
  */
 
-#ifdef HAVE_SNDIO_H
 # include <sndio.h>
-#endif
-
 #include "../audio.h"
 
 #define PCT_TO_SIO(pct)	((127 * (pct) + 50) / 100)
@@ -26,7 +23,7 @@ static struct sound_params params = { 0, 0, 0 };
 
 static void sndio_close ();
 
-static void volume_cb (void *unused ATTR_UNUSED, unsigned int vol)
+static void volume_cb (void *unused, unsigned int vol)
 {
 	curvol = SIO_TO_PCT(vol);
 }

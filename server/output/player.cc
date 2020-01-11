@@ -328,7 +328,7 @@ void player_init ()
 	precache.ok = 0;
 }
 
-static void show_tags (const file_tags *tags DEBUG_ONLY)
+static void show_tags (const file_tags *tags)
 {
 	assert(tags);
 	debug ("TAG[title]: %s", tags->title.empty() ? "N/A" :tags->title.c_str());

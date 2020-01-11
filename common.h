@@ -1,24 +1,12 @@
 #pragma once
-#include <byteswap.h>
 
 int random_int(int max); // between 0 and max, both inclusive
 int random_int(int min, int max); // between min and max, both inclusive
 
 struct timespec;
 
-#ifdef HAVE_FUNC_ATTRIBUTE_NORETURN
-# define ATTR_NORETURN __attribute__((noreturn))
-#else
-# define ATTR_NORETURN
-#endif
+#define ATTR_NORETURN __attribute__((noreturn))
 
-#ifdef HAVE_VAR_ATTRIBUTE_UNUSED
-# define ATTR_UNUSED __attribute__((unused))
-#else
-# define ATTR_UNUSED
-#endif
-
-#define CONFIG_DIR      ".moc"
 #define LOCK_(mutex)     pthread_mutex_lock (&mutex)
 #define UNLOCK_(mutex)   pthread_mutex_unlock (&mutex)
 #if 0
@@ -56,17 +44,11 @@ struct timespec;
 #endif
 
 #ifdef NDEBUG
-#define error(...) \
-	internal_error (NULL, 0, NULL, ## __VA_ARGS__)
-#define fatal(...) \
-	internal_fatal (NULL, 0, NULL, ## __VA_ARGS__)
-#define ASSERT_ONLY ATTR_UNUSED
+#define error(...) internal_error (NULL, 0, NULL, ## __VA_ARGS__)
+#define fatal(...) internal_fatal (NULL, 0, NULL, ## __VA_ARGS__)
 #else
-#define error(...) \
-	internal_error (__FILE__, __LINE__, __func__, ## __VA_ARGS__)
-#define fatal(...) \
-	internal_fatal (__FILE__, __LINE__, __func__, ## __VA_ARGS__)
-#define ASSERT_ONLY
+#define error(...) internal_error (__FILE__, __LINE__, __func__, ## __VA_ARGS__)
+#define fatal(...) internal_fatal (__FILE__, __LINE__, __func__, ## __VA_ARGS__)
 #endif
 
 #ifndef STRERROR_FN
@@ -93,18 +75,12 @@ void internal_error (const char *file, int line, const char *function,
 void internal_fatal (const char *file, int line, const char *function,
                      const char *format, ...) ATTR_NORETURN;
 void set_me_server ();
-char *str_repl (char *target, const char *oldstr, const char *newstr);
 char *trim (const char *src, size_t len);
 char *format_msg (const char *format, ...);
 char *format_msg_va (const char *format, va_list va);
 int get_realtime (struct timespec *ts);
-void common_cleanup ();
 
 #ifndef SUN_LEN
 #define SUN_LEN(p) \
         ((sizeof *(p)) - sizeof((p)->sun_path) + strlen ((p)->sun_path))
-#endif
-
-#if !HAVE_DECL_STRCASESTR && !defined(__cplusplus)
-char *strcasestr (const char *haystack, const char *needle);
 #endif

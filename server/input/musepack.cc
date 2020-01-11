@@ -439,7 +439,7 @@ static struct io_stream *musepack_get_stream (void *prv_data)
 	return data->stream;
 }
 
-static void musepack_get_name (const char *unused ATTR_UNUSED, char buf[4])
+static void musepack_get_name (const char *unused, char buf[4])
 {
 	strcpy (buf, "MPC");
 }

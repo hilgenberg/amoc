@@ -26,15 +26,7 @@
 /*#define DEBUG*/
 
 #include "io.h"
-#ifdef HAVE_CURL
-# include "io_curl.h"
-#endif
-
-#ifdef HAVE_CURL
-# define CURL_ONLY
-#else
-# define CURL_ONLY ATTR_UNUSED
-#endif
+#include "io_curl.h"
 
 #ifdef HAVE_MMAP
 static void *io_mmap_file (const struct io_stream *s)
@@ -142,13 +134,11 @@ static ssize_t io_internal_read (struct io_stream *s, const int dont_move,
 		res = io_read_mmap (s, dont_move, buf, count);
 		break;
 #endif
-#ifdef HAVE_CURL
 	case IO_SOURCE_CURL:
 		if (dont_move)
 			fatal ("You can't peek data directly from CURL!");
 		res = io_curl_read (s, buf, count);
 		break;
-#endif
 	default:
 		fatal ("Unknown io_stream->source: %d", s->source);
 	}
@@ -266,12 +256,10 @@ off_t io_seek (struct io_stream *s, off_t offset, int whence)
 }
 
 /* Wake up the IO reading thread. */
-static void io_wake_up (struct io_stream *s CURL_ONLY)
+static void io_wake_up (struct io_stream *s)
 {
-#ifdef HAVE_CURL
 	if (s->source == IO_SOURCE_CURL)
 		io_curl_wake_up (s);
-#endif
 }
 
 /* Abort an IO operation from another thread. */
@@ -320,11 +308,9 @@ void io_close (struct io_stream *s)
 			close (s->fd);
 			break;
 #endif
-#ifdef HAVE_CURL
 		case IO_SOURCE_CURL:
 			io_curl_close (s);
 			break;
-#endif
 		default:
 			fatal ("Unknown io_stream->source: %d", s->source);
 		}
@@ -509,13 +495,11 @@ struct io_stream *io_open (const char *file, const int buffered)
 	s->buf = NULL;
 	memset (&s->metadata, 0, sizeof(s->metadata));
 
-#ifdef HAVE_CURL
 	s->curl.mime_type = NULL;
 	if (is_url (file))
 		io_curl_open (s, file);
 	else
-#endif
-	io_open_file (s, file);
+		io_open_file (s, file);
 
 	pthread_mutex_init (&s->buf_mtx, NULL);
 	pthread_mutex_init (&s->io_mtx, NULL);
@@ -692,12 +676,9 @@ char *io_strerror (struct io_stream *s)
 	if (s->strerror)
 		free (s->strerror);
 
-#ifdef HAVE_CURL
 	if (s->source == IO_SOURCE_CURL)
 		io_curl_strerror (s);
-	else
-#endif
-	if (s->errno_val)
+	else if (s->errno_val)
 		s->strerror = xstrerror (s->errno_val);
 	else
 		s->strerror = xstrdup ("OK");
@@ -748,28 +729,20 @@ int io_eof (struct io_stream *s)
 
 void io_init ()
 {
-#ifdef HAVE_CURL
 	io_curl_init ();
-#endif
 }
 
 void io_cleanup ()
 {
-#ifdef HAVE_CURL
 	io_curl_cleanup ();
-#endif
 }
 
 /* Return the mime type if available or NULL.
  * The mime type is read by curl only after the first read (or peek), until
  * then it's NULL. */
-char *io_get_mime_type (struct io_stream *s CURL_ONLY)
+char *io_get_mime_type (struct io_stream *s)
 {
-#ifdef HAVE_CURL
 	return s->curl.mime_type;
-#else
-	return NULL;
-#endif
 }
 
 /* Return the malloc()ed stream title if available or NULL. */

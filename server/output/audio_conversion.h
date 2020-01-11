@@ -1,15 +1,8 @@
-#ifndef AUDIO_CONVERSION_H
-#define AUDIO_CONVERSION_H
+#pragma once
 
-#ifdef HAVE_STDINT_H
-# include <stdint.h>
-#endif
-
+#include <stdint.h>
 #include <sys/types.h>
-
-#ifdef HAVE_SAMPLERATE
-# include <samplerate.h>
-#endif
+#include <samplerate.h>
 
 #include "../audio.h"
 
@@ -18,12 +11,9 @@ struct audio_conversion
 	struct sound_params from;
 	struct sound_params to;
 
-#ifdef HAVE_SAMPLERATE
 	SRC_STATE *src_state;
 	float *resample_buf;
 	size_t resample_buf_nsamples; /* in samples ( sizeof(float) ) */
-#endif
-
 };
 
 int audio_conv_new (struct audio_conversion *conv,
@@ -35,5 +25,3 @@ void audio_conv_destroy (struct audio_conversion *conv);
 
 void audio_conv_bswap_16 (int16_t *buf, const size_t num);
 void audio_conv_bswap_32 (int32_t *buf, const size_t num);
-
-#endif

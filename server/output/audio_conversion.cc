@@ -17,11 +17,8 @@
  */
 
 #include <math.h>
-
-#ifdef HAVE_SAMPLERATE
-# include <samplerate.h>
-#endif
-
+#include <samplerate.h>
+#include <byteswap.h>
 #include "audio_conversion.h"
 
 static void float_to_u8 (const float *in, unsigned char *out,
@@ -446,7 +443,6 @@ int audio_conv_new (struct audio_conversion *conv,
 	}
 
 	if (from->rate != to->rate) {
-#ifdef HAVE_SAMPLERATE
 		int err;
 		int resample_type = -1;
 		using options::ResampleMethod_t;
@@ -478,28 +474,19 @@ int audio_conv_new (struct audio_conversion *conv,
 					from->rate, to->rate, src_strerror (err));
 			return 0;
 		}
-#else
-		error ("Resampling not supported!");
-		return 0;
-#endif
 	}
-#ifdef HAVE_SAMPLERATE
 	else
 		conv->src_state = NULL;
-#endif
 
 	conv->from = *from;
 	conv->to = *to;
 
-#ifdef HAVE_SAMPLERATE
 	conv->resample_buf = NULL;
 	conv->resample_buf_nsamples = 0;
-#endif
 
 	return 1;
 }
 
-#ifdef HAVE_SAMPLERATE
 static float *resample_sound (struct audio_conversion *conv, const float *buf,
 		const size_t samples, const int nchannels, size_t *resampled_samples)
 {
@@ -583,7 +570,6 @@ static float *resample_sound (struct audio_conversion *conv, const float *buf,
 
 	return output;
 }
-#endif
 
 /* Double the channels from */
 static char *mono_to_stereo (const char *mono, const size_t size,
@@ -688,7 +674,6 @@ char *audio_conv (struct audio_conversion *conv, const char *buf,
 		curr_sound = new_sound;
 	}
 
-#ifdef HAVE_SAMPLERATE
 	if (conv->from.rate != conv->to.rate) {
 		char *new_sound = (char *)resample_sound (conv,
 				(float *)curr_sound,
@@ -699,7 +684,6 @@ char *audio_conv (struct audio_conversion *conv, const char *buf,
 			free (curr_sound);
 		curr_sound = new_sound;
 	}
-#endif
 
 	if ((curr_sfmt & SFMT_MASK_FORMAT)
 			!= (conv->to.fmt & SFMT_MASK_FORMAT)) {
@@ -743,14 +727,12 @@ char *audio_conv (struct audio_conversion *conv, const char *buf,
 	return curr_sound;
 }
 
-void audio_conv_destroy (struct audio_conversion *conv ASSERT_ONLY)
+void audio_conv_destroy (struct audio_conversion *conv)
 {
 	assert (conv != NULL);
 
-#ifdef HAVE_SAMPLERATE
 	if (conv->resample_buf)
 		free (conv->resample_buf);
 	if (conv->src_state)
 		src_delete (conv->src_state);
-#endif
 }

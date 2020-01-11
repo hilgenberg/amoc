@@ -145,15 +145,8 @@ Interface::Interface(Client &client, plist &pl1, plist &pl2)
 	menus[0] = &left; menus[1] = &right;
 	ratio[0] = std::make_pair(1,1); ratio[1] = std::make_pair(1,1);
 
-	if (!getenv ("ESCDELAY"))
-	#ifdef HAVE_SET_ESCDELAY
-		set_escdelay (25);
-	#else
-		setenv ("ESCDELAY", "25", 0);
-	#endif
-
-	if (!options::TERM.empty())
-		setenv ("TERM", options::TERM.c_str(), 1);
+	if (!getenv ("ESCDELAY")) set_escdelay(25);
+	if (!options::TERM.empty()) setenv ("TERM", options::TERM.c_str(), 1);
 
 	utf8_init ();
 	if (!initscr ()) fatal ("Can't initialize terminal!");
@@ -433,9 +426,7 @@ void Interface::draw(bool force)
 			else if (s+"/" == uhome) s = "~";
 			sanitize(s);
 			if (options::FileNamesIconv) s = files_iconv_str (s);
-			#ifdef  HAVE_RCC
 			if (options::UseRCCForFilesystem) s = rcc_reencode(s);
-			#endif
 			draw_frame(win, frame_color, r1, s, layout == VSPLIT ? 14 : 0, false);
 		}
 		if (layout != SINGLE || active_menu==1) draw_frame(win, frame_color, r2, client.synced ? "Playlist" : "Playlist (local)", 0, false);
@@ -562,9 +553,7 @@ void Interface::draw(bool force)
 		}
 		sanitize(s);
 		if (options::FileNamesIconv) s = files_iconv_str (s);
-		#ifdef  HAVE_RCC
 		if (options::UseRCCForFilesystem) s = rcc_reencode(s);
-		#endif
 
 		xwprintfield(win, s, W-6, 'l');
 	}

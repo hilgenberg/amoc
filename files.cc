@@ -11,11 +11,8 @@
 
 #include <sys/stat.h>
 #include <dirent.h>
-
-#ifdef HAVE_LIBMAGIC
 #include <magic.h>
 #include <pthread.h>
-#endif
 
 #include "client/interface.h"
 #include "server/input/decoder.h"
@@ -25,15 +22,12 @@
 
 #define READ_LINE_INIT_SIZE	256
 
-#ifdef HAVE_LIBMAGIC
 static magic_t cookie = NULL;
 static char *cached_file = NULL;
 static char *cached_result = NULL;
-#endif
 
 void files_init ()
 {
-#ifdef HAVE_LIBMAGIC
 	assert (cookie == NULL);
 
 	cookie = magic_open (MAGIC_SYMLINK | MAGIC_MIME | MAGIC_ERROR |
@@ -47,19 +41,16 @@ void files_init ()
 		magic_close (cookie);
 		cookie = NULL;
 	}
-#endif
 }
 
 void files_cleanup ()
 {
-#ifdef HAVE_LIBMAGIC
 	free (cached_file);
 	cached_file = NULL;
 	free (cached_result);
 	cached_result = NULL;
 	magic_close (cookie);
 	cookie = NULL;
-#endif
 }
 
 str add_path(const str &p1, const str &p2)
@@ -205,7 +196,6 @@ str absolute_path(const str &p)
 {
 	size_t n = p.length();
 	if (n && p[0] == '/') return p;
-	
 
 	if (n && p[0] == '~' && (n == 1 || p[1] == '/'))
 	{
@@ -264,13 +254,12 @@ bool can_read_file (const char *file)
 }
 
 /* Given a file name, return the mime type or NULL. */
-char *file_mime_type (const char *file ASSERT_ONLY)
+char *file_mime_type (const char *file)
 {
 	char *result = NULL;
 
 	assert (file != NULL);
 
-#ifdef HAVE_LIBMAGIC
 	static pthread_mutex_t magic_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 	if (cookie != NULL) {
@@ -291,7 +280,6 @@ char *file_mime_type (const char *file ASSERT_ONLY)
 		}
 		UNLOCK(magic_mtx);
 	}
-#endif
 
 	return result;
 }

@@ -25,8 +25,8 @@
 
 /* These merely silence compiler warnings about unused definitions in
  * the Vorbis library header files. */
-#if defined(HAVE_VAR_ATTRIBUTE_UNUSED) && !defined(HAVE_TREMOR)
-static ov_callbacks *vorbis_unused[] ATTR_UNUSED = {
+#if !defined(HAVE_TREMOR)
+static ov_callbacks *vorbis_unused[] = {
 	&OV_CALLBACKS_DEFAULT,
 	&OV_CALLBACKS_NOCLOSE,
 	&OV_CALLBACKS_STREAMONLY,
@@ -186,7 +186,7 @@ static int seek_cb (void *datasource, ogg_int64_t offset, int whence)
 	return io_seek ((io_stream*) datasource, offset, whence) == -1 ? -1 : 0;
 }
 
-static int close_cb (void *unused ATTR_UNUSED)
+static int close_cb (void *unused)
 {
 	return 0;
 }
@@ -405,7 +405,7 @@ static struct io_stream *vorbis_get_stream (void *prv_data)
 	return data->stream;
 }
 
-static void vorbis_get_name (const char *unused ATTR_UNUSED, char buf[4])
+static void vorbis_get_name (const char *unused, char buf[4])
 {
 	strcpy (buf, "OGG");
 }

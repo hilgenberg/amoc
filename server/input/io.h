@@ -3,10 +3,8 @@
 
 #include <sys/types.h>
 #include <pthread.h>
-#ifdef HAVE_CURL
-# include <sys/socket.h>     /* curl sometimes needs this */
-# include <curl/curl.h>
-#endif
+#include <sys/socket.h>     /* curl sometimes needs this */
+#include <curl/curl.h>
 
 #include "../../fifo_buf.h"
 
@@ -17,7 +15,6 @@ enum io_source
 	IO_SOURCE_CURL
 };
 
-#ifdef HAVE_CURL
 struct io_stream_curl
 {
 	CURLM *multi_handle;	/* we use the multi interface to get the
@@ -42,7 +39,6 @@ struct io_stream_curl
 	size_t icy_meta_count;	/* how many bytes was read from the last
 				   metadata packet */
 };
-#endif
 
 struct io_stream;
 
@@ -70,9 +66,7 @@ struct io_stream
 	off_t mem_pos;
 #endif
 
-#ifdef HAVE_CURL
 	struct io_stream_curl curl;
-#endif
 
 	fifo_buf *buf;
 	pthread_mutex_t buf_mtx;

@@ -134,9 +134,7 @@ static char *get_tag (struct id3_tag *tag, const char *what)
 	/* Workaround for ID3 tags v1/v1.1 where the encoding is latin1. */
 	char *comm = (char *)id3_ucs4_latin1duplicate (ucs4);
 
-	#ifdef HAVE_RCC
 	if (options::UseRCC) return rcc_reencode (comm);
-	#endif
 
 	if (!comm || iconv_id3_fix == (iconv_t)-1) return comm;
 

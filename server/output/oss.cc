@@ -13,12 +13,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <fcntl.h>
-
-#ifdef HAVE_SYS_SOUNDCARD_H
 # include <sys/soundcard.h>
-#else
-# include <soundcard.h>
-#endif
 
 #include "../server.h"
 #include "../audio.h"
