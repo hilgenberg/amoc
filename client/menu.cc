@@ -77,6 +77,20 @@ static void distribute(int W, int &c0, int &c1, int &c2)
 	assert(c0 >= 0 && c1 >= 0 && c2 >= 0);
 	assert(c0+c1+c2 == W);
 }
+static void distribute(int w, int &c0, int &c1)
+{
+	assert(w >= 0 && c0 >= 0 && c1 >= 0);
+	if (c0+c1 <= w) return;
+
+	// start with even split, then reclaim wasted space
+	int w0 = w/2, w1 = w-w0;
+	int o0 = c0-w0, o1 = c1-w1;
+	if      (o0 < 0) { w0 = c0; w1 = w-c0; }
+	else if (o1 < 0) { w1 = c1; w0 = w-c1; }
+	c0 = w0; c1 = w1;
+	assert(c0 >= 0 && c1 >= 0);
+	assert(c0+c1 == w);
+}
 
 bool menu::mark_path(const str &f)
 {
@@ -201,32 +215,62 @@ void menu::draw(bool active) const
 	bool readtags = options::ReadTags;
 	int avail = bounds.w - extra;
 	if (avail-2 < 3*4) readtags = false;
-	bool first = true;
-	if (readtags) for (const auto &ip : items.items)
+	bool all_same_artist = false, all_same_album = false;
+	int n_tagged = 0;
+	if (readtags)
 	{
-		const auto &it = *ip;
-		if (first) { first = false; if (have_up) continue; } // should not have tags anyway...
+		bool first = true, first_tagged = true;
+		str common_artist, common_album; // of all sound files (empty if any have no tags)
 
-		if (!it.tags) continue;
-		auto &tags = *it.tags;
+		for (const auto &ip : items.items)
+		{
+			const auto &it = *ip;
+			if (first) { first = false; if (have_up) continue; } // should not have tags anyway...
 
-		if (tags.title.empty())
-		{
-			continue;
+			if (it.type == F_SOUND && !it.tags)
+			{
+				first_tagged = false;
+				common_artist.clear();
+				common_album.clear();
+			}
+
+			if (!it.tags) continue;
+			auto &tags = *it.tags;
+
+			if (tags.title.empty())
+			{
+				continue;
+			}
+			else
+			{
+				++n_tagged;
+				str v0 = sanitized(tags.artist);
+				str v1 = sanitized(tags.album);
+				if (first_tagged)
+				{
+					common_artist = v0;
+					common_album = v1;
+					first_tagged = false;
+				}
+				else
+				{
+					if (v0 != common_artist) common_artist.clear();
+					if (v1 != common_album) common_album.clear();
+				}
+				M  = std::max(M,  tags.track);
+				c0 = std::max(c0, (int)strwidth(v0));
+				c1 = std::max(c1, (int)strwidth(v1));
+				c2 = std::max(c2, (int)strwidth(sanitized(tags.title)));
+			}
 		}
-		else
-		{
-			M  = std::max(M,  tags.track);
-			c0 = std::max(c0, (int)strwidth(sanitized(tags.artist)));
-			c1 = std::max(c1, (int)strwidth(sanitized(tags.album)));
-			c2 = std::max(c2, (int)strwidth(sanitized(tags.title)));
-		}
+		all_same_artist = !common_artist.empty();
+		all_same_album  = !common_album.empty();
 	}
 
 	int prefix_len = 0; // how much to cut off from file paths
 	if (!items.is_dir)
 	{
-		first = true;
+		bool first = true;
 		str common_prefix; // of all paths (even those with tags!)
 		for (const auto &ip : items.items)
 		{
@@ -246,7 +290,8 @@ void menu::draw(bool active) const
 		while (prefix_len > 0 && common_prefix[prefix_len-1] != '/') --prefix_len;
 		if (prefix_len == 1) prefix_len = 0;
 	}
-	int cn = 0;
+
+	int cn = 0; // how wide are the playlist or track numbers?
 	if (!items.is_dir)
 	{
 		M = N;
@@ -257,6 +302,7 @@ void menu::draw(bool active) const
 		for (cn = 2, M /= 10; M > 0; M /= 10) ++cn;
 	}
 	avail -= cn;
+
 	if (avail < 3*4)
 	{
 		readtags = false;
@@ -278,7 +324,39 @@ void menu::draw(bool active) const
 		return;
 	}
 
-	if (readtags) distribute(avail, c0, c1, c2);
+	bool hide_artist = false, hide_album = false;
+	if (readtags && c0+c1+c2 > avail)
+	{
+		if (all_same_artist && n_tagged > 1)
+		{
+			hide_artist = true;
+			c0 = 0; extra -= 3; avail += 3;
+
+			if (c1+c2 > avail)
+			{
+				if (all_same_album)
+				{
+					hide_album = true;
+					c1 = 0; extra -= 3; avail += 3;
+					c2 = avail;
+				}
+				else
+				{
+					distribute(avail, c1, c2);
+				}
+			}
+		}
+		else if (all_same_album) // compilation or split-CD
+		{
+			hide_album = true;
+			c1 = 0; extra -= 3; avail += 3;
+			distribute(avail, c0, c2);
+		}
+		else
+		{
+			distribute(avail, c0, c1, c2);
+		}
+	}
 	assert(c0+c1+c2+cn+extra <= bounds.w);
 	
 	// draw the visible items
@@ -349,10 +427,17 @@ void menu::draw(bool active) const
 		if (!is_up_dir && readtags && it.tags && !it.tags->title.empty())
 		{
 			auto &tags = *it.tags;
-			xwprintfield(win, sanitized(tags.artist), c0);
-			waddstr(win, "   ");
-			xwprintfield(win, sanitized(tags.album), c1);
-			waddstr(win, "   ");
+			if (!hide_artist)
+			{
+				xwprintfield(win, sanitized(tags.artist), c0);
+				waddstr(win, "   ");
+			}
+			if (!hide_album)
+			{
+				xwprintfield(win, sanitized(tags.album), c1);
+				waddstr(win, "   ");
+			}
+
 			if (items.is_dir)
 			{
 				if (tags.track > 0)
