@@ -107,16 +107,16 @@ static void check_moc_dir ()
 /* Run client and the server if needed. */
 static void start_moc (const struct parameters *params, stringlist &args)
 {
-	int server_sock;
-
 	if (params->foreground) {
 		set_me_server ();
+		options::load(SERVER);
 		server_init (params->debug, params->foreground);
 		server_loop ();
+		options::save(SERVER);
 		return;
 	}
 
-	server_sock = server_connect ();
+	int server_sock = server_connect ();
 
 	if (server_sock != -1 && params->only_server)
 		fatal ("Server is already running!");
@@ -135,6 +135,7 @@ static void start_moc (const struct parameters *params, stringlist &args)
 		switch (fork()) {
 		case 0: /* child - start server */
 			set_me_server ();
+			options::load(SERVER);
 			server_init (params->debug, params->foreground);
 			rc = write (notify_pipe[1], &i, sizeof(i));
 			if (rc < 0)
@@ -142,6 +143,7 @@ static void start_moc (const struct parameters *params, stringlist &args)
 			close (notify_pipe[0]);
 			close (notify_pipe[1]);
 			server_loop ();
+			options::save(SERVER);
 			decoder_cleanup ();
 			io_cleanup ();
 			files_cleanup ();
@@ -179,8 +181,10 @@ static void start_moc (const struct parameters *params, stringlist &args)
 		}
 		log_init_stream (logfp, CLIENT_LOG);
 
+		options::load(GUI);
 		Client client(server_sock, args);
 		client.run();
+		options::save(GUI);
 		log_close();
 	}
 
@@ -445,7 +449,6 @@ int main (int argc, const char *argv[])
 
 	memset (&params, 0, sizeof(params));
 	params.allow_iface = 1;
-	options::init();
 
 	/* set locale according to the environment variables */
 	if (!setlocale(LC_ALL, ""))
@@ -465,7 +468,7 @@ int main (int argc, const char *argv[])
 	if (!params.allow_iface && params.only_server)
 		fatal ("Server command options can't be used with --server!");
 
-	options::init();
+	options::load(params.allow_iface ? GUI : CLI);
 	check_moc_dir();
 
 	io_init ();

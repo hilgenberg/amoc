@@ -43,9 +43,8 @@ public:
 
 	int  selected_song() { assert(!in_dir_plist()); return right.xsel ? -1 : right.sel; }
 	plist_item *sel_item() { auto &m = *menus[active_menu]; return (m.sel < 0 || m.sel >= m.items.size()) ? NULL : m.items.items[m.sel].get(); }
-	std::pair<int,int>  selection()
+	std::pair<int,int>  selection() // returns [min, max]
 	{
-		// returns [min, max]
 		auto &m = *menus[active_menu];
 		return m.xsel < 0 ? std::make_pair(m.sel+m.xsel, m.sel)
 		                  : std::make_pair(m.sel, m.sel+m.xsel);
@@ -123,9 +122,6 @@ private:
 	str mixer_name;
 	int mixer_value;
 
-	enum Layout { HSPLIT=0, VSPLIT=1, SINGLE=2 };
-	Layout layout;
-	Ratio ratio[2]; // playlist:dirlist ratios for HSPLIT and VSPLIT
 	void cycle_layouts();
 	int  drag0; // last x or y value or -1 if not dragging anything
 	bool dragTime; // dragging in the time bar?

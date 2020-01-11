@@ -54,7 +54,102 @@ namespace options {
 str config_file_path(const char *file) { return add_path(ConfigDir, file); }
 str run_file_path(const char *file) { return add_path(RunDir, file); }
 
-void init()
+// read "Key = Value" pairs from file, adding them to items
+// returns true if the file could be opened
+static bool read_config_file(const str &path, std::map<str,str> &items)
+{
+	FILE *file = fopen(path.c_str(), "r");
+	if (!file)
+	{
+		char *err = STRERROR_FN (errno);
+		logit ("Can't open file \"%s\": %s", path.c_str(), err);
+		free (err);
+
+		return false;
+	}
+
+	int line = 0;
+	while (true)
+	{
+		int c = fgetc(file); if (c == EOF) break;
+		++line;
+		
+		// skip initial whitespace and comment lines
+		while (isspace(c)) c = fgetc(file); if (c == EOF) break;
+		if (c == '#')
+		{
+			do c = fgetc(file); while (c != EOF && c != '\n');
+			continue;
+		}
+
+		// read this option's key
+		std::string key, value;
+		while (!isspace(c) && c != EOF && c != '=') { key += c; c = fgetc(file); }
+
+		// skip space, equal sign, space
+		while (isspace(c)) c = fgetc(file); if (c == EOF) break;
+		if (c != '=')
+		{
+			logit("Syntax error on line %d", line);
+			do c = fgetc(file); while (c != EOF && c != '\n');
+			continue;
+		}
+		c = fgetc(file);
+		while (isspace(c) && c != EOF) c = fgetc(file);
+
+		// read this option's value
+		if (c == '\'' || c == '"')
+		{
+			int q = c; c = fgetc(file);
+			while (c != EOF && c != '\n' && c != q)
+			{
+				value += c;
+				c = fgetc(file);
+			}
+			if (c != q)
+			{
+				value.insert(0, 1, (char)q);
+			}
+			else
+			{
+				while (c != '\n' && c != EOF) c = fgetc(file);
+			}
+		}
+		else
+		{
+			while (c != '#' && c != '\n' && c != EOF) { value += c; c = fgetc(file); }
+			while (!value.empty() && isspace(value.back())) value.pop_back();
+			if (c == '#') while (c != '\n' && c != EOF) c = fgetc(file);
+		}
+
+		// finally add it to the map, replacing any prior value
+		items[key] = value;
+	}
+	fclose (file);
+	return true;
+}
+
+
+static bool write_config_file(const str &path, const std::map<str,str> &items, const char *header=NULL)
+{
+	FILE *file = fopen(path.c_str(), "w");
+	if (!file)
+	{
+		char *err = STRERROR_FN (errno);
+		logit ("Can't write file \"%s\": %s", path.c_str(), err);
+		free (err);
+		return false;
+	}
+
+	if (header) fprintf(file, "%s\n", header);
+
+	for (auto &it : items)
+		fprintf(file, "%s=%s\n", it.first.c_str(), it.second.c_str());
+	fclose (file);
+	return true;
+}
+
+void load(Component who)
 {
 	const char *home = getenv ("HOME");
 	if (!home) {
@@ -75,151 +170,80 @@ void init()
 	ConfigDir = is_dir(cfg1) ? cfg1 : is_dir(cfg2) ? cfg2 : 
 		is_dir(add_path(Home, ".config")) ? cfg1 : cfg2;
 
-	str config_file = add_path(ConfigDir, "config");
-	FILE *file = fopen(config_file.c_str(), "r");
-	if (!file)
+	std::map<str,str> items;
+	read_config_file(add_path(ConfigDir, "config"), items);
+
+	switch (who)
 	{
-		char *err = STRERROR_FN (errno);
-		logit ("Can't open config file \"%s\": %s", config_file, err);
-		free (err);
+		case CLI:    break;
+		case GUI:    read_config_file(add_path(ConfigDir, "config_gui"), items); break;
+		case SERVER: read_config_file(add_path(ConfigDir, "config_srv"), items); break;
 	}
 
 	std::string RatingSpace(" "), RatingStar("*");
 	RunDir = ConfigDir;
 
-	if (file)
-	{
-		std::map<std::string, std::string> items;
+	int hsplit_plist = 1, hsplit_dirlist = 1, vsplit_plist = 1, vsplit_dirlist = 1;
 
-		int line = 0;
-		while (true)
-		{
-			int c = fgetc(file); if (c == EOF) break;
-			++line;
-			
-			// skip initial whitespace and comment lines
-			while (isspace(c)) c = fgetc(file); if (c == EOF) break;
-			if (c == '#')
-			{
-				do c = fgetc(file); while (c != EOF && c != '\n');
-				continue;
-			}
+	#define OPT(x) if (items.count(#x)) ::parse(x, items[#x].c_str())
+	#define EOPT(x,...) if (items.count(#x)) ::eparse((int&)x, items[#x].c_str(), __VA_ARGS__, NULL)
 
-			// read this option's key
-			std::string key, value;
-			while (!isspace(c) && c != EOF && c != '=') { key += c; c = fgetc(file); }
+	EOPT(layout, "hsplit", "vsplit", "single");
+	OPT(hsplit_plist); OPT(hsplit_dirlist);
+	OPT(hsplit_plist); OPT(hsplit_dirlist);
 
-			// skip space, equal sign, space
-			while (isspace(c)) c = fgetc(file); if (c == EOF) break;
-			if (c != '=')
-			{
-				fclose(file);
-				fatal("Syntax error on line %d", line);
-				return;
-			}
-			c = fgetc(file);
-			while (isspace(c) && c != EOF) c = fgetc(file);
-
-			// read this option's value
-			if (c == '\'' || c == '"')
-			{
-				int q = c; c = fgetc(file);
-				while (c != EOF && c != '\n' && c != q)
-				{
-					value += c;
-					c = fgetc(file);
-				}
-				if (c != q)
-				{
-					value.insert(0, 1, (char)q);
-				}
-				else
-				{
-					while (c != '\n' && c != EOF) c = fgetc(file);
-				}
-			}
-			else
-			{
-				while (c != '#' && c != '\n' && c != EOF) { value += c; c = fgetc(file); }
-				while (!value.empty() && isspace(value.back())) value.pop_back();
-				if (c == '#') while (c != '\n' && c != EOF) c = fgetc(file);
-			}
-
-			// finally add it to the map, replacing any prior value
-			items[key] = value;
-		}
-		fclose (file);
-
-		#define OPT(x) if (items.count(#x)) ::parse(x, items[#x].c_str())
-		#define EOPT(x,...) if (items.count(#x)) ::eparse((int&)x, items[#x].c_str(), __VA_ARGS__, NULL)
-
-		OPT(RatingSpace);
-		OPT(RatingStar);
-
-		OPT(ReadTags);
-		OPT(MusicDir);
-		OPT(StartInMusicDir);
-
-		OPT(Repeat);
-		OPT(Shuffle);
-		OPT(AutoNext);
-		OPT(ASCIILines);
-		//str  ("FormatString", "%(n:%n :)%(a:%a - :)%(t:%t:)%(A: \\(%A\\):)", CHECK_NONE);
-		OPT(InputBuffer);
-		OPT(OutputBuffer);
-		OPT(Prebuffering);
-		OPT(HTTPProxy);
-
-		EOPT(SoundDriver, "SNDIO", "JACK", "ALSA", "OSS", "NULL");
-		OPT(JackClientName);
-		OPT(JackStartServer);
-		OPT(JackOutLeft);
-		OPT(JackOutRight);
-		OPT(OSSDevice);
-		OPT(OSSMixerDevice);
-		OPT(OSSMixerChannel1);
-		OPT(OSSMixerChannel2);
-		OPT(ALSADevice);
-		OPT(ALSAMixer1);
-		OPT(ALSAMixer2);
-		OPT(ALSAStutterDefeat);
-
-		OPT(Softmixer_SaveState);
-		OPT(Equalizer_SaveState);
-		OPT(ShowMixer);
-
-		OPT(ShowHiddenFiles);
-		OPT(HideFileExtension);
-
-		OPT(RunDir);
-		OPT(UseMMap);
-		OPT(UseMimeMagic);
-		OPT(ID3v1TagsEncoding);
-		OPT(UseRCC);
-		OPT(UseRCCForFilesystem);
-		OPT(EnforceTagsEncoding);
-		OPT(FileNamesIconv);
-		OPT(TiMidity_Config);
-		OPT(TERM);
-
-		OPT(RatingFile);
-
-		OPT(TimeBarLine);
-		OPT(TimeBarSpace);
-
-		OPT(SeekTime);
-		OPT(SilentSeekTime);
-
-		EOPT(ResampleMethod, "SincBestQuality", "SincMediumQuality", "SincFastest", "ZeroOrderHold", "Linear");
-
-		OPT(ForceSampleRate);
-		OPT(Allow24bitOutput);
-		OPT(UseRealtimePriority);
-
-		OPT(PlaylistFullPaths);
-
-		OPT(MessageLingerTime);
-	}
+	OPT(RatingSpace);
+	OPT(RatingStar);
+	OPT(ReadTags);
+	OPT(MusicDir);
+	OPT(StartInMusicDir);
+	OPT(Repeat);
+	OPT(Shuffle);
+	OPT(AutoNext);
+	OPT(ASCIILines);
+	OPT(InputBuffer);
+	OPT(OutputBuffer);
+	OPT(Prebuffering);
+	OPT(HTTPProxy);
+	EOPT(SoundDriver, "SNDIO", "JACK", "ALSA", "OSS", "NULL");
+	OPT(JackClientName);
+	OPT(JackStartServer);
+	OPT(JackOutLeft);
+	OPT(JackOutRight);
+	OPT(OSSDevice);
+	OPT(OSSMixerDevice);
+	OPT(OSSMixerChannel1);
+	OPT(OSSMixerChannel2);
+	OPT(ALSADevice);
+	OPT(ALSAMixer1);
+	OPT(ALSAMixer2);
+	OPT(ALSAStutterDefeat);
+	OPT(Softmixer_SaveState);
+	OPT(Equalizer_SaveState);
+	OPT(ShowMixer);
+	OPT(ShowHiddenFiles);
+	OPT(HideFileExtension);
+	OPT(RunDir);
+	OPT(UseMMap);
+	OPT(UseMimeMagic);
+	OPT(ID3v1TagsEncoding);
+	OPT(UseRCC);
+	OPT(UseRCCForFilesystem);
+	OPT(EnforceTagsEncoding);
+	OPT(FileNamesIconv);
+	OPT(TiMidity_Config);
+	OPT(TERM);
+	OPT(RatingFile);
+	OPT(TimeBarLine);
+	OPT(TimeBarSpace);
+	OPT(SeekTime);
+	OPT(SilentSeekTime);
+	EOPT(ResampleMethod, "SincBestQuality", "SincMediumQuality", "SincFastest", "ZeroOrderHold", "Linear");
+	OPT(ForceSampleRate);
+	OPT(Allow24bitOutput);
+	OPT(UseRealtimePriority);
+	OPT(PlaylistFullPaths);
+	OPT(MessageLingerTime);
 
 	build_rating_strings(RatingSpace.c_str(), RatingStar.c_str());
 	if (Prebuffering > InputBuffer) InputBuffer = Prebuffering;
@@ -231,11 +255,44 @@ void init()
 
 	#define UNIX_PATH_MAX	108
 	if (SocketPath.length() > UNIX_PATH_MAX) fatal ("Can't create socket name!");
+
+	hsplit.first  = std::max(0, hsplit_plist);
+	hsplit.second = std::max(0, hsplit_dirlist);
+	vsplit.first  = std::max(0, vsplit_plist);
+	vsplit.second = std::max(0, vsplit_dirlist);
+}
+
+void save(Component who)
+{
+	if (who == CLI) return;
+
+	std::map<str,str> items;
+	const char *header = "# This file is auto-generated and overrides the regular config file";
+
+	if (who == GUI)
+	{
+		items["hsplit_plist"]   = format("%d", hsplit.first);
+		items["hsplit_dirlist"] = format("%d", hsplit.second);
+		items["vsplit_plist"]   = format("%d", vsplit.first);
+		items["vsplit_dirlist"] = format("%d", vsplit.second);
+		items["layout"] = (layout == HSPLIT ? "hsplit" : layout == VSPLIT ? "vsplit" : "single");
+		write_config_file(add_path(ConfigDir, "config_gui"), items, header);
+	}
+	else if (who == SERVER)
+	{
+		items["Shuffle"]  = Shuffle  ? "yes" : "no";
+		items["Repeat"]   = Repeat   ? "yes" : "no";
+		items["AutoNext"] = AutoNext ? "yes" : "no";
+		write_config_file(add_path(ConfigDir, "config_srv"), items, header);
+	}
 }
 
 str Home, ConfigDir, MusicDir, RunDir, SocketPath;
 
 const char **rating_strings = NULL;
+
+Ratio hsplit = std::make_pair(1,1), vsplit = std::make_pair(1,1);
+Layout layout = HSPLIT;
 
 bool ReadTags = true;
 bool StartInMusicDir = false;

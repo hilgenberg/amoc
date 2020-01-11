@@ -133,7 +133,6 @@ Interface::Interface(Client &client, plist &pl1, plist &pl2)
 , left(this, pl1)
 , right(this, pl2)
 , active_menu(1)
-, layout(HSPLIT)
 , prompting(false)
 , need_redraw(2)
 , bitrate(-1), avg_bitrate(-1), rate(-1)
@@ -143,7 +142,6 @@ Interface::Interface(Client &client, plist &pl1, plist &pl2)
 , drag0(-1)
 {
 	menus[0] = &left; menus[1] = &right;
-	ratio[0] = std::make_pair(1,1); ratio[1] = std::make_pair(1,1);
 
 	if (!getenv ("ESCDELAY")) set_escdelay(25);
 	if (!options::TERM.empty()) setenv ("TERM", options::TERM.c_str(), 1);
@@ -186,35 +184,37 @@ Interface::~Interface()
 
 void Interface::cycle_layouts()
 {
-	++(int&)layout;
-	(int&)layout %= 3;
+	++(int&)options::layout;
+	(int&)options::layout %= 3;
 	redraw(2);
 }
 
+#define CURR_RATIO (options::layout == HSPLIT ? options::hsplit : options::vsplit)
+
 bool Interface::handle_click(int x, int y, bool dbl)
 {
-	if (layout != SINGLE && left.bounds.contains(x,y))
+	if (options::layout != SINGLE && left.bounds.contains(x,y))
 	{
 		if (active_menu == 1) { active_menu = 0; redraw(2); }
 		left.handle_click(x, y, dbl);
 		return true;
 	}
-	else if (layout != SINGLE && right.bounds.contains(x,y))
+	else if (options::layout != SINGLE && right.bounds.contains(x,y))
 	{
 		if (active_menu == 0) { active_menu = 1; redraw(2); }
 		right.handle_click(x, y, dbl);
 		return true;
 	}
-	else if (layout != SINGLE && (left.bounds+right.bounds).contains(x,y))
+	else if (options::layout != SINGLE && (left.bounds+right.bounds).contains(x,y))
 	{
 		if (dbl)
 		{
-			ratio[layout==HSPLIT ? 0 : 1] = std::make_pair(1,1);
+			CURR_RATIO = std::make_pair(1,1);
 			redraw(2);
 			return true;
 		}
 	}
-	else if (layout == SINGLE && menus[active_menu]->bounds.contains(x,y))
+	else if (options::layout == SINGLE && menus[active_menu]->bounds.contains(x,y))
 	{
 		menus[active_menu]->handle_click(x, y, dbl);
 		redraw(2);
@@ -271,9 +271,9 @@ bool Interface::handle_click(int x, int y, bool dbl)
 bool Interface::handle_scroll(int x, int y, int dy)
 {
 	int m = -1;
-	if (layout != SINGLE && left.bounds.contains(x,y)) m = 0;
-	else if (layout != SINGLE && right.bounds.contains(x,y)) m = 1;
-	else if (layout != SINGLE && menus[active_menu]->bounds.contains(x,y)) m = active_menu;
+	if (options::layout != SINGLE && left.bounds.contains(x,y)) m = 0;
+	else if (options::layout != SINGLE && right.bounds.contains(x,y)) m = 1;
+	else if (options::layout != SINGLE && menus[active_menu]->bounds.contains(x,y)) m = active_menu;
 	if (m != -1)
 	{
 		active_menu = m;
@@ -299,7 +299,7 @@ bool Interface::handle_scroll(int x, int y, int dy)
 
 bool Interface::handle_drag(int x, int y, int seq)
 {
-	if (layout == SINGLE) return false;
+	if (options::layout == SINGLE) return false;
 
 	if (seq < 0)
 	{
@@ -316,19 +316,17 @@ bool Interface::handle_drag(int x, int y, int seq)
 		{
 			dragTime = false;
 			if (!(left.bounds+right.bounds).contains(x,y)) return false;
-			if (layout == HSPLIT)
+			if (options::layout == HSPLIT)
 			{
 				if (x != left.bounds.x1() && x != right.bounds.x-1) return false;
 				drag0 = x;
-				ratio[0].first  = right.bounds.w;
-				ratio[0].second = left.bounds.w;
+				options::hsplit = std::make_pair(right.bounds.w, left.bounds.w);
 			}
 			else
 			{
 				if (y != left.bounds.y-1) return false;
 				drag0 = y;
-				ratio[1].first  = right.bounds.h;
-				ratio[1].second = left.bounds.h;
+				options::vsplit = std::make_pair(right.bounds.h, left.bounds.h);
 			}
 			redraw(2); // draw frame in selected color
 			return true;
@@ -348,9 +346,9 @@ bool Interface::handle_drag(int x, int y, int seq)
 	}
 	else
 	{
-		int p = (layout == HSPLIT ? x : y);
-		auto &r = ratio[layout == HSPLIT ? 0 : 1];
-		int s = (layout == HSPLIT ? +1 : -1);
+		int p = (options::layout == HSPLIT ? x : y);
+		auto &r = CURR_RATIO;
+		int s = (options::layout == HSPLIT ? +1 : -1);
 
 		if (p != drag0)
 		{
@@ -449,11 +447,11 @@ void Interface::draw(bool force)
 		werase (win);
 		wbkgd (win, get_color(CLR_BACKGROUND));
 		Rect r1, r2; // for left+right = dir+plist
-		switch (layout)
+		switch (options::layout)
 		{
 			case HSPLIT:
 			{
-				auto &r = ratio[0]; int a = MAX(0, r.first), b = MAX(0, r.second);
+				auto &r = options::hsplit; int a = MAX(0, r.first), b = MAX(0, r.second);
 				if (a+b == 0) a = b = 1;
 				int w1 = CLAMP(0, std::round((W-4)*(double)b/(a+b)), W-4);
 				int w2 = (W-4)-w1;
@@ -463,7 +461,7 @@ void Interface::draw(bool force)
 			}
 			case VSPLIT:
 			{
-				auto &r = ratio[1]; int a = MAX(0, r.first), b = MAX(0, r.second);
+				auto &r = options::vsplit; int a = MAX(0, r.first), b = MAX(0, r.second);
 				if (a+b == 0) a = b = 1;
 				int h1 = CLAMP(0, std::round((H-6)*(double)b/(a+b)), H-6);
 				int h2 = (H-6)-h1;
@@ -482,10 +480,10 @@ void Interface::draw(bool force)
 		left.mark_path(curr_file);
 		right.mark_item(curr_idx);
 
-		if (layout != SINGLE) menus[1-active_menu]->draw(false);
+		if (options::layout != SINGLE) menus[1-active_menu]->draw(false);
 		menus[active_menu]->draw(true);
 
-		if (layout != SINGLE || active_menu==0)
+		if (options::layout != SINGLE || active_menu==0)
 		{
 			str s = client.cwd; normalize_path(s);
 
@@ -503,21 +501,21 @@ void Interface::draw(bool force)
 			sanitize(s);
 			if (options::FileNamesIconv) s = files_iconv_str (s);
 			if (options::UseRCCForFilesystem) s = rcc_reencode(s);
-			draw_frame(win, frame_color, r1, s, layout == VSPLIT ? 14 : 0, false);
+			draw_frame(win, frame_color, r1, s, options::layout == VSPLIT ? 14 : 0, false);
 		}
-		if (layout != SINGLE || active_menu==1) draw_frame(win, frame_color, r2, client.synced ? "Playlist" : "Playlist (local)", 0, false);
+		if (options::layout != SINGLE || active_menu==1) draw_frame(win, frame_color, r2, client.synced ? "Playlist" : "Playlist (local)", 0, false);
 
 		// bottom frame
 		wattrset (win, frame_color);
 		mvwaddch (win, H-4, 0, lines.ltee);
 		whline (win, lines.horiz, W-2);
 		mvwaddch (win, H-4, W-1, lines.rtee);
-		if (layout == HSPLIT)
+		if (options::layout == HSPLIT)
 		{
 			mvwaddch(win, H-4, left.bounds.x1(), lines.lrcorn);
 			waddch(win, lines.llcorn);
 		}
-		else if (layout == VSPLIT)
+		else if (options::layout == VSPLIT)
 		{
 			int y = r2.y1()-1;
 			mvwaddch (win, y,   0, lines.ltee);
@@ -533,7 +531,7 @@ void Interface::draw(bool force)
 		mvwaddch (win, H-1, W-1, lines.lrcorn);
 
 		// playlist total times
-		if (left.bounds.w >= 30 && (layout != SINGLE || active_menu == 0))
+		if (left.bounds.w >= 30 && (options::layout != SINGLE || active_menu == 0))
 		{
 			wattrset (win, get_color(CLR_PLIST_TIME));
 			str s = total_time_str(left.items.total_time());
@@ -545,7 +543,7 @@ void Interface::draw(bool force)
 			mvwaddch (win, y, x0, '[');
 			mvwaddch (win, y, x1, ']');
 		}
-		if (right.bounds.w >= 30 && (layout != SINGLE || active_menu == 1))
+		if (right.bounds.w >= 30 && (options::layout != SINGLE || active_menu == 1))
 		{
 			wattrset (win, get_color(CLR_PLIST_TIME));
 			str s = total_time_str(right.items.total_time());
@@ -567,7 +565,7 @@ void Interface::draw(bool force)
 	{
 		int w = 0, sw = (int)status_msg.length();
 
-		if (layout == HSPLIT)
+		if (options::layout == HSPLIT)
 		{
 			if (left.bounds.w >= 30) w = left.bounds.w - 15;
 			if (w < sw) w = left.bounds.w - 2;

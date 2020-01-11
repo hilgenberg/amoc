@@ -1,14 +1,21 @@
 #pragma once
 
+enum Component { CLI, GUI, SERVER };
+enum Layout { HSPLIT=0, VSPLIT=1, SINGLE=2 };
+
 namespace options
 {
-	void init();
+	void load(Component who);
+	void save(Component who);
 
 	extern str Home, ConfigDir, MusicDir, RunDir, SocketPath;
 	str config_file_path(const char *file); // return ConfigDir/file
 	str run_file_path(const char *file); // return RunDir/file
 
 	extern const char **rating_strings; // "     ", "*    ", ... "*****"
+
+	extern Ratio hsplit, vsplit;
+	extern Layout layout;
 
 	extern bool ReadTags;
 	extern str  MusicDir;

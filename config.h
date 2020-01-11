@@ -37,6 +37,7 @@
 #include <ctype.h>
 
 typedef std::string str;
+typedef std::pair<int,int> Ratio;
 
 #include "common.h"
 #include "log.h"
