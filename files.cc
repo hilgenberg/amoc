@@ -11,7 +11,6 @@
 
 #include <sys/stat.h>
 #include <dirent.h>
-#include <pwd.h>
 
 #ifdef HAVE_LIBMAGIC
 #include <magic.h>
@@ -67,7 +66,6 @@ str add_path(const str &p1, const str &p2)
 {
 	assert(p1 == normalized_path(p1));
 	assert(p2 == normalized_path(p2));
-	assert(p1.empty() || p1.front() != '/' || is_dir(p1.c_str()));
 	
 	if (p2.empty() || p2 == "." || p2 == "./") return p1;
 	if (p2.front() == '/') return p2;
@@ -103,9 +101,14 @@ str normalized_path(const str &p)
 
 str& normalize_path(str &p)
 {
-	char *s = (char*)p.data();
 	size_t n = p.length();
 	if (!n) return p;
+
+	if (p[0] == '~' && (n == 1 || p[1] == '/'))
+	{
+		p.replace(0, 1, options::Home);
+		n = p.length();
+	}
 
 	// foo//././//bar//./  --> foo/bar
 	size_t j = 0;
@@ -200,8 +203,16 @@ str& normalize_path(str &p)
 
 str absolute_path(const str &p)
 {
-	if (!p.empty() && p[0] == '/') return p;
+	size_t n = p.length();
+	if (n && p[0] == '/') return p;
 	
+
+	if (n && p[0] == '~' && (n == 1 || p[1] == '/'))
+	{
+		str q(p);
+		return q.replace(0, 1, options::Home);
+	}
+
 	char buf[PATH_MAX];
 	if (!getcwd (buf, sizeof(buf)))
 		interface_fatal ("Can't get CWD: %s", xstrerror (errno));
@@ -219,35 +230,35 @@ str containing_directory(const str &path)
 }
 
 /* Is the string a URL? */
-int is_url (const char *str)
+bool is_url (const str &str)
 {
-	return !strncasecmp (str, "http://", sizeof ("http://") - 1)
-		|| !strncasecmp (str, "ftp://", sizeof ("ftp://") - 1);
+	return has_prefix(str, "http://", true) || has_prefix(str, "ftp://", true);
 }
 
 /* Return 1 if the file is a directory, 0 if not, -1 on error. */
-int is_dir (const char *file)
+bool is_dir (const str &file)
 {
-	if (!*file || is_url(file)) return 0;
+	if (file.empty() || is_url(file)) return false;
 
 	struct stat file_stat;
-	if (stat (file, &file_stat) == -1) {
+	if (stat (file.c_str(), &file_stat) == -1) {
+		if (errno == ENOENT) return false;
 		char *err = xstrerror (errno);
-		error ("Can't stat %s: %s", file, err);
+		error ("Can't stat %s: %s", file.c_str(), err);
 		free (err);
-		return -1;
+		return false;
 	}
-	return S_ISDIR(file_stat.st_mode) ? 1 : 0;
+	return S_ISDIR(file_stat.st_mode);
 }
 
-int is_plist_file (const char *name)
+bool is_plist_file (const str &name)
 {
-	const char *ext = ext_pos (name);
+	const char *ext = ext_pos (name.c_str());
 	return ext && !strcasecmp(ext, "m3u");
 }
 
 /* Return 1 if the file can be read by this user, 0 if not */
-int can_read_file (const char *file)
+bool can_read_file (const char *file)
 {
 	return access(file, R_OK) == 0;
 }
@@ -363,11 +374,11 @@ static char *add_dir_file (const char *base, const char *name)
 }
 
 /* Return != 0 if the file exists. */
-int file_exists (const char *file)
+bool file_exists (const str &file)
 {
 	struct stat file_stat;
 
-	if (!stat(file, &file_stat))
+	if (!stat(file.c_str(), &file_stat))
 		return 1;
 
 	/* Log any error other than non-existence. */
@@ -433,6 +444,8 @@ bool purge_directory (const char *dir_path)
 
 		struct stat st;
 		if (stat (fpath, &st) < 0) {
+			if (errno == ENOENT) return false;
+
 			char *err = xstrerror (errno);
 			logit ("Can't stat %s: %s", fpath, err);
 			free (err);
@@ -476,50 +489,4 @@ bool purge_directory (const char *dir_path)
 
 	closedir (dir);
 	return true;
-}
-
-
-/* Return path to a file in MOC config directory. NOT THREAD SAFE */
-char *create_file_name (const char *file)
-{
-	int rc;
-	static char fname[PATH_MAX];
-	const char *moc_dir = options::MOCDir.c_str();
-
-	if (moc_dir[0] == '~')
-		rc = snprintf(fname, sizeof(fname), "%s/%s/%s", get_home (),
-		              (moc_dir[1] == '/') ? moc_dir + 2 : moc_dir + 1,
-		              file);
-	else
-		rc = snprintf(fname, sizeof(fname), "%s/%s", moc_dir, file);
-
-	if (rc >= ssizeof(fname))
-		fatal ("Path too long!");
-
-	return fname;
-}
-
-/* Determine and return the path of the user's home directory. */
-const char *get_home ()
-{
-	static const char *home = NULL;
-	struct passwd *passwd;
-
-	if (home == NULL) {
-		home = xstrdup (getenv ("HOME"));
-		if (home == NULL) {
-			errno = 0;
-			passwd = getpwuid (geteuid ());
-			if (passwd)
-				home = xstrdup (passwd->pw_dir);
-			else
-				if (errno != 0) {
-					char *err = xstrerror (errno);
-					logit ("getpwuid(%d): %s", geteuid (), err);
-					free (err);
-				}
-		}
-	}
-
-	return home;
 }

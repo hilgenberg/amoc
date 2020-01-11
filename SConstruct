@@ -52,6 +52,6 @@ env.Append(LIBS=libs.split());
 env.ParseConfig('pkg-config --cflags --libs pangocairo')
 
 # target
-mocp = env.Program(target='mocp', source=src)
-Default(mocp)
+amoc = env.Program(target='amoc', source=src)
+Default(amoc)
 

@@ -10,19 +10,17 @@ str  absolute_path(const str &p);
 
 const char *ext_pos (const char *file);
 char *ext_pos (char *file);
-char *create_file_name (const char *file);
-const char *get_home ();
 
-int file_exists (const char *file);
-int is_dir (const char *file);
-int is_sound_file (const char *name); // in decoder.cc
-int is_url (const char *str);
-int is_plist_file (const char *name);
+bool file_exists (const str &file);
+bool is_dir (const str &file);
+bool is_sound_file (const str &name); // in decoder.cc
+bool is_url (const str &str);
+bool is_plist_file (const str &name);
 
 str containing_directory(const str &path);
 
 time_t get_mtime (const char *file);
-int can_read_file (const char *file);
+bool can_read_file (const char *file);
 bool is_secure (const char *file);
 char *file_mime_type (const char *file);
 

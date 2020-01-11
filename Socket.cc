@@ -1,13 +1,7 @@
+#include "Socket.h"
 #include <sys/socket.h>
 #include <time.h>
 #include <fcntl.h>
-
-#include "protocol.h"
-#include "playlist.h"
-
-/* Maximal socket name. */
-#define UNIX_PATH_MAX	108
-#define SOCKET_NAME	"socket2"
 
 #define nonblocking(fn, result, sock, buf, len) \
 	do { \
@@ -25,19 +19,6 @@
 			fatal ("Restoring flags for socket failed: %s", \
 			        xstrerror (errno)); \
 	} while (0)
-
-
-/* Create a socket name, return NULL if the name could not be created. */
-char *socket_name ()
-{
-	char *socket_name = create_file_name (SOCKET_NAME);
-
-	if (strlen(socket_name) > UNIX_PATH_MAX)
-		fatal ("Can't create socket name!");
-
-	return socket_name;
-}
-
 
 bool Socket::send(const void *data, size_t n)
 {
@@ -60,6 +41,7 @@ bool Socket::send(const void *data, size_t n)
 	}
 	return true;
 }
+
 bool Socket::read(void *data, size_t n)
 {
 	//SOCKET_DEBUG("Socketread: %d", n);
@@ -94,6 +76,7 @@ bool Socket::flush()
 	buf.clear(); // even on errors
 	return ok;
 }
+
 bool Socket::get_int_noblock (int &i)
 {
 	ssize_t res;

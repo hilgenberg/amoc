@@ -1,10 +1,10 @@
 *.o
 *.gch
-/mocp
+/amoc
 __pycache__/
 *.dblite
 *.swp
 *~
 /.vscode/
-mocp_client_log
-mocp_server_log
+amoc_client_log
+amoc_server_log

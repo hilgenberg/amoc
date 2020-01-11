@@ -25,7 +25,7 @@ public:
 	void clear_up_to (const char *file, int client_id);
 
 	/* Cache DB manipulation functions: */
-	void load (const char *cache_dir);
+	void load (const str &cache_dir);
 	void add_request (const char *file, int client_id);
 	file_tags get_immediate (const char *file);
 	void ratings_changed(const char *file, int rating);

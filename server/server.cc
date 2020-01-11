@@ -21,6 +21,7 @@
 #include <pthread.h>
 
 #include "../protocol.h"
+#include "../Socket.h"
 #include "audio.h"
 #include "output/oss.h"
 #include "server.h"
@@ -30,7 +31,7 @@
 #include "output/equalizer.h"
 #include "ratings.h"
 
-#define SERVER_LOG	"mocp_server_log"
+#define SERVER_LOG	"amoc_server_log"
 #define PID_FILE	"pid"
 #define PLAYLIST_FILE	"playlist.m3u"
 
@@ -81,8 +82,8 @@ extern char **environ;
 
 static void write_pid_file ()
 {
-	char *fname = create_file_name (PID_FILE);
-	FILE *file = fopen(fname, "w");
+	str fname = options::run_file_path(PID_FILE);
+	FILE *file = fopen(fname.c_str(), "w");
 
 	if (!file) fatal ("Can't open pid file for writing: %s", xstrerror (errno));
 	fprintf(file, "%d\n", getpid());
@@ -92,8 +93,8 @@ static void write_pid_file ()
 /* Check if there is a pid file and if it is valid, return the pid, else 0 */
 static pid_t check_pid_file ()
 {
-	char *fname = create_file_name (PID_FILE);
-	FILE *file = fopen(fname, "r");
+	str fname = options::run_file_path(PID_FILE);
+	FILE *file = fopen(fname.c_str(), "r");
 	if (!file) return 0;
 
 	/* Read the pid file */
@@ -261,7 +262,7 @@ void server_init (int debugging, int foreground)
 				" with pid %d.\n", pid);
 		fprintf (stderr, "If it is not true, remove the pid file (%s)"
 				" and try again.\n",
-				create_file_name(PID_FILE));
+				options::run_file_path(PID_FILE).c_str());
 		fatal ("Exiting!");
 	}
 
@@ -282,7 +283,7 @@ void server_init (int debugging, int foreground)
 	if (pipe(wake_up_pipe) < 0)
 		fatal ("pipe() failed: %s", xstrerror (errno));
 
-	unlink (socket_name());
+	unlink (options::SocketPath.c_str());
 
 	/* Create a socket.
 	 * For reasons why AF_UNIX is the correct constant to use in both
@@ -291,7 +292,7 @@ void server_init (int debugging, int foreground)
 	if (server_sock == -1)
 		fatal ("Can't create socket: %s", xstrerror (errno));
 	sock_name.sun_family = AF_UNIX;
-	strcpy (sock_name.sun_path, socket_name());
+	strcpy (sock_name.sun_path, options::SocketPath.c_str());
 
 	/* Bind to socket */
 	if (bind(server_sock, (struct sockaddr *)&sock_name, SUN_LEN(&sock_name)) == -1)
@@ -307,11 +308,11 @@ void server_init (int debugging, int foreground)
 	clients_init ();
 	audio_initialize ();
 	tc = new tags_cache();
-	tc->load (create_file_name("cache"));
+	tc->load(options::run_file_path("cache"));
 
 	/* Load the playlist from .moc directory. */
-	char *plist_file = create_file_name (PLAYLIST_FILE);
-	if (is_plist_file(plist_file))
+	str plist_file = options::run_file_path(PLAYLIST_FILE);
+	if (is_plist_file(plist_file.c_str()))
 	{
 		plist pl;
 		if (pl.load_m3u(plist_file))
@@ -445,17 +446,14 @@ static void server_shutdown ()
 {
 	logit ("Server exiting...");
 
-	char *plist_file = create_file_name (PLAYLIST_FILE);
-	if (plist_file && *plist_file)
-	{
-		plist playlist; audio_get_plist(playlist);
-		if (playlist.size()) playlist.save(plist_file); else unlink (plist_file);
-	}
+	str plist_file = options::run_file_path(PLAYLIST_FILE);
+	plist playlist; audio_get_plist(playlist);
+	if (playlist.size()) playlist.save(plist_file); else unlink (plist_file.c_str());
 
 	audio_exit ();
 	delete tc; tc = NULL;
-	unlink (socket_name());
-	unlink (create_file_name(PID_FILE));
+	unlink (options::SocketPath.c_str());
+	unlink (options::run_file_path(PID_FILE).c_str());
 	close (wake_up_pipe[0]);
 	close (wake_up_pipe[1]);
 	logit ("Server exited");

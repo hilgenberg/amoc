@@ -577,14 +577,14 @@ static int prepare_cache_dir (const char *cache_dir)
 }
 #endif
 
-void tags_cache::load(const char *cache_dir)
+void tags_cache::load(const str &cache_dir)
 {
-	assert (cache_dir != NULL);
+	assert (!cache_dir.empty());
 
 #ifdef HAVE_DB_H
 	int ret;
 
-	if (!prepare_cache_dir (cache_dir)) {
+	if (!prepare_cache_dir (cache_dir.c_str())) {
 		error ("Can't prepare cache directory!");
 		goto err;
 	}
@@ -602,11 +602,11 @@ void tags_cache::load(const char *cache_dir)
 	if (ret) logit ("Could not set DB panic callback");
 #endif
 
-	ret = db_env->open (db_env, cache_dir,
+	ret = db_env->open (db_env, cache_dir.c_str(),
 	                       DB_CREATE | DB_PRIVATE | DB_INIT_MPOOL |
 	                       DB_THREAD | DB_INIT_LOCK, 0);
 	if (ret) {
-		error ("Can't open DB environment (%s): %s", cache_dir, db_strerror (ret));
+		error ("Can't open DB environment (%s): %s", cache_dir.c_str(), db_strerror (ret));
 		goto err;
 	}
 

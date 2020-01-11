@@ -17,6 +17,7 @@
 #include "server.h"
 #include "input/decoder.h"
 #include "server_plist.h"
+#include "../Socket.h"
 
 #ifdef HAVE_OSS
 # include "output/oss.h"

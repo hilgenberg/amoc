@@ -142,7 +142,7 @@ static int sample_rate, equ_active, equ_channels;
 static float mixin_rate, r_mixin_rate;
 static float preamp, preampf;
 
-static char *eqsetdir;
+static str eqsetdir;
 
 static char *config_preset_name;
 
@@ -338,11 +338,9 @@ static void equalizer_read_config()
   char *curloc = xstrdup(setlocale(LC_NUMERIC, NULL));
   setlocale(LC_NUMERIC, "C"); // posix decimal point
 
-  char *sfile = xstrdup(create_file_name("equalizer"));
+  str sfile = options::config_file_path("equalizer");
 
-  FILE *cf = fopen(sfile, "r");
-
-  free (sfile);
+  FILE *cf = fopen(sfile.c_str(), "r");
 
   if(cf==NULL)
   {
@@ -435,9 +433,9 @@ static void equalizer_write_config()
   char *curloc = xstrdup(setlocale(LC_NUMERIC, NULL));
   setlocale(LC_NUMERIC, "C"); /* posix decimal point */
 
-  char *cfname = create_file_name(EQUALIZER_SAVE_FILE);
+  str cfname = options::config_file_path(EQUALIZER_SAVE_FILE);
 
-  FILE *cf = fopen(cfname, "w");
+  FILE *cf = fopen(cfname.c_str(), "w");
 
   if(cf==NULL)
   {
@@ -478,7 +476,7 @@ void equalizer_init()
 
   preampf = powf(10.0f, preamp / 20.0f);
 
-  eqsetdir = xstrdup(create_file_name("eqsets"));
+  eqsetdir = options::config_file_path("eqsets");
 
   config_preset_name = NULL;
 
@@ -524,7 +522,7 @@ void equalizer_refresh()
 
   current_equ = NULL;
 
-  DIR *d = opendir(eqsetdir);
+  DIR *d = opendir(eqsetdir.c_str());
 
   if(!d)
   {
@@ -540,15 +538,13 @@ void equalizer_refresh()
 
   while(de)
   {
-    sprintf(buf, "eqsets/%s", de->d_name);
+    str filename = options::config_file_path(format("eqsets/%s", de->d_name).c_str());
 
-    char *filename = xstrdup(create_file_name(buf));
-
-    stat(filename, &st);
+    stat(filename.c_str(), &st);
 
     if( S_ISREG(st.st_mode) )
     {
-      FILE *f = fopen(filename, "r");
+      FILE *f = fopen(filename.c_str(), "r");
 
       if(f)
       {
@@ -628,8 +624,6 @@ void equalizer_refresh()
         eqs = NULL;
       }
     }
-
-    free(filename);
 
     de = readdir(d);
   }

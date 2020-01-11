@@ -188,9 +188,9 @@ static int find_type (const char *file)
 	return result;
 }
 
-int is_sound_file (const char *name)
+bool is_sound_file (const str &name)
 {
-	return find_type(name) != -1 ? 1 : 0;
+	return find_type(name.c_str()) != -1 ? 1 : 0;
 }
 
 /* Return short type name for the given file or NULL if not found.

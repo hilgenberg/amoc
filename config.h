@@ -242,19 +242,19 @@
 #define LINUX 1
 
 /* Name of package */
-#define PACKAGE "moc"
+#define PACKAGE "amoc"
 
 /* Define to the address where bug reports for this package should be sent. */
-#define PACKAGE_BUGREPORT "mocmaint@daper.net"
+#define PACKAGE_BUGREPORT "th@zoon.cc"
 
 /* Define to the full name of this package. */
-#define PACKAGE_NAME "Music On Console"
+#define PACKAGE_NAME "AMOC"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "Music On Console 2.6-alpha3"
+#define PACKAGE_STRING "AMOC 2.6-alpha3"
 
 /* Define to the home page for this package. */
-#define PACKAGE_URL "http://moc.daper.net/"
+#define PACKAGE_URL "http://github.com/hilgenberg/moc/"
 
 /* Define to the version of this package. */
 #define PACKAGE_VERSION "2.6-alpha3"

@@ -286,7 +286,7 @@ void theme_init ()
 
 	if (has_colors ())
 	{
-		auto path = create_file_name("colors");
+		auto path = options::config_file_path("colors");
 		if (file_exists(path))
 		{
 			ifstream f(path);

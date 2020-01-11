@@ -1,5 +1,6 @@
-#include <regex.h>
 #include "options.h"
+#include <pwd.h>
+#include <regex.h>
 
 static void parse(bool &o, const char *v)
 {
@@ -50,24 +51,41 @@ static void build_rating_strings(const char *s0 = " ", const char *s1 = "*")
 
 namespace options {
 
-void init(const char *config_file)
-{
-	if (config_file && !is_secure(config_file))
-		fatal("Configuration file is not secure: %s", config_file);
+str config_file_path(const char *file) { return add_path(ConfigDir, file); }
+str run_file_path(const char *file) { return add_path(RunDir, file); }
 
-	FILE *file = config_file ? fopen(config_file, "r") : NULL;
-	if (config_file && !file)
-	{
-		file = fopen(create_file_name(config_file), "r");
-		if (!file)
-		{
-			char *err = STRERROR_FN (errno);
-			logit ("Can't open config file \"%s\": %s", config_file, err);
+void init()
+{
+	const char *home = getenv ("HOME");
+	if (!home) {
+		errno = 0;
+		struct passwd *passwd = getpwuid (geteuid ());
+		if (passwd)
+			home = passwd->pw_dir;
+		else if (errno != 0) {
+			char *err = xstrerror (errno);
+			logit ("getpwuid(%d): %s", geteuid (), err);
 			free (err);
 		}
 	}
+	if (!home) fatal("Can't get home directory!");
+	Home = home; normalize_path(Home);
+
+	str cfg1 = add_path(Home, ".config/amoc"), cfg2 = add_path(Home, ".amoc");
+	ConfigDir = is_dir(cfg1) ? cfg1 : is_dir(cfg2) ? cfg2 : 
+		is_dir(add_path(Home, ".config")) ? cfg1 : cfg2;
+
+	str config_file = add_path(ConfigDir, "config");
+	FILE *file = fopen(config_file.c_str(), "r");
+	if (!file)
+	{
+		char *err = STRERROR_FN (errno);
+		logit ("Can't open config file \"%s\": %s", config_file, err);
+		free (err);
+	}
 
 	std::string RatingSpace(" "), RatingStar("*");
+	RunDir = ConfigDir;
 
 	if (file)
 	{
@@ -153,17 +171,14 @@ void init(const char *config_file)
 		OPT(HTTPProxy);
 
 		EOPT(SoundDriver, "SNDIO", "JACK", "ALSA", "OSS", "NULL");
-
 		OPT(JackClientName);
 		OPT(JackStartServer);
 		OPT(JackOutLeft);
 		OPT(JackOutRight);
-
 		OPT(OSSDevice);
 		OPT(OSSMixerDevice);
 		OPT(OSSMixerChannel1);
 		OPT(OSSMixerChannel2);
-
 		OPT(ALSADevice);
 		OPT(ALSAMixer1);
 		OPT(ALSAMixer2);
@@ -176,7 +191,7 @@ void init(const char *config_file)
 		OPT(ShowHiddenFiles);
 		OPT(HideFileExtension);
 
-		OPT(MOCDir);
+		OPT(RunDir);
 		OPT(UseMMap);
 		OPT(UseMimeMagic);
 		OPT(ID3v1TagsEncoding);
@@ -208,12 +223,21 @@ void init(const char *config_file)
 
 	build_rating_strings(RatingSpace.c_str(), RatingStar.c_str());
 	if (Prebuffering > InputBuffer) InputBuffer = Prebuffering;
+
+	if (RunDir.empty()) RunDir = ConfigDir;
+	normalize_path(RunDir);
+	if (!MusicDir.empty()) normalize_path(MusicDir);
+	SocketPath = add_path(RunDir, "socket");
+
+	#define UNIX_PATH_MAX	108
+	if (SocketPath.length() > UNIX_PATH_MAX) fatal ("Can't create socket name!");
 }
+
+str Home, ConfigDir, MusicDir, RunDir, SocketPath;
 
 const char **rating_strings = NULL;
 
 bool ReadTags = true;
-str  MusicDir = "";
 bool StartInMusicDir = false;
 bool Repeat = false;
 bool Shuffle = false;
@@ -249,7 +273,6 @@ bool ShowMixer = true;
 bool ShowHiddenFiles = false;
 bool HideFileExtension = false;
 
-str  MOCDir = "~/.moc";
 bool UseMMap = false;
 bool UseMimeMagic = false;
 str  ID3v1TagsEncoding = "WINDOWS-1250";

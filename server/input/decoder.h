@@ -244,7 +244,7 @@ struct decoder
  */
 typedef struct decoder *plugin_init_func ();
 
-int is_sound_file (const char *name);
+bool is_sound_file (const str &name);
 struct decoder *get_decoder (const char *file);
 struct decoder *get_decoder_by_content (struct io_stream *stream);
 const char *get_decoder_name (const struct decoder *decoder);

@@ -179,8 +179,8 @@ void menu::draw(bool active) const
 	if (top < 0) top = 0;
 
 	bool have_up = items.is_dir && N && iface->cwd() != "/";
-	str mhome = options::MusicDir; if (!mhome.empty() && mhome.back() != '/') mhome += '/'; if (mhome.length() < 2) mhome.clear();
-	str uhome = get_home(); if (!uhome.empty() && uhome.back() != '/') uhome += '/'; if (uhome.length() < 2) uhome.clear();
+	str mhome = options::MusicDir; if (!mhome.empty()) mhome += '/'; if (mhome.length() < 2) mhome.clear();
+	str uhome = options::Home;     if (!uhome.empty()) uhome += '/'; if (uhome.length() < 2) uhome.clear();
 
 	// gather layout data: widths for three columns (artist, album, title)
 	// and maximum track number

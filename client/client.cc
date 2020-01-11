@@ -1,7 +1,4 @@
 #include "client.h"
-#include "../playlist.h"
-#include "../protocol.h"
-
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <sys/select.h>
@@ -76,7 +73,7 @@ void Client::set_cwd(const str &path)
 /* Set cwd to last directory written to a file, return 1 on success. */
 bool Client::read_last_dir ()
 {
-	FILE *dir_file = fopen(create_file_name("last_directory"), "r");
+	FILE *dir_file = fopen(options::config_file_path("last_directory").c_str(), "r");
 	if (!dir_file) return 0;
 	
 	char buf[PATH_MAX];
@@ -575,7 +572,7 @@ Client::Client(int sock, stringlist &args)
 		set_cwd(options::MusicDir); CHECK; }
 	if (cwd.empty() && read_last_dir()) CHECK;
 	if (cwd.empty()) { set_cwd("."); CHECK; }
-	if (cwd.empty()) { cwd = get_home(); CHECK; }
+	if (cwd.empty()) { cwd = options::Home; CHECK; }
 	if (cwd.empty()) interface_fatal ("Can't enter any directory!");
 	#undef CHECK
 
@@ -673,7 +670,7 @@ void Client::run()
 
 Client::~Client ()
 {
-	FILE *dir_file = fopen(create_file_name("last_directory"), "w");
+	FILE *dir_file = fopen(options::config_file_path("last_directory").c_str(), "w");
 	if (!dir_file) {
 		error_errno ("Can't save current directory", errno);
 	} else {

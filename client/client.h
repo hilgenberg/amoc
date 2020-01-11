@@ -5,6 +5,7 @@
 #include "../playlist.h"
 #include "keys.h"
 #include "../protocol.h"
+#include "../Socket.h"
 
 class Client
 {

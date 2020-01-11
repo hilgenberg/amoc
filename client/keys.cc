@@ -639,14 +639,6 @@ enum key_cmd get_key_cmd (const enum key_context context, wchar_t c, int f)
 	return KEY_CMD_WRONG;
 }
 
-/* Return the path to the keymap file or NULL if none was specified. */
-static const char *find_keymap_file ()
-{
-	static std::string path;
-	path = create_file_name("keymap");
-	return path.c_str();
-}
-
 static void keymap_parse_error (const int line, const char *msg)
 {
 	error ("Parse error in the keymap file line %d: %s\n", line, msg);
@@ -774,15 +766,18 @@ static size_t find_command_name (const char *command)
 }
 
 /* Load a key map from the file. */
-static void load_key_map (const char *file_name)
+static void load_key_map (const str &file_name)
 {
 	FILE *file;
 	char *line;
 	int line_num = 0;
 	size_t cmd_ix;
 
-	if (!(file = fopen(file_name, "r")))
-		fatal ("Can't open keymap file: %s", xstrerror (errno));
+	if (!(file = fopen(file_name.c_str(), "r")))
+	{
+		logit ("Can't open keymap file: %s - %s", file_name.c_str(), xstrerror (errno));
+		return;
+	}
 
 	/* Read lines in format:
 	 * COMMAND = KEY [KEY ...]
@@ -924,12 +919,8 @@ static char *get_command_keys (const int idx)
 /* Load key map. Set default keys if necessary. */
 void keys_init ()
 {
-	const char *file = find_keymap_file ();
-
-	if (file) {
-		load_key_map (file);
-		check_keys ();
-	}
+	load_key_map (options::config_file_path("keymap"));
+	check_keys ();
 }
 
 /* Find command entry by key command; return COMMANDS_NUM if not found. */

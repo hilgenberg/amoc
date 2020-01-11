@@ -23,20 +23,8 @@
 #include "server/input/decoder.h"
 #include "client/client.h"
 #include "protocol.h"
+#include "Socket.h"
 #include "rcc.h"
-
-static int mocp_argc;
-static const char **mocp_argv;
-static int popt_next_val = 1;
-
-/* List of MOC-specific environment variables. */
-static struct {
-	const char *name;
-	const char *desc;
-} environment_variables[] = {
-	{"MOCP_OPTS", "Additional command line options"},
-	{"MOCP_POPTRC", "List of POPT configuration files"}
-};
 
 struct parameters
 {
@@ -70,7 +58,7 @@ static int server_connect ()
 		 return -1;
 
 	sock_name.sun_family = AF_UNIX;
-	strcpy (sock_name.sun_path, socket_name());
+	strcpy (sock_name.sun_path, options::SocketPath.c_str());
 
 	if (connect(sock, (struct sockaddr *)&sock_name,
 				SUN_LEN(&sock_name)) == -1) {
@@ -98,15 +86,12 @@ static int ping_server (Socket &srv)
 /* Check if a directory ./.moc exists and create if needed. */
 static void check_moc_dir ()
 {
-	char *dir_name = create_file_name ("");
+	const char *dir_name = options::RunDir.c_str();
 	struct stat file_stat;
-
-	/* strip trailing slash */
-	dir_name[strlen(dir_name)-1] = 0;
 
 	if (stat (dir_name, &file_stat) == -1) {
 		if (errno != ENOENT)
-			fatal ("Error trying to check for " CONFIG_DIR " directory: %s",
+			fatal ("Error trying to check for RunDir directory: %s",
 			        xstrerror (errno));
 
 		if (mkdir (dir_name, 0700) == -1)
@@ -186,7 +171,7 @@ static void start_moc (const struct parameters *params, stringlist &args)
 		if (!ping_server (srv))
 			fatal ("Can't connect to the server!");
 
-		#define CLIENT_LOG	"mocp_client_log"
+		#define CLIENT_LOG "amoc_client_log"
 
 		FILE *logfp = NULL;
 		if (params->debug) {
@@ -231,61 +216,32 @@ void interface_cmdline_set_rating (Socket &srv, int rating)
 /* Send commands requested in params to the server. */
 static void server_command (struct parameters *params, stringlist &args)
 {
-	int srv_sock;
-
-	if ((srv_sock = server_connect()) == -1)
-		fatal ("The server is not running!");
+	int srv_sock = server_connect();
+	if (srv_sock == -1) fatal ("The server is not running!");
 
 	xsignal (SIGPIPE, SIG_IGN);
 	Socket srv(srv_sock, true);
-	if (!ping_server (srv))
-		fatal ("Can't connect to the server!");
+	if (!ping_server (srv)) fatal ("Can't connect to the server!");
 
-	if (params->playit)
-		interface_cmdline_playit (srv, args);
-	else if (params->play)
-		interface_cmdline_play_first (srv);
-	else if (params->rate)
-		interface_cmdline_set_rating (srv, params->new_rating);
-	else if (params->exit) {
-		if (!srv.send(CMD_QUIT))
-			fatal ("Can't send command!");
-	}
-	else if (params->stop) {
-		if (!srv.send(CMD_STOP))
-			fatal ("Can't send commands!");
-	}
-	else if (params->pause) {
-		if (!srv.send(CMD_PAUSE))
-			fatal ("Can't send commands!");
-	}
-	else if (params->next) {
-		if (!srv.send(CMD_NEXT))
-			fatal ("Can't send commands!");
-	}
-	else if (params->previous) {
-		if (!srv.send(CMD_PREV))
-			fatal ("Can't send commands!");
-	}
-	else if (params->unpause) {
-		if (!srv.send(CMD_UNPAUSE))
-			fatal ("Can't send commands!");
-	}
+	if (params->playit) interface_cmdline_playit (srv, args);
+	else if (params->play) interface_cmdline_play_first (srv);
+	else if (params->rate) interface_cmdline_set_rating (srv, params->new_rating);
+	else if (params->exit) srv.send(CMD_QUIT);
+	else if (params->stop) srv.send(CMD_STOP);
+	else if (params->pause) srv.send(CMD_PAUSE);
+	else if (params->next) srv.send(CMD_NEXT);
+	else if (params->previous) srv.send(CMD_PREV);
+	else if (params->unpause) srv.send(CMD_UNPAUSE);
 	else if (params->toggle_pause) {
-		int state, ev, cmd = -1;
-
-		if (!srv.send(CMD_GET_STATE))
-			fatal ("Can't send commands!");
-		if (!srv.get(ev) || ev != EV_DATA || !srv.get(state))
-			fatal ("Can't get data from the server!");
+		srv.send(CMD_GET_STATE);
+		// this should be wait_for_data()...
+		int state, ev;
+		if (!srv.get(ev) || ev != EV_DATA || !srv.get(state)) fatal("Can't get state");
 
 		if (state == STATE_PAUSE)
-			cmd = CMD_UNPAUSE;
+			srv.send(CMD_UNPAUSE);
 		else if (state == STATE_PLAY)
-			cmd = CMD_PAUSE;
-
-		if (cmd != -1 && !srv.send(cmd))
-			fatal ("Can't send commands!");
+			srv.send(CMD_PAUSE);
 	}
 
 	if (!srv.send(CMD_DISCONNECT)) error ("Can't send disconnect command!");
@@ -372,12 +328,6 @@ static void show_help (poptContext ctx)
 	show_banner ();
 	poptSetOtherOptionHelp (ctx, mocp_summary);
 	poptPrintHelp (ctx, stdout, 0);
-
-	printf ("\nEnvironment variables:\n\n");
-	for (ix = 0; ix < ARRAY_SIZE(environment_variables); ix += 1)
-		printf ("  %-34s%s\n", environment_variables[ix].name,
-		                       environment_variables[ix].desc);
-	printf ("\n");
 }
 
 /* Disambiguate the user's request. */
@@ -436,7 +386,7 @@ static struct poptOption server_opts[] = {
 			"Play the next song", NULL},
 	{"previous", 'r', POPT_ARG_NONE, &params.previous, CL_NOIFACE,
 			"Play the previous song", NULL},
-	{"rate", '*', POPT_ARG_INT, &params.new_rating, CL_RATE,
+	{"rate", 'R', POPT_ARG_INT, &params.new_rating, CL_RATE,
 			"Rate current song N stars (N=0..5)", "N"},
 	{"exit", 'x', POPT_ARG_NONE, &params.exit, CL_NOIFACE,
 			"Shutdown the server", NULL},
@@ -466,53 +416,6 @@ static struct poptOption mocp_opts[] = {
 	POPT_AUTOALIAS
 	POPT_TABLEEND
 };
-
-/* Check that the ~/.popt file is secure. */
-static void check_popt_secure ()
-{
-	int len;
-	const char *home, dot_popt[] = ".popt";
-	char *home_popt;
-
-	home = get_home ();
-	len = strlen (home) + strlen (dot_popt) + 2;
-	home_popt = (char*) xcalloc (len, sizeof (char));
-	snprintf (home_popt, len, "%s/%s", home, dot_popt);
-	if (!is_secure (home_popt))
-		fatal ("POPT config file is not secure: %s", home_popt);
-	free (home_popt);
-}
-
-/* Read the default POPT configuration file. */
-static void read_default_poptrc (poptContext ctx)
-{
-	int rc;
-
-	check_popt_secure ();
-	rc = poptReadDefaultConfig (ctx, 0);
-
-	if (rc == POPT_ERROR_ERRNO) {
-		int saved_errno = errno;
-
-		fprintf (stderr, "\n"
-		         "WARNING: The following fatal error message may be bogus!\n"
-		         "         If you have an empty /etc/popt.d directory, try\n"
-		         "         adding an empty file to it.  If that does not fix\n"
-		         "         the problem then you have a genuine error.\n");
-
-		errno = saved_errno;
-	}
-
-	if (rc != 0)
-		fatal ("Error reading default POPT config file: %s",
-		        poptStrerror (rc));
-}
-
-/* Read the POPT configuration files(s). */
-static void read_popt_config (poptContext ctx)
-{
-	read_default_poptrc (ctx);
-}
 
 /* Process the command line options. */
 static void process_options (poptContext ctx)
@@ -549,35 +452,11 @@ static void process_options (poptContext ctx)
 
 		/* poptBadOption() with POPT_BADOPTION_NOALIAS fails to
 		 * return the correct option if poptStuffArgs() was used. */
-		if (!strcmp (opt, alias) || getenv ("MOCP_OPTS"))
+		if (!strcmp (opt, alias))
 			fatal ("%s: %s", opt, reason);
 		else
 			fatal ("%s (aliased by %s): %s", opt, alias, reason);
 	}
-}
-
-/* Process the command line options and arguments. */
-static stringlist process_command_line()
-{
-	const char **rest;
-	poptContext ctx;
-	stringlist result;
-
-	ctx = poptGetContext ("mocp", mocp_argc, mocp_argv, mocp_opts, 0);
-
-	read_popt_config (ctx);
-	process_options (ctx);
-
-	if (params.foreground)
-		params.only_server = 1;
-
-	rest = poptGetArgs (ctx);
-	if (rest)
-		result = unpack(rest);
-
-	poptFreeContext (ctx);
-
-	return result;
 }
 
 int main (int argc, const char *argv[])
@@ -586,32 +465,34 @@ int main (int argc, const char *argv[])
 	assert (argv != NULL);
 	assert (argv[argc] == NULL);
 
-	mocp_argc = argc;
-	mocp_argv = argv;
-
-	logit ("This is Music On Console (version %s)", PACKAGE_VERSION);
+	logit ("This is AMOC (version %s)", PACKAGE_VERSION);
 
 	files_init ();
 
-	if (get_home () == NULL)
-		fatal ("Could not determine user's home directory!");
-
 	memset (&params, 0, sizeof(params));
 	params.allow_iface = 1;
-	options::init (create_file_name ("config"));
+	options::init();
 
 	/* set locale according to the environment variables */
 	if (!setlocale(LC_ALL, ""))
 		logit ("Could not set locale!");
 
-	stringlist args = process_command_line();
+	poptContext ctx = poptGetContext ("amoc", argc, argv, mocp_opts, 0);
+	process_options (ctx);
+
+	if (params.foreground) params.only_server = 1;
+
+	const char **rest = poptGetArgs (ctx);
+	stringlist args;
+	if (rest) args = unpack(rest);
+
+	poptFreeContext (ctx);
 
 	if (!params.allow_iface && params.only_server)
 		fatal ("Server command options can't be used with --server!");
 
-	options::init ("config");
-
-	check_moc_dir ();
+	options::init();
+	check_moc_dir();
 
 	io_init ();
 	rcc_init ();
