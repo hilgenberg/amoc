@@ -32,9 +32,8 @@ private:
 
 	bool want_plist_update, want_state_update;
 	
-	int silent_seek_pos = -1; /* Silent seeking - where we are in seconds. -1 - no seeking. */
-	time_t silent_seek_key_last = (time_t)0; /* when the silent seek key was last used */
-	time_t last_menu_move_time = (time_t)0; /* When the menu was last moved (arrow keys, page up, etc.) */
+	int    silent_seek_pos = -1; /* Silent seeking - where we are in seconds. -1 - no seeking. */
+	double silent_seek_key_last; /* when the silent seek key was last used */
 
 	void wait_for_data();
 	void handle_server_event(int type);

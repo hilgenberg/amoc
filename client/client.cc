@@ -26,6 +26,7 @@ void interface_fatal (const char *format, ...)
 Client::Client(int sock, stringlist &args)
 : srv(sock, false), synced(false)
 , want_plist_update(false), want_state_update(false)
+, silent_seek_key_last(0.0), silent_seek_pos(-1)
 {
 	logit ("Starting MOC Interface");
 
@@ -389,19 +390,11 @@ void Client::go_to_playing_file ()
 
 /* Return the time like the standard time() function, but rounded i.e. if we
  * have 11.8 seconds, return 12 seconds. */
-static time_t rounded_time ()
+static double now()
 {
-	struct timespec exact_time;
-	time_t curr_time;
-
-	if (get_realtime (&exact_time) == -1)
-		interface_fatal ("get_realtime() failed: %s", xstrerror (errno));
-
-	curr_time = exact_time.tv_sec;
-	if (exact_time.tv_nsec > 500000000L)
-		curr_time += 1;
-
-	return curr_time;
+	struct timespec t;
+	if (get_realtime (&t) == -1) return std::numeric_limits<double>::quiet_NaN();
+	return (double)t.tv_sec + 1.e-9 * t.tv_nsec;
 }
 
 /* Handle silent seek key. */
@@ -409,15 +402,13 @@ void Client::seek_silent (int sec)
 {
 	if (iface->get_state() != STATE_PLAY || is_url(iface->get_curr_file().c_str())) return;
 
-	if (silent_seek_pos == -1)
-		silent_seek_pos = iface->get_curr_time() + sec;
-	else
-		silent_seek_pos += sec;
-
+	if (silent_seek_pos == -1) silent_seek_pos = iface->get_curr_time();
+	silent_seek_pos += sec;
 	silent_seek_pos = CLAMP(0, silent_seek_pos, iface->get_total_time());
 
-	silent_seek_key_last = rounded_time ();
 	iface->update_curr_time(silent_seek_pos);
+
+	silent_seek_key_last = now();
 }
 
 /* Move the current playlist item (direction: -1 - up, +1 - down). */
@@ -486,6 +477,11 @@ void Client::run()
 			iface->handle_input();
 			Client::want_interrupt = false;
 		}
+		if (silent_seek_pos != -1 && silent_seek_key_last < now() - 0.5)
+		{
+			jump_to(silent_seek_pos);
+			silent_seek_pos = -1;
+		}
 
 		if (want_quit) break;
 
@@ -513,12 +509,6 @@ void Client::run()
 		if (options::ShowMixer)
 			iface->update_mixer_value(get_mixer_value());
 
-		time_t curr_time = time(NULL);
-		if (silent_seek_pos != -1 && silent_seek_key_last < curr_time)
-		{
-			seek (silent_seek_pos - iface->get_curr_time() - 1);
-			silent_seek_pos = -1;
-		}
 
 		iface->draw();
 	}
