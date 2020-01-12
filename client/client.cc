@@ -445,15 +445,15 @@ void Client::move_item (int direction)
 
 void Client::run()
 {
-	bool srv_event = false;
-	while (true)
+	bool coalesce = false;
+	while (!want_quit)
 	{
 		fd_set fds; FD_ZERO (&fds);
 		int srv_sock = srv.fd();
 		FD_SET (srv_sock, &fds);
 		FD_SET (STDIN_FILENO, &fds);
 
-		timespec timeout = {0, srv_event ? 1 : 1000*1000*500}; // = {sec,nanosec}
+		timespec timeout = {0, coalesce ? 1 : 1000*1000*500}; // = {sec,nanosec}
 		int n = pselect (srv_sock + 1, &fds, NULL, NULL, &timeout, NULL);
 		if (n == -1 && !want_quit && errno != EINTR)
 			interface_fatal ("pselect() failed: %s", xstrerror (errno));
@@ -465,23 +465,27 @@ void Client::run()
 			if (srv.get_int_noblock(type))
 			{
 				handle_server_event(type);
-				srv_event = true;
+				coalesce = true;
 				continue; // handle all events before redrawing
 			}
 			else
 				debug ("Getting event would block.");
 		}
-		srv_event = false;
 
 		if (n > 0 && FD_ISSET(STDIN_FILENO, &fds)) {
 			iface->handle_input();
 			Client::want_interrupt = false;
+			coalesce = true;
+			continue; // handle all keyboard events before redrawing
 		}
+		coalesce = false;
+
 		if (silent_seek_pos != -1 && silent_seek_key_last < now() - 0.5)
 		{
 			jump_to(silent_seek_pos);
 			silent_seek_pos = -1;
 		}
+
 
 		if (want_quit) break;
 
