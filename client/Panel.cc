@@ -9,28 +9,13 @@
  *
  */
 
-#include "menu.h"
+#include "Panel.h"
 #include "../rcc.h"
 #include "utf8.h"
 #include "../server/input/decoder.h"
 #include "themes.h"
 #include "interface.h"
 #include "client.h"
-
-/* Convert time in second to min:sec text format. buff must be 6 chars long. */
-static str sec_to_min(int sec)
-{
-	if (sec < 0) sec = 0;
-	if (sec < 100*60)
-		return format("%02d:%02d", sec / 60, sec % 60);
-	sec /= 60;
-	if (sec < 100*60)
-		return format("%02dH%02d", sec / 60, sec % 60);
-	sec /= 24;
-	if (sec < 100*60)
-		return format("%02dD%02d", sec / 24, sec % 24);
-	return "++:++";
-}
 
 // distribute available screen width among columns
 static void distribute(int W, int &c0, int &c1, int &c2)
@@ -92,30 +77,26 @@ static void distribute(int w, int &c0, int &c1)
 	assert(c0+c1 == w);
 }
 
-bool menu::mark_path(const str &f)
+bool Panel::mark_path(const str &f)
 {
 	bool s = (sel >= 0 && sel == mark && !xsel);
 	mark = items.find(f);
 	if (s && mark >= 0) sel = mark;
 	return mark >= 0;
 }
-void menu::mark_item(int i)
+void Panel::mark_item(int i)
 {
 	bool s = (sel >= 0 && sel == mark && !xsel);
 	mark = i;
 	if (s && mark >= 0) sel = mark;
 }
-bool menu::select_path(const str &f)
+bool Panel::select_path(const str &f)
 {
 	int i = items.find(f);
-	if (i >= 0)
-	{
-		select_item(i);
-		return true;
-	}
-	return false;
+	if (i >= 0) select_item(i);
+	return i >= 0;
 }
-void menu::select_item(int i)
+void Panel::select_item(int i)
 {
 	if (i >= items.size()) i = items.size()-1;
 	if (i == sel && xsel == 0) return;
@@ -123,7 +104,7 @@ void menu::select_item(int i)
 	iface->redraw(2);
 }
 
-void menu::move(menu_request req)
+void Panel::move_selection(menu_request req)
 {
 	const int N = items.size();
 	if (!N) return;
@@ -172,7 +153,7 @@ void menu::move(menu_request req)
 	if (sel >= N) sel = N-1;
 	if (sel <  0) sel = 0;
 }
-void menu::handle_click(int x, int y, bool dbl)
+void Panel::handle_click(int x, int y, bool dbl)
 {
 	const int N = items.size();
 	int i = top+y-bounds.y;
@@ -183,10 +164,9 @@ void menu::handle_click(int x, int y, bool dbl)
 	if (dbl && hit) iface->client.handle_command(KEY_CMD_GO);
 }
 
-void menu::draw(bool active) const
+void Panel::draw(bool active) const
 {
-	auto *win = iface->window();
-	if (!win) return;
+	auto &win = iface->win;
 
 	const int N = items.size();
 	const int lookahead = std::min(5, bounds.h/4);
@@ -313,13 +293,13 @@ void menu::draw(bool active) const
 	}
 	if (avail < 6)
 	{
-		wattrset (win, get_color(CLR_MENU_ITEM_FILE));
+		win.color(CLR_MENU_ITEM_FILE);
 		str s(":::TOO SMALL:::");
 		for (int y = 0; y < bounds.h; ++y)
 		{
 			int i = y-(bounds.h-1)/2 + s.length()/2;
 			if (i < 0 || i >= s.length()) continue;
-			mvwaddch(win, bounds.y + y, bounds.x+(bounds.w-1)/2, s[i]);
+			win.put(bounds.y + y, bounds.x+(bounds.w-1)/2, s[i]);
 		}
 		return;
 	}
@@ -371,26 +351,25 @@ void menu::draw(bool active) const
 			(xsel >= 0 && i >= sel && i <= sel+xsel) ||
 			(xsel <  0 && i >= sel+xsel && i <= sel));
 
-
-		int info_color = get_color(
+		auto info_color = 
 			selected && i == mark ? CLR_MENU_ITEM_INFO_MARKED_SELECTED :
 			selected ? CLR_MENU_ITEM_INFO_SELECTED :
 			i == mark ? CLR_MENU_ITEM_INFO_MARKED :
-			CLR_MENU_ITEM_INFO);
-		int file_color = get_color(
+			CLR_MENU_ITEM_INFO;
+		auto file_color = 
 			selected && i == mark ? CLR_MENU_ITEM_FILE_MARKED_SELECTED :
 			i == mark ? CLR_MENU_ITEM_FILE_MARKED :
 			it.type == F_DIR ? (selected ? CLR_MENU_ITEM_DIR_SELECTED : CLR_MENU_ITEM_DIR) :
 			it.type == F_PLAYLIST ? (selected ? CLR_MENU_ITEM_PLAYLIST_SELECTED : CLR_MENU_ITEM_PLAYLIST) :
-			selected ? CLR_MENU_ITEM_FILE_SELECTED : CLR_MENU_ITEM_FILE);
+			selected ? CLR_MENU_ITEM_FILE_SELECTED : CLR_MENU_ITEM_FILE;
 		
-		wattrset (win, info_color);
+		win.color(info_color);
 
 		// playlist numbering
 		if (!items.is_dir && cn)
 		{
-			wmove (win, y, x0);
-			waddstr(win, format("%*d ", cn-1, i+1).c_str());
+			win.moveto(y, x0);
+			win.put_ascii(format("%*d ", cn-1, i+1));
 			x0 += cn;
 		}
 
@@ -398,62 +377,57 @@ void menu::draw(bool active) const
 		if (readtags && it.type != F_DIR)
 		{
 			x1 -= 13;
-			mvwaddstr(win, y, x1+1, "[");
+			win.put(y, x1+1, '[');
 		
-			wattrset (win, file_color);
-			wattroff(win, A_BOLD); // some utf8 chars do not have bold versions
+			win.color(file_color);
+			wattroff(win.WIN(), A_BOLD); // some utf8 chars do not have bold versions
 			int rating = (it.tags ? it.tags->rating : 0);
 			if (rating < 0) rating = 0;
 			if (rating > 5) rating = 5;
 
-			xwaddstr(win, options::rating_strings[rating]);
+			win.put(options::rating_strings[rating]);
 
-			wattrset (win, info_color);
-			waddch(win, '|');
+			win.color(info_color);
+			win.put(win.vert);
 			if (it.tags && it.tags->time > -1)
-			{
-				xwaddstr(win, sec_to_min(it.tags->time));
-			}
+				win.time(it.tags->time);
 			else
-			{
-				xwaddstr(win, it.type == F_URL ? "--:--" : "     ");
-			}
-			waddch(win, ']');
+				win.put_ascii(it.type == F_URL ? "--:--" : "     ");
+			win.put(']');
 		}
 
-		wattrset (win, file_color);
-		wmove (win, y, x0);
+		win.color(file_color);
+		win.moveto(y, x0);
 
 		if (!is_up_dir && readtags && it.tags && !it.tags->title.empty())
 		{
 			auto &tags = *it.tags;
 			if (!hide_artist)
 			{
-				xwprintfield(win, sanitized(tags.artist), c0);
-				waddstr(win, "   ");
+				win.field(sanitized(tags.artist), c0);
+				win.put_ascii("   ");
 			}
 			if (!hide_album)
 			{
-				xwprintfield(win, sanitized(tags.album), c1);
-				waddstr(win, "   ");
+				win.field(sanitized(tags.album), c1);
+				win.put_ascii("   ");
 			}
 
 			if (items.is_dir)
 			{
-				if (tags.track > 0)
-					waddstr(win, format("%*d ", cn-1, tags.track).c_str());
-				else
-					waddstr(win, spaces(cn).c_str());
+				win.put_ascii(tags.track > 0 ?
+					format("%*d ", cn-1, tags.track) :
+					spaces(cn));
 			}
-			xwprintfield(win, sanitized(tags.title), c2);
+			win.field(sanitized(tags.title), c2);
 		}
 		else if (is_up_dir && it.type == F_DIR)
 		{
-			xwprintfield(win, "../", x1-x0+1, 'l');
+			win.field("../", x1-x0+1, 'l');
 		}
 		else if (it.type == F_URL)
 		{
-			xwprintfield(win, sanitized(it.path), x1-x0+1, 'c');
+			win.field(sanitized(it.path), x1-x0+1, 'c');
 		}
 		else
 		{
@@ -487,7 +461,7 @@ void menu::draw(bool active) const
 			sanitize(s);
 			if (options::FileNamesIconv) s = files_iconv_str (s);
 			if (options::UseRCCForFilesystem) s = rcc_reencode(s);
-			xwprintfield(win, s, x1-x0+1, 'l');
+			win.field(s, x1-x0+1, 'l');
 		}
 	}
 }

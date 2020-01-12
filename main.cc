@@ -182,8 +182,10 @@ static void start_moc (const struct parameters *params, stringlist &args)
 		log_init_stream (logfp, CLIENT_LOG);
 
 		options::load(GUI);
-		Client client(server_sock, args);
-		client.run();
+		{
+			Client client(server_sock, args);
+			client.run();
+		}
 		options::save(GUI);
 		log_close();
 	}

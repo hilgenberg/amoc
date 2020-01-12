@@ -31,7 +31,7 @@ file_type plist_item::ftype (const str &file)
 void file_tags::read_file_tags (const char *file)
 {
 	auto *df = get_decoder (file);
-	if (df) df->info (file, this, -1);
+	if (df) df->info (file, this);
 	rating = ratings_read_file (file);
 }
 

@@ -1,12 +1,10 @@
 #pragma once
-#include <ncurses.h>
-#include <wctype.h>
-#include <wchar.h>
 #include <functional>
 
+#include "Window.h"
 #include "keys.h"
 #include "../playlist.h"
-#include "menu.h"
+#include "Panel.h"
 #include "Rect.h"
 #include "../server/server.h" // PlayState
 class Client;
@@ -20,7 +18,7 @@ class Interface
 {
 public:
 	Interface(Client &client, plist &left, plist &right);
-	~Interface();
+
 	void draw(bool force=false);
 	void redraw(int k) { need_redraw = std::max(need_redraw, k); }
 	void resize(); // Handle terminal size change.
@@ -29,23 +27,22 @@ public:
 	bool handle_drag(int x, int y, int seq);
 	bool handle_scroll(int x, int y, int dy);
 
-	bool in_dir_plist() const { return active_menu == 0; }
-	void go_to_dir_plist() { if (in_dir_plist()) return; active_menu = 0; redraw(2); }
+	bool in_dir_plist() const { return active == &left; }
+	void go_to_dir_plist() { if (in_dir_plist()) return; active = &left; redraw(2); }
 
 	void select_song(int i) { right.select_item(i); }
 	bool select_path(const str &p) { go_to_dir_plist(); return left.select_path(p); }
 	void move_selection(int dy) // moves the entire multi-selection!
 	{
-		auto &panel = *menus[active_menu];
-		panel.sel += dy;
+		active->sel += dy;
 		redraw(2);
 	}
 
 	int  selected_song() { assert(!in_dir_plist()); return right.xsel ? -1 : right.sel; }
-	plist_item *sel_item() { auto &m = *menus[active_menu]; return (m.sel < 0 || m.sel >= m.items.size()) ? NULL : m.items.items[m.sel].get(); }
+	plist_item *sel_item() { auto &m = *active; return (m.sel < 0 || m.sel >= m.items.size()) ? NULL : m.items.items[m.sel].get(); }
 	std::pair<int,int>  selection() // returns [min, max]
 	{
-		auto &m = *menus[active_menu];
+		auto &m = *active;
 		return m.xsel < 0 ? std::make_pair(m.sel+m.xsel, m.sel)
 		                  : std::make_pair(m.sel, m.sel+m.xsel);
 	}
@@ -103,12 +100,10 @@ public:
 	UPD(int, mixer_value)
 	#undef UPD
 
-	WINDOW *window() { return win; }
 	str cwd() const;
 
-	WINDOW *win;
-	menu    left, right, *menus[2];
-	int     active_menu;
+	Window  win;
+	Panel   left, right, *active;
 	Client &client;
 
 private:

@@ -428,8 +428,7 @@ static int count_time (struct spx_data *data)
 }
 
 /* Fill info structure with data from spx comments */
-static void spx_info (const char *file_name, struct file_tags *tags,
-		const int tags_sel)
+static void spx_info (const char *file_name, struct file_tags *tags)
 {
 	struct io_stream *s;
 
@@ -438,10 +437,8 @@ static void spx_info (const char *file_name, struct file_tags *tags,
 		struct spx_data *data = spx_open_internal (s);
 
 		if (data->ok) {
-			if (tags_sel & TAGS_COMMENTS)
-				get_comments (data, tags);
-			if (tags_sel & TAGS_TIME)
-				tags->time = count_time (data);
+			get_comments (data, tags);
+			tags->time = count_time (data);
 		}
 
 		spx_close (data);

@@ -5,13 +5,11 @@
 #include <sys/wait.h>
 #include <dirent.h>
 #include <sys/select.h>
-#include <wctype.h>
-#include <wchar.h>
 
 #include "interface.h"
 #include "client.h"
 #include "utf8.h"
-#include "menu.h"
+#include "Panel.h"
 #include "themes.h"
 #include "keys.h"
 #include "../playlist.h"
@@ -24,115 +22,13 @@
 // width of the toggles for shuffle, repeat, ...
 static constexpr int w_toggles = 6+3+7+6+4+5*2+4*1;
 
-/* Chars used to make lines (for borders etc.). */
-static struct
-{
-	chtype vert;	/* vertical */
-	chtype horiz;	/* horizontal */
-	chtype ulcorn;	/* upper left corner */
-	chtype urcorn;	/* upper right corner */
-	chtype llcorn;	/* lower left corner */
-	chtype lrcorn;	/* lower right corner */
-	chtype rtee;	/* right tee: -| */
-	chtype ltee;	/* left tee:  |- */
-	chtype btee;	/* bottom tee */
-	chtype ttee;	/* top tee: T */
-} lines;
-
-static void init_lines ()
-{
-	if (options::ASCIILines) {
-		lines.vert   = '|';
-		lines.horiz  = '-';
-		lines.ulcorn = '+';
-		lines.urcorn = '+';
-		lines.llcorn = '+';
-		lines.lrcorn = '+';
-		lines.rtee   = '<';
-		lines.ltee   = '>';
-		lines.btee   = '+';
-		lines.ttee   = '+';
-	} else {
-		lines.vert   = ACS_VLINE;
-		lines.horiz  = ACS_HLINE;
-		lines.ulcorn = ACS_ULCORNER;
-		lines.urcorn = ACS_URCORNER;
-		lines.llcorn = ACS_LLCORNER;
-		lines.lrcorn = ACS_LRCORNER;
-		lines.rtee   = ACS_RTEE;
-		lines.ltee   = ACS_LTEE;
-		lines.btee   = ACS_BTEE;
-		lines.ttee   = ACS_TTEE;
-	}
-}
-
-static void draw_frame(WINDOW *win, int color, const Rect &r, const str &title, int title_space = 0, bool draw_bottom = true)
-{
-	if (r.w < 2 || r.h < 2) return;
-
-	wattrset (win, color);
-	wmove (win, r.y, r.x);
-	waddch (win, lines.ulcorn);
-	whline (win, lines.horiz, r.w - 2);
-	wmove (win, r.y, r.x+r.w-1);
-	waddch (win, lines.urcorn);
-	wmove (win, r.y + 1, r.x);
-	wvline (win, lines.vert, r.h - 2);
-	wmove (win, r.y + 1, r.x + r.w - 1);
-	wvline (win, lines.vert, r.h - 2);
-	if (draw_bottom) {
-		wmove (win, r.y + r.h - 1, r.x);
-		waddch (win, lines.llcorn);
-		whline (win, lines.horiz, r.w - 2);
-		wmove (win, r.y + r.h - 1, r.x + r.w - 1);
-		waddch (win, lines.lrcorn);
-	}
-
-	if (!title.empty() && r.w > 4 + 2*title_space)
-	{
-		int tw = std::min((int)strwidth(title), r.w-4-2*title_space);
-		wmove (win, r.y, r.x+(r.w-tw)/2-1);
-		waddch(win, lines.rtee);
-		wattrset (win, get_color(CLR_WIN_TITLE));
-		xwprintfield(win, title, tw);
-		wattrset (win, color);
-		waddch (win, lines.ltee);
-	}
-}
-
-static str total_time_str(int sec)
-{
-	if (sec <= 0) return "-----:--:--";
-	int h = sec / 3600;
-	int m = (sec / 60) % 60;
-	int s = sec % 60;
-	if (h <= 99999) return format("%05d:%02d:%02d", h, m, s);
-	return " very:lo:ng";
-}
-static str time_str(int sec)
-{
-	if (sec < 0) return "--:--";
-	int m = sec / 60;
-	int s = sec % 60;
-	if (m <= 99) return format("%02d:%02d", m, s);
-	int h = m / 60; m %= 60;
-	if (h <= 99) return format("%02dh%02d", h, m);
-	int d = h/24; h %= 24;
-	if (d <= 99) return format("%02dD%02d", d, h);
-	int y = d/365; d %= 365; // um, yeah, really useful ;-)
-	if (y <= 99) return format("%02dY%02d", d, h);
-	return "??:??";
-
-}
-
 str Interface::cwd() const { return client.cwd; }
 
 Interface::Interface(Client &client, plist &pl1, plist &pl2)
 : client(client)
-, win(NULL)
 , left(this, pl1)
 , right(this, pl2)
-, active_menu(1)
+, active(&right)
 , prompting(false)
 , need_redraw(2)
 , bitrate(-1), avg_bitrate(-1), rate(-1)
@@ -141,45 +37,16 @@ Interface::Interface(Client &client, plist &pl1, plist &pl2)
 , message_display_start(0)
 , drag0(-1)
 {
-	menus[0] = &left; menus[1] = &right;
-
-	if (!getenv ("ESCDELAY")) set_escdelay(25);
-	if (!options::TERM.empty()) setenv ("TERM", options::TERM.c_str(), 1);
-
-	utf8_init ();
-	if (!initscr ()) fatal ("Can't initialize terminal!");
-	cbreak();
-	noecho();
-	curs_set(0);
-	use_default_colors();
-
-	start_color ();
-	theme_init ();
-	init_lines ();
-
-	win = newwin(LINES, COLS, 0, 0);
-	wbkgd (win, get_color(CLR_BACKGROUND));
-	nodelay (win, TRUE);
-	keypad (win, TRUE);
-
 	#define MOUSEMASK (REPORT_MOUSE_POSITION | BUTTON1_CLICKED | BUTTON1_DOUBLE_CLICKED | \
 		BUTTON1_PRESSED | BUTTON1_RELEASED | BUTTON4_PRESSED|BUTTON5_PRESSED)
 	mousemask(MOUSEMASK, NULL);
 	// leave defined, it's used below
 }
 
-Interface::~Interface()
+void Interface::resize ()
 {
-	if (win) delwin(win);
-
-	utf8_cleanup ();
-	/* endwin() sometimes fails on X-terminals when we get SIGCHLD
-	 * at this moment.  Double invocation seems to solve this. */
-	if (endwin () == ERR && endwin () == ERR)
-		logit ("endwin() failed!");
-	/* Make sure that the next line after we exit will be clear. */
-	printf ("\n");
-	fflush (stdout);
+	win.resize();
+	redraw(2);
 }
 
 void Interface::cycle_layouts()
@@ -189,19 +56,29 @@ void Interface::cycle_layouts()
 	redraw(2);
 }
 
+void Interface::prompt(const str &prompt, const str &s0, int cur0, std::function<void(void)> cb)
+{
+	prompting = true;
+	prompt_str = prompt;
+	response = s0;
+	cursor = hscroll = cur0;
+	callback = cb;
+	redraw(1);
+}
+
 #define CURR_RATIO (options::layout == HSPLIT ? options::hsplit : options::vsplit)
 
 bool Interface::handle_click(int x, int y, bool dbl)
 {
 	if (options::layout != SINGLE && left.bounds.contains(x,y))
 	{
-		if (active_menu == 1) { active_menu = 0; redraw(2); }
+		if (active == &right) { active = &left; redraw(2); }
 		left.handle_click(x, y, dbl);
 		return true;
 	}
 	else if (options::layout != SINGLE && right.bounds.contains(x,y))
 	{
-		if (active_menu == 0) { active_menu = 1; redraw(2); }
+		if (active == &left) { active = &right; redraw(2); }
 		right.handle_click(x, y, dbl);
 		return true;
 	}
@@ -214,9 +91,9 @@ bool Interface::handle_click(int x, int y, bool dbl)
 			return true;
 		}
 	}
-	else if (options::layout == SINGLE && menus[active_menu]->bounds.contains(x,y))
+	else if (options::layout == SINGLE && active->bounds.contains(x,y))
 	{
-		menus[active_menu]->handle_click(x, y, dbl);
+		active->handle_click(x, y, dbl);
 		redraw(2);
 		return true;
 	}
@@ -243,7 +120,7 @@ bool Interface::handle_click(int x, int y, bool dbl)
 			return true;
 		}
 
-		// file --> show file in menu
+		// file --> show file in dir list
 		if (dbl && y == H-3 && x >= 4 && x < W-1)
 		{
 			go_to_dir_plist();
@@ -270,15 +147,15 @@ bool Interface::handle_click(int x, int y, bool dbl)
 
 bool Interface::handle_scroll(int x, int y, int dy)
 {
-	int m = -1;
-	if (options::layout != SINGLE && left.bounds.contains(x,y)) m = 0;
-	else if (options::layout != SINGLE && right.bounds.contains(x,y)) m = 1;
-	else if (options::layout != SINGLE && menus[active_menu]->bounds.contains(x,y)) m = active_menu;
-	if (m != -1)
+	Panel *m = NULL;
+	if (options::layout != SINGLE && left.bounds.contains(x,y)) m = &left;
+	else if (options::layout != SINGLE && right.bounds.contains(x,y)) m = &right;
+	else if (options::layout == SINGLE && active->bounds.contains(x,y)) m = active;
+	if (m)
 	{
-		active_menu = m;
-		while (dy < 0) { menus[m]->move(REQ_SCROLL_UP);   ++dy; }
-		while (dy > 0) { menus[m]->move(REQ_SCROLL_DOWN); --dy; }
+		active = m;
+		while (dy < 0) { m->move_selection(REQ_SCROLL_UP);   ++dy; }
+		while (dy > 0) { m->move_selection(REQ_SCROLL_DOWN); --dy; }
 		redraw(2);
 		return true;
 	}
@@ -368,417 +245,14 @@ bool Interface::handle_drag(int x, int y, int seq)
 	return true;
 }
 
-void Interface::draw(bool force)
-{
-	if (user_wants_interrupt() && prompting)
-	{
-		prompting = false;
-		redraw(1);
-	}
-
-	if (force) need_redraw = 2;
-
-	if (!messages.empty())
-	{
-		time_t t = time(NULL);
-		if (message_display_start == 0)
-		{
-			message_display_start = t;
-			need_redraw = std::max(need_redraw, 1);
-		}
-		else if (t > message_display_start + options::MessageLingerTime)
-		{
-			messages.pop();
-			message_display_start = (messages.empty() ? 0 : t);
-			need_redraw = std::max(need_redraw, 1);
-		}
-	}
-
-	if (!need_redraw) return;
-
-	// make sure there is always a selection
-	if (menus[active_menu]->items.empty())
-		if (!menus[1-active_menu]->items.empty()) active_menu = 1-active_menu;
-	auto &am = *menus[active_menu];
-	if (am.sel == -1 && am.mark == -1 && !am.items.empty())
-		am.sel = 0;
-
-	const int frame_color = (drag0 > 0 && !dragTime) ? get_color(CLR_TIME_BAR_FILL) : get_color(CLR_FRAME);
-
-	const int W = COLS, H = LINES;
-	if (W < 8 || H < 6)
-	{
-		str s("...TERMINAL TOO SMALL...");
-		wbkgd (win, get_color(CLR_BACKGROUND));
-		werase (win);
-		wattrset (win, get_color(CLR_MESSAGE));
-
-		if (H > W) for (int y = 0; y < H; ++y)
-		{
-			int i = y-(H-1)/2 + s.length()/2;
-			if (i < 0 || i >= s.length()) continue;
-			mvwaddch(win, y, (W-1)/2, s[i]);
-		}
-		else for (int x = 0; x < W; ++x)
-		{
-			int i = x-(W-1)/2 + s.length()/2;
-			if (i < 0 || i >= s.length()) continue;
-			mvwaddch(win, (H-1)/2, x, s[i]);
-		}
-		need_redraw = 0;
-		wrefresh(win);
-		return;
-	}
-
-	if (state == STATE_STOP)
-	{
-		curr_file.clear();
-		curr_tags.reset(nullptr);
-		bitrate = avg_bitrate = rate = 0;
-		curr_time = 0;
-		channels = 0;
-	}
-	
-	str mhome = options::MusicDir; if (!mhome.empty()) mhome += '/'; if (mhome.length() < 2) mhome.clear();
-	str uhome = options::Home;     if (!uhome.empty()) uhome += '/'; if (uhome.length() < 2) uhome.clear();
-
-	if (need_redraw > 1) // tags or sizes changed?
-	{
-		werase (win);
-		wbkgd (win, get_color(CLR_BACKGROUND));
-		Rect r1, r2; // for left+right = dir+plist
-		switch (options::layout)
-		{
-			case HSPLIT:
-			{
-				auto &r = options::hsplit; int a = MAX(0, r.first), b = MAX(0, r.second);
-				if (a+b == 0) a = b = 1;
-				int w1 = CLAMP(0, std::round((W-4)*(double)b/(a+b)), W-4);
-				int w2 = (W-4)-w1;
-				r1.set(0, 0, w1+2, H-3);
-				r2.set(W-(w2+2), 0, w2+2, H-3);
-				break;
-			}
-			case VSPLIT:
-			{
-				auto &r = options::vsplit; int a = MAX(0, r.first), b = MAX(0, r.second);
-				if (a+b == 0) a = b = 1;
-				int h1 = CLAMP(0, std::round((H-6)*(double)b/(a+b)), H-6);
-				int h2 = (H-6)-h1;
-				r2.set(0, 0, W, h2+2);
-				r1.set(0, h2+1, W, h1+2);
-				break;
-			}
-			case SINGLE:
-				r1.set(0, 0, W, H-3);
-				r2 = r1;
-				break;
-		}
-		left.bounds = r1.inset(1);
-		right.bounds = r2.inset(1);
-
-		left.mark_path(curr_file);
-		right.mark_item(curr_idx);
-
-		if (options::layout != SINGLE) menus[1-active_menu]->draw(false);
-		menus[active_menu]->draw(true);
-
-		if (options::layout != SINGLE || active_menu==0)
-		{
-			str s = client.cwd; normalize_path(s);
-
-			if (!mhome.empty() && has_prefix(s, mhome, false))
-			{
-				s = s.substr(mhome.length());
-			}
-			else if (!uhome.empty() && has_prefix(s, uhome, false))
-			{
-				assert(uhome.length() >= 3);
-				s = s.substr(uhome.length()-2);
-				s[0] = '~'; s[1] = '/';
-			}
-			else if (s+"/" == uhome) s = "~";
-			sanitize(s);
-			if (options::FileNamesIconv) s = files_iconv_str (s);
-			if (options::UseRCCForFilesystem) s = rcc_reencode(s);
-			draw_frame(win, frame_color, r1, s, options::layout == VSPLIT ? 14 : 0, false);
-		}
-		if (options::layout != SINGLE || active_menu==1) draw_frame(win, frame_color, r2, client.synced ? "Playlist" : "Playlist (local)", 0, false);
-
-		// bottom frame
-		wattrset (win, frame_color);
-		mvwaddch (win, H-4, 0, lines.ltee);
-		whline (win, lines.horiz, W-2);
-		mvwaddch (win, H-4, W-1, lines.rtee);
-		if (options::layout == HSPLIT)
-		{
-			mvwaddch(win, H-4, left.bounds.x1(), lines.lrcorn);
-			waddch(win, lines.llcorn);
-		}
-		else if (options::layout == VSPLIT)
-		{
-			int y = r2.y1()-1;
-			mvwaddch (win, y,   0, lines.ltee);
-			mvwaddch (win, y, W-1, lines.rtee);
-		}
-
-		// sides and corners
-		mvwaddch (win, H-3, 0,   lines.vert);
-		mvwaddch (win, H-2, 0,   lines.vert);
-		mvwaddch (win, H-3, W-1, lines.vert);
-		mvwaddch (win, H-2, W-1, lines.vert);
-		mvwaddch (win, H-1, 0,   lines.llcorn);
-		mvwaddch (win, H-1, W-1, lines.lrcorn);
-
-		// playlist total times
-		if (left.bounds.w >= 30 && (options::layout != SINGLE || active_menu == 0))
-		{
-			wattrset (win, get_color(CLR_PLIST_TIME));
-			str s = total_time_str(left.items.total_time());
-			int x1 = left.bounds.x1()-1, x0 = x1 - s.length() - 1;
-			int y = left.bounds.y1();
-			wmove(win, y, x0+1);
-			xwaddstr (win, s);
-			wattrset (win, frame_color);
-			mvwaddch (win, y, x0, '[');
-			mvwaddch (win, y, x1, ']');
-		}
-		if (right.bounds.w >= 30 && (options::layout != SINGLE || active_menu == 1))
-		{
-			wattrset (win, get_color(CLR_PLIST_TIME));
-			str s = total_time_str(right.items.total_time());
-			int x1 = right.bounds.x1()-1, x0 = x1 - s.length() - 1;
-			int y = right.bounds.y1();
-			wmove(win, y, x0+1);
-			xwaddstr (win, s);
-			wattrset (win, frame_color);
-			mvwaddch (win, y, x0, '[');
-			mvwaddch (win, y, x1, ']');
-		}
-	}
-
-	//--- Info area ---------------------------------------------------------------------
-	const int total_time = curr_tags ? curr_tags->time : 0;
-
-	// status message
-	if (!status_msg.empty())
-	{
-		int w = 0, sw = (int)status_msg.length();
-
-		if (options::layout == HSPLIT)
-		{
-			if (left.bounds.w >= 30) w = left.bounds.w - 15;
-			if (w < sw) w = left.bounds.w - 2;
-			if (w < sw && right.bounds.w >= 30) w = W - 17;
-		}
-		else
-		{
-			if (w < sw && W >= 32) w = W - 17;
-		}
-	
-		if (w < sw) w = W - 4;
-		if (w < sw) sw = w;
-
-		wattrset (win, frame_color);
-		wmove (win, H-4, 1);
-		whline (win, lines.horiz, w+2); // overwrite playlist times if needed
-		int x0 = 1+(w-sw)/2;
-		mvwaddch (win, H-4, x0, ' '); //lines.rtee);
-		mvwaddch (win, H-4, x0+sw+1, ' '); //lines.ltee);
-
-		wattrset (win, get_color(CLR_STATUS));
-		wmove (win, H-4, x0+1);
-		xwprintfield(win, status_msg, sw);
-	}
-
-	// current song: play/pause state
-	wattrset (win, get_color(CLR_BACKGROUND));
-	wmove (win, H-3, 1); whline (win, ' ', W-2);
-	wattrset (win, get_color(CLR_STATE));
-	wmove(win, H-3, 1);
-	switch (state) {
-		case STATE_PLAY:  xwaddstr(win, " > "); break;
-		case STATE_STOP:  xwaddstr(win, "[] "); break;
-		case STATE_PAUSE: xwaddstr(win, "|| "); break;
-		default: xwaddstr(win, "BUG"); break;
-	}
-
-	// current song title or message
-	if (!messages.empty())
-	{
-		str msg = messages.front();
-		wattrset (win, get_color(has_prefix(msg, "ERROR", true) ? CLR_ERROR : CLR_MESSAGE));
-		xwprintfield(win, msg, W-5);
-	}
-	else
-	{
-		wattrset (win, get_color (CLR_TITLE));
-
-		str s = curr_file;
-		if (!mhome.empty() && has_prefix(s, mhome, false))
-		{
-			s = s.substr(mhome.length());
-		}
-		else if (!uhome.empty() && has_prefix(s, uhome, false))
-		{
-			assert(uhome.length() >= 3);
-			s = s.substr(uhome.length()-2);
-			s[0] = '~'; s[1] = '/';
-		}
-		sanitize(s);
-		if (options::FileNamesIconv) s = files_iconv_str (s);
-		if (options::UseRCCForFilesystem) s = rcc_reencode(s);
-
-		xwprintfield(win, s, W-6, 'l');
-	}
-
-	// time bar
-	str c1 = options::TimeBarLine, c2 = options::TimeBarSpace;
-	if (total_time <= 0 || c1.empty())
-	{
-		wmove (win, H-1, 1);
-		wattrset (win, frame_color);
-		whline (win, lines.horiz, W-2);
-	}
-	else
-	{
-		int l1 = std::max(0, std::min(W-2, (W-2)*curr_time/total_time));
-		if (c1.empty()) c1 = lines.horiz;
-		if (c2.empty()) c2 = c1;
-		wmove (win, H-1, 1);
-		wattrset(win, get_color(CLR_TIME_BAR_FILL));
-		for (int x = 0; x < l1; ++x) xwaddstr (win, c1);
-		wattrset(win, get_color(CLR_TIME_BAR_EMPTY));
-		for (int x = l1; x < W-2; ++x) xwaddstr (win, c2);
-	}
-
-	// prompt (must be last so the cursor stays in the right place) or info
-	if (prompting)
-	{
-		wmove (win, H-2, 1);
-		wattrset (win, get_color(CLR_ENTRY_TITLE));
-		xwaddstr(win, prompt_str);
-		int x0 = 1+strwidth(prompt_str)+1;
-		if (prompt_str.back() != '?' && prompt_str.back() != ':') { waddch(win, ':'); ++x0; }
-		waddch(win, ' ');
-		
-		int w = W-1-x0;
-		wattrset (win, get_color(CLR_ENTRY));
-		int n = strwidth(response);
-		cursor = CLAMP(0, cursor, n);
-		int nn = n + (cursor==n);
-		if (w >= nn || hscroll < 0) hscroll = 0;
-		if (cursor-hscroll < 5) hscroll = std::max(0, cursor-5);
-		if (hscroll+w-cursor < 5) hscroll = std::max(0, 5+cursor-w);
-		if (hscroll > 0 && n-hscroll+(cursor==n) > w)
-			hscroll = std::max(0, n-w+(cursor==n));
-
-		if (hscroll > 0)
-		{
-			waddstr(win, "...");
-			xwprintfield(win, xstrtail(response, n-3), w-3);
-		}
-		else
-		{
-			xwprintfield(win, response, w);
-		}
-		
-		// no more drawing after this!
-		wmove (win, H-2, x0 + cursor-hscroll);
-		curs_set(2);
-	}
-	else
-	{
-		wmove (win, H-2, 1);
-		wattrset (win, get_color(CLR_BACKGROUND));
-		whline (win, ' ', W-2);
-
-		curs_set(0);
-		int w = W-2, x = 1;
-
-		// toggles
-		if (w >= w_toggles)
-		{
-			wmove(win, H-2, x+w-w_toggles);
-			#define SW(x, v) wattrset(win, get_color((v) ? CLR_INFO_ENABLED : CLR_INFO_DISABLED));\
-				xwaddstr(win, "[" #x "]")
-			SW(STEREO, channels==2); waddch(win, ' ');
-			SW(NET, is_url(curr_file.c_str())); waddch(win, ' ');
-			SW(SHUFFLE, options::Shuffle); waddch(win, ' ');
-			SW(REPEAT, options::Repeat); waddch(win, ' ');
-			SW(NEXT, options::AutoNext);
-			#undef SW
-			w -= w_toggles + 1;
-		}
-
-		// time for current song
-		wattrset (win, get_color(CLR_TIME_CURRENT));
-		if (w >= 5)
-		{
-			xmvwaddstr(win, H-2, x, time_str(curr_time));
-			x += 5+1; // time + one space
-			w -= 5+1;
-		}
-		if (w >= 13)
-		{
-			xmvwaddstr(win, H-2, x, time_str(total_time - curr_time));
-			xmvwaddstr(win, H-2, x+7, time_str(total_time));
-			wattrset (win, get_color(CLR_TIME_TOTAL_FRAMES));
-			mvwaddch (win, H-2, x+6, '[');
-			mvwaddch (win, H-2, x+12, ']');
-			x += 13+1; // printed stuff + one space
-			w -= 13+1;
-		}
-		++x; --w; // two spaces to whatever comes next
-
-		// rate, bitrate, volume
-		if (w >= 15)
-		{
-			wmove (win, H-2, x);
-			wattrset (win, get_color(CLR_LEGEND));
-			xwaddstr (win, "   kHz     kbps");		
-
-			wattrset (win, get_color(CLR_SOUND_PARAMS));
-			wmove (win, H-2, x);
-			if (rate >= 0) waddstr(win, format("%3d", rate).c_str()); else waddstr(win, "   ");
-			wmove (win, H-2, x+7);
-			if (bitrate >= 0) waddstr(win, format("%4d", std::min(bitrate, 9999)).c_str()); else waddstr(win, "    ");
-			x += 15+2;
-			w -= 15+2;
-		}
-
-		if (options::ShowMixer)
-		{
-			str ms = format("%s: %02d%%", mixer_name.c_str(), mixer_value);
-			if (w >= ms.length())
-			{
-				wattrset (win, get_color(CLR_SOUND_PARAMS));
-				wmove(win, H-2, x);
-				xwaddstr(win, ms);
-				//x += ms.length()+2; w -= ms.length()+2
-			}
-		}
-	}
-
-	need_redraw = 0;
-	wrefresh(win);
-}
-
-void Interface::resize ()
-{
-	endwin();
-	refresh();
-	keypad (win, TRUE);
-	wresize (win, LINES, COLS);
-	redraw(2);
-}
-
 void Interface::handle_input()
 {
 	wchar_t c = 0; // regular key
 	int     f = 0; // function key
 
-	wint_t ch = wgetch(win);
+	WINDOW *w = win.WIN();
+
+	wint_t ch = wgetch(w);
 	if (ch == (wint_t)ERR) interface_fatal ("wgetch() failed!");
 
 	if (ch < 32 && ch != '\n' && ch != '\t' && ch != KEY_ESCAPE)
@@ -789,19 +263,17 @@ void Interface::handle_input()
 	{
 		/* Regular char */
 		ungetch (ch);
-		if (wget_wch(win, &ch) == ERR) interface_fatal ("wget_wch() failed!");
+		if (wget_wch(w, &ch) == ERR) interface_fatal ("wget_wch() failed!");
 
 		/* Recognize meta sequences */
 		if (ch == KEY_ESCAPE) {
-			int meta = wgetch (win);
+			int meta = wgetch (w);
 			if (meta != ERR) ch = meta | META_KEY_FLAG;
 			f = ch;
 		}
 		else c = ch;
 	}
 	else f = ch;
-
-	auto &panel = *menus[active_menu];
 
 	if (f == KEY_RESIZE)
 	{
@@ -894,15 +366,15 @@ void Interface::handle_input()
 		auto cmd = get_key_cmd (CON_MENU, c, f);
 		switch (cmd)
 		{
-		case KEY_CMD_MENU_DOWN:  panel.move(REQ_DOWN);   redraw(2); break;
-		case KEY_CMD_MENU_UP:    panel.move(REQ_UP);     redraw(2); break;
-		case KEY_CMD_MENU_NPAGE: panel.move(REQ_PGDOWN); redraw(2); break;
-		case KEY_CMD_MENU_PPAGE: panel.move(REQ_PGUP);   redraw(2); break;
-		case KEY_CMD_MENU_FIRST: panel.move(REQ_TOP);    redraw(2); break;
-		case KEY_CMD_MENU_LAST:  panel.move(REQ_BOTTOM); redraw(2); break;
-		case KEY_CMD_MENU_EXTEND_DOWN: panel.move(REQ_XDOWN); redraw(2); break;
-		case KEY_CMD_MENU_EXTEND_UP:   panel.move(REQ_XUP);   redraw(2); break;
-		case KEY_CMD_TOGGLE_MENU: active_menu = 1-active_menu; redraw(2); break;
+		case KEY_CMD_MENU_DOWN:  active->move_selection(REQ_DOWN);   redraw(2); break;
+		case KEY_CMD_MENU_UP:    active->move_selection(REQ_UP);     redraw(2); break;
+		case KEY_CMD_MENU_NPAGE: active->move_selection(REQ_PGDOWN); redraw(2); break;
+		case KEY_CMD_MENU_PPAGE: active->move_selection(REQ_PGUP);   redraw(2); break;
+		case KEY_CMD_MENU_FIRST: active->move_selection(REQ_TOP);    redraw(2); break;
+		case KEY_CMD_MENU_LAST:  active->move_selection(REQ_BOTTOM); redraw(2); break;
+		case KEY_CMD_MENU_EXTEND_DOWN: active->move_selection(REQ_XDOWN); redraw(2); break;
+		case KEY_CMD_MENU_EXTEND_UP:   active->move_selection(REQ_XUP);   redraw(2); break;
+		case KEY_CMD_TOGGLE_MENU: active = (active==&left ? &right : &left); redraw(2); break;
 		case KEY_CMD_REFRESH: redraw(2); break;
 		case KEY_CMD_TOGGLE_LAYOUT: cycle_layouts(); break;
 
@@ -960,12 +432,405 @@ void Interface::handle_input()
 	}
 }
 
-void Interface::prompt(const str &prompt, const str &s0, int cur0, std::function<void(void)> cb)
+void Interface::draw(bool force)
 {
-	prompting = true;
-	prompt_str = prompt;
-	response = s0;
-	cursor = hscroll = cur0;
-	callback = cb;
-	redraw(1);
+	if (user_wants_interrupt() && prompting)
+	{
+		prompting = false;
+		redraw(1);
+	}
+
+	if (force) need_redraw = 2;
+
+	if (!messages.empty())
+	{
+		time_t t = time(NULL);
+		if (message_display_start == 0)
+		{
+			message_display_start = t;
+			need_redraw = std::max(need_redraw, 1);
+		}
+		else if (t > message_display_start + options::MessageLingerTime)
+		{
+			messages.pop();
+			message_display_start = (messages.empty() ? 0 : t);
+			need_redraw = std::max(need_redraw, 1);
+		}
+	}
+
+	if (!need_redraw) return;
+
+	// make sure there is always a selection
+	if (active->items.empty())
+	{
+		if (!left.items.empty()) active = &left;
+		if (!right.items.empty()) active = &right;
+	}
+	auto &am = *active;
+	if (am.sel == -1 && am.mark == -1 && !am.items.empty())
+		am.sel = 0;
+
+	const auto frame_color = (drag0 > 0 && !dragTime) ? CLR_TIME_BAR_FILL : CLR_FRAME;
+
+	const int W = COLS, H = LINES;
+	if (W < 8 || H < 6)
+	{
+		str s("...TERMINAL TOO SMALL...");
+		win.clear();
+		win.color(CLR_MESSAGE);
+
+		if (H > W) for (int y = 0; y < H; ++y)
+		{
+			int i = y-(H-1)/2 + s.length()/2;
+			if (i < 0 || i >= s.length()) continue;
+			win.put(y, (W-1)/2, s[i]);
+		}
+		else for (int x = 0; x < W; ++x)
+		{
+			int i = x-(W-1)/2 + s.length()/2;
+			if (i < 0 || i >= s.length()) continue;
+			win.put((H-1)/2, x, s[i]);
+		}
+		need_redraw = 0;
+		win.flush();
+		return;
+	}
+
+	if (state == STATE_STOP)
+	{
+		curr_file.clear();
+		curr_tags.reset(nullptr);
+		bitrate = avg_bitrate = rate = 0;
+		curr_time = 0;
+		channels = 0;
+	}
+	
+	str mhome = options::MusicDir; if (!mhome.empty()) mhome += '/'; if (mhome.length() < 2) mhome.clear();
+	str uhome = options::Home;     if (!uhome.empty()) uhome += '/'; if (uhome.length() < 2) uhome.clear();
+
+	if (need_redraw > 1) // tags or sizes changed?
+	{
+		win.clear();
+		Rect r1, r2; // for left+right = dir+plist
+		switch (options::layout)
+		{
+			case HSPLIT:
+			{
+				auto &r = options::hsplit; int a = MAX(0, r.first), b = MAX(0, r.second);
+				if (a+b == 0) a = b = 1;
+				int w1 = CLAMP(0, std::round((W-4)*(double)b/(a+b)), W-4);
+				int w2 = (W-4)-w1;
+				r1.set(0, 0, w1+2, H-3);
+				r2.set(W-(w2+2), 0, w2+2, H-3);
+				break;
+			}
+			case VSPLIT:
+			{
+				auto &r = options::vsplit; int a = MAX(0, r.first), b = MAX(0, r.second);
+				if (a+b == 0) a = b = 1;
+				int h1 = CLAMP(0, std::round((H-6)*(double)b/(a+b)), H-6);
+				int h2 = (H-6)-h1;
+				r2.set(0, 0, W, h2+2);
+				r1.set(0, h2+1, W, h1+2);
+				break;
+			}
+			case SINGLE:
+				r1.set(0, 0, W, H-3);
+				r2 = r1;
+				break;
+		}
+		left.bounds = r1.inset(1);
+		right.bounds = r2.inset(1);
+
+		left.mark_path(curr_file);
+		right.mark_item(curr_idx);
+
+		Panel *other = (active == &left ? &right : &left);
+		if (options::layout != SINGLE) other->draw(false);
+		active->draw(true);
+
+		if (options::layout != SINGLE || active == &left)
+		{
+			str s = client.cwd; normalize_path(s);
+
+			if (!mhome.empty() && has_prefix(s, mhome, false))
+			{
+				s = s.substr(mhome.length());
+			}
+			else if (!uhome.empty() && has_prefix(s, uhome, false))
+			{
+				assert(uhome.length() >= 3);
+				s = s.substr(uhome.length()-2);
+				s[0] = '~'; s[1] = '/';
+			}
+			else if (s+"/" == uhome) s = "~";
+			sanitize(s);
+			if (options::FileNamesIconv) s = files_iconv_str (s);
+			if (options::UseRCCForFilesystem) s = rcc_reencode(s);
+			win.frame(frame_color, r1, s, options::layout == VSPLIT ? 14 : 0, false);
+		}
+		if (options::layout != SINGLE || active == &right)
+			win.frame(frame_color, r2, client.synced ? "Playlist" : "Playlist (local)", 0, false);
+
+		// bottom frame
+		win.color(frame_color);
+		win.put(H-4, 0, win.ltee);
+		win.hl(W-2);
+		win.put(H-4, W-1, win.rtee);
+		if (options::layout == HSPLIT)
+		{
+			win.put(H-4, left.bounds.x1(), win.lrcorn);
+			win.put(win.llcorn);
+		}
+		else if (options::layout == VSPLIT)
+		{
+			int y = r2.y1()-1;
+			win.put(y,   0, win.ltee);
+			win.put(y, W-1, win.rtee);
+		}
+
+		// sides and corners
+		win.put(H-3, 0,   win.vert);
+		win.put(H-2, 0,   win.vert);
+		win.put(H-3, W-1, win.vert);
+		win.put(H-2, W-1, win.vert);
+		win.put(H-1, 0,   win.llcorn);
+		win.put(H-1, W-1, win.lrcorn);
+
+		// playlist total times
+		if (left.bounds.w >= 30 && (options::layout != SINGLE || active == &left))
+		{
+			int x1 = left.bounds.x1()-1, x0 = x1 - Window::TOTAL_TIME_WIDTH - 1;
+			int y = left.bounds.y1();
+			
+			win.color(CLR_PLIST_TIME);
+			win.moveto(y, x0+1);
+			win.total_time(left.items.total_time());
+	
+			win.color(frame_color);
+			win.put(y, x0, '[');
+			win.put(y, x1, ']');
+		}
+		if (right.bounds.w >= 30 && (options::layout != SINGLE || active == &right))
+		{
+			int x1 = right.bounds.x1()-1, x0 = x1 - Window::TOTAL_TIME_WIDTH - 1;
+			int y = right.bounds.y1();
+
+			win.color(CLR_PLIST_TIME);
+			win.moveto(y, x0+1);
+			win.total_time(right.items.total_time());
+
+			win.color(frame_color);
+			win.put(y, x0, '[');
+			win.put(y, x1, ']');
+		}
+	}
+
+	//--- Info area ---------------------------------------------------------------------
+	const int total_time = curr_tags ? curr_tags->time : 0;
+
+	// status message
+	if (!status_msg.empty())
+	{
+		int w = 0, sw = (int)status_msg.length();
+
+		if (options::layout == HSPLIT)
+		{
+			if (left.bounds.w >= 30) w = left.bounds.w - 15;
+			if (w < sw) w = left.bounds.w - 2;
+			if (w < sw && right.bounds.w >= 30) w = W - 17;
+		}
+		else
+		{
+			if (w < sw && W >= 32) w = W - 17;
+		}
+	
+		if (w < sw) w = W - 4;
+		if (w < sw) sw = w;
+
+		win.color(frame_color);
+		win.moveto(H-4, 1);
+		win.hl(w+2); // overwrite playlist times if needed
+		int x0 = 1+(w-sw)/2;
+		win.put(H-4, x0, ' '); //win.rtee);
+		win.put(H-4, x0+sw+1, ' '); //win.ltee);
+
+		win.color(CLR_STATUS);
+		win.moveto(H-4, x0+1);
+		win.field(status_msg, sw);
+	}
+
+	// current song: play/pause state
+	win.color(CLR_BACKGROUND);
+	win.moveto(H-3, 1); win.clear(W-2);
+	win.color(CLR_STATE);
+	win.moveto(H-3, 1);
+	switch (state) {
+		case STATE_PLAY:  win.put_ascii(" > "); break;
+		case STATE_STOP:  win.put_ascii("[] "); break;
+		case STATE_PAUSE: win.put_ascii("|| "); break;
+		default: win.put_ascii("BUG"); break;
+	}
+
+	// current song title or message
+	if (!messages.empty())
+	{
+		str msg = messages.front();
+		win.color(has_prefix(msg, "ERROR", true) ? CLR_ERROR : CLR_MESSAGE);
+		win.field(msg, W-5);
+	}
+	else
+	{
+		win.color(CLR_TITLE);
+
+		str s = curr_file;
+		if (!mhome.empty() && has_prefix(s, mhome, false))
+		{
+			s = s.substr(mhome.length());
+		}
+		else if (!uhome.empty() && has_prefix(s, uhome, false))
+		{
+			assert(uhome.length() >= 3);
+			s = s.substr(uhome.length()-2);
+			s[0] = '~'; s[1] = '/';
+		}
+		sanitize(s);
+		if (options::FileNamesIconv) s = files_iconv_str (s);
+		if (options::UseRCCForFilesystem) s = rcc_reencode(s);
+
+		win.field(s, W-6, 'l');
+	}
+
+	// time bar
+	str c1 = options::TimeBarLine, c2 = options::TimeBarSpace;
+	if (total_time <= 0 || c1.empty())
+	{
+		win.moveto(H-1, 1);
+		win.color(frame_color);
+		win.hl(W-2);
+	}
+	else
+	{
+		int l1 = std::max(0, std::min(W-2, (W-2)*curr_time/total_time));
+		if (c1.empty()) c1 = win.horiz;
+		if (c2.empty()) c2 = c1;
+		win.moveto(H-1, 1);
+		win.color(CLR_TIME_BAR_FILL);
+		for (int x = 0; x < l1; ++x) win.put(c1);
+		win.color(CLR_TIME_BAR_EMPTY);
+		for (int x = l1; x < W-2; ++x) win.put(c2);
+	}
+
+	// prompt (must be last so the cursor stays in the right place) or info
+	if (prompting)
+	{
+		win.moveto(H-2, 1);
+		win.color(CLR_ENTRY_TITLE);
+		win.put_ascii(prompt_str);
+		int x0 = 1+strwidth(prompt_str)+1;
+		if (prompt_str.back() != '?' && prompt_str.back() != ':') { win.put(':'); ++x0; }
+		win.put(' ');
+		
+		int w = W-1-x0;
+		win.color(CLR_ENTRY);
+		int n = strwidth(response);
+		cursor = CLAMP(0, cursor, n);
+		int nn = n + (cursor==n);
+		if (w >= nn || hscroll < 0) hscroll = 0;
+		if (cursor-hscroll < 5) hscroll = std::max(0, cursor-5);
+		if (hscroll+w-cursor < 5) hscroll = std::max(0, 5+cursor-w);
+		if (hscroll > 0 && n-hscroll+(cursor==n) > w)
+			hscroll = std::max(0, n-w+(cursor==n));
+
+		if (hscroll > 0)
+		{
+			win.put_ascii("...");
+			win.field(xstrtail(response, n-3), w-3);
+		}
+		else
+		{
+			win.field(response, w);
+		}
+		
+		// no more drawing after this!
+		win.moveto(H-2, x0 + cursor-hscroll);
+		curs_set(2);
+	}
+	else
+	{
+		win.moveto(H-2, 1);
+		win.color(CLR_BACKGROUND);
+		win.clear(W-2);
+
+		curs_set(0);
+		int w = W-2, x = 1;
+
+		// toggles
+		if (w >= w_toggles)
+		{
+			win.moveto(H-2, x+w-w_toggles);
+			#define SW(x, v) win.color((v) ? CLR_INFO_ENABLED : CLR_INFO_DISABLED);\
+				win.put_ascii("[" #x "]")
+			SW(STEREO, channels==2); win.put(' ');
+			SW(NET, is_url(curr_file.c_str())); win.put(' ');
+			SW(SHUFFLE, options::Shuffle); win.put(' ');
+			SW(REPEAT, options::Repeat); win.put(' ');
+			SW(NEXT, options::AutoNext);
+			#undef SW
+			w -= w_toggles + 1;
+		}
+
+		// time for current song
+		constexpr int TW = Window::TIME_WIDTH;
+		win.color(CLR_TIME_CURRENT);
+		if (w >= 5)
+		{
+			win.moveto(H-2, x);
+			win.time(curr_time);
+			x += TW+1; // time + one space
+			w -= TW+1;
+		}
+		if (w >= 13)
+		{
+			win.moveto(H-2, x); win.time(total_time - curr_time);
+			win.moveto(H-2, x+TW+2); win.time(total_time);
+			win.color(CLR_TIME_TOTAL_FRAMES);
+			win.put(H-2, x+TW+1,   '[');
+			win.put(H-2, x+2*TW+2, ']');
+			x += 2*TW+4; // printed stuff + one space
+			w -= 2*TW+4;
+		}
+		++x; --w; // two spaces to whatever comes next
+
+		// rate, bitrate, volume
+		if (w >= 15)
+		{
+			win.moveto(H-2, x);
+			win.color(CLR_LEGEND);
+			win.put_ascii("   kHz     kbps");		
+
+			win.color(CLR_SOUND_PARAMS);
+			win.moveto(H-2, x);
+			if (rate >= 0) win.put_ascii(format("%3d", rate)); else win.put_ascii("   ");
+			win.moveto(H-2, x+7);
+			if (bitrate >= 0) win.put_ascii(format("%4d", std::min(bitrate, 9999))); else win.put_ascii("    ");
+			x += 15+2;
+			w -= 15+2;
+		}
+
+		if (options::ShowMixer)
+		{
+			str ms = format("%s: %02d%%", mixer_name.c_str(), mixer_value);
+			if (w >= ms.length())
+			{
+				win.color(CLR_SOUND_PARAMS);
+				win.moveto(H-2, x);
+				win.put(ms);
+				//x += ms.length()+2; w -= ms.length()+2
+			}
+		}
+	}
+
+	need_redraw = 0;
+	win.flush();
 }

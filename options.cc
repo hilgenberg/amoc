@@ -192,6 +192,7 @@ void load(Component who)
 	OPT(hsplit_plist); OPT(hsplit_dirlist);
 	OPT(hsplit_plist); OPT(hsplit_dirlist);
 
+	OPT(LastDir);
 	OPT(RatingSpace);
 	OPT(RatingStar);
 	OPT(ReadTags);
@@ -200,7 +201,7 @@ void load(Component who)
 	OPT(Repeat);
 	OPT(Shuffle);
 	OPT(AutoNext);
-	OPT(ASCIILines);
+	OPT(ASCIILines); OPT(HideBorder);
 	OPT(InputBuffer);
 	OPT(OutputBuffer);
 	OPT(Prebuffering);
@@ -252,6 +253,7 @@ void load(Component who)
 	normalize_path(RunDir);
 	if (!MusicDir.empty()) normalize_path(MusicDir);
 	SocketPath = add_path(RunDir, "socket");
+	if (!LastDir.empty()) normalize_path(LastDir);
 
 	#define UNIX_PATH_MAX	108
 	if (SocketPath.length() > UNIX_PATH_MAX) fatal ("Can't create socket name!");
@@ -271,6 +273,7 @@ void save(Component who)
 
 	if (who == GUI)
 	{
+		items["LastDir"]        = LastDir;
 		items["hsplit_plist"]   = format("%d", hsplit.first);
 		items["hsplit_dirlist"] = format("%d", hsplit.second);
 		items["vsplit_plist"]   = format("%d", vsplit.first);
@@ -296,10 +299,11 @@ Layout layout = HSPLIT;
 
 bool ReadTags = true;
 bool StartInMusicDir = false;
+str  LastDir = "";
 bool Repeat = false;
 bool Shuffle = false;
 bool AutoNext = true;
-bool ASCIILines = false;
+bool ASCIILines = false, HideBorder = false;
 //str  ("FormatString", "%(n:%n :)%(a:%a - :)%(t:%t:)%(A: \\(%A\\):)", CHECK_NONE);
 int InputBuffer = 512;
 int OutputBuffer = 512;

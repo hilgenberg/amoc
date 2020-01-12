@@ -1,19 +1,14 @@
 #pragma once
 #include <memory>
 
-#define TAGS_COMMENTS 1
-#define TAGS_TIME     2
-
 struct file_tags
 {
-	file_tags() : track(-1), time(-1), rating(-1), filled(0) {}
+	file_tags() : track(-1), time(-1), rating(-1) {}
 	void read_file_tags (const char *file);
 
 	int time; // in seconds or -1 for streams
 	str title, artist, album;
 	int track, rating;
-	std::map<str, str> extra;
-	int filled;
 };
 
 enum file_type

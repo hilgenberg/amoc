@@ -168,17 +168,12 @@ static void sndfile_close (void *void_data)
 	free (data);
 }
 
-static void sndfile_info (const char *file_name, struct file_tags *info,
-		const int tags_sel)
+static void sndfile_info (const char *file_name, struct file_tags *info)
 {
-	if (tags_sel & TAGS_TIME) {
-		struct sndfile_data *data;
-
-		data = (sndfile_data*) sndfile_open (file_name);
-		if (data->sndfile && !data->timing_broken)
-			info->time = data->snd_info.frames / data->snd_info.samplerate;
-		sndfile_close (data);
-	}
+	struct sndfile_data *data = (sndfile_data*) sndfile_open (file_name);
+	if (data->sndfile && !data->timing_broken)
+		info->time = data->snd_info.frames / data->snd_info.samplerate;
+	sndfile_close (data);
 }
 
 static int sndfile_seek (void *void_data, int sec)

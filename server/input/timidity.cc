@@ -98,8 +98,7 @@ static void timidity_close (void *void_data)
   free (data);
 }
 
-static void timidity_info (const char *file_name, struct file_tags *info,
-		const int tags_sel)
+static void timidity_info (const char *file_name, struct file_tags *info)
 {
   struct timidity_data *data = make_timidity_data(file_name);
 
@@ -108,10 +107,7 @@ static void timidity_info (const char *file_name, struct file_tags *info,
     return;
   }
 
-  if(tags_sel & TAGS_TIME) {
     info->time = mid_song_get_total_time(data->midisong) / 1000;
-    info->filled |= TAGS_TIME;
-  }
 
   timidity_close(data);
 }

@@ -130,10 +130,8 @@ struct decoder
 	 * \param file File for which to get tags.
 	 * \param tags Pointer to the tags structure where we must put
 	 * the tags. All strings must be malloc()ed.
-	 * \param tags_sel OR'ed list of requested tags (values of
-	 * enum tags_select).
 	 */
-	void (*info)(const char *file, file_tags *tags, int tags_sel);
+	void (*info)(const char *file, file_tags *tags);
 
 	/** Get the current bitrate.
 	 *

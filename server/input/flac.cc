@@ -393,20 +393,14 @@ static void get_vorbiscomments (const char *filename, struct file_tags *tags)
 	FLAC__metadata_simple_iterator_delete(iterator);
 }
 
-static void flac_info (const char *file_name, struct file_tags *info,
-		const int tags_sel)
+static void flac_info (const char *file_name, struct file_tags *info)
 {
-	if (tags_sel & TAGS_TIME) {
-		struct flac_data *data;
+	struct flac_data *data = (flac_data*) flac_open_internal (file_name, 0);
+	if (data->ok)
+		info->time = data->length;
+	flac_close (data);
 
-		data = (flac_data*) flac_open_internal (file_name, 0);
-		if (data->ok)
-			info->time = data->length;
-		flac_close (data);
-	}
-
-	if (tags_sel & TAGS_COMMENTS)
-		get_vorbiscomments (file_name, info);
+	get_vorbiscomments (file_name, info);
 }
 
 static int flac_seek (void *void_data, int sec)

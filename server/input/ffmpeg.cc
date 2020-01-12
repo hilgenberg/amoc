@@ -388,8 +388,7 @@ static void ffmpeg_destroy ()
 
 /* Fill info structure with data from ffmpeg comments. */
 static void ffmpeg_info (const char *file_name,
-		struct file_tags *info,
-		const int tags_sel)
+		struct file_tags *info)
 {
 	int err;
 	AVFormatContext *ic = NULL;
@@ -408,14 +407,11 @@ static void ffmpeg_info (const char *file_name,
 		goto end;
 	}
 
-	if (!is_timing_broken (ic) && tags_sel & TAGS_TIME) {
+	if (!is_timing_broken (ic)) {
 		info->time = -1;
 		if (ic->duration != (int64_t)AV_NOPTS_VALUE && ic->duration >= 0)
 			info->time = ic->duration / AV_TIME_BASE;
 	}
-
-	if (!(tags_sel & TAGS_COMMENTS))
-		goto end;
 
 	md = ic->metadata;
 	if (md == NULL) {

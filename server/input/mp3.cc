@@ -404,38 +404,33 @@ static int count_time (const char *file)
 inline void CP2STR(str &s, const char *cp) { if (!cp) s.clear(); else s = cp; }
 
 /* Fill info structure with data from the id3 tag */
-static void mp3_info (const char *file_name, struct file_tags *info,
-		const int tags_sel)
+static void mp3_info (const char *file_name, struct file_tags *info)
 {
-	if (tags_sel & TAGS_COMMENTS) {
-		struct id3_tag *tag;
-		struct id3_file *id3file;
-		char *track = NULL;
+	struct id3_tag *tag;
+	struct id3_file *id3file;
+	char *track = NULL;
 
-		id3file = id3_file_open (file_name, ID3_FILE_MODE_READONLY);
-		if (!id3file)
-			return;
-		tag = id3_file_tag (id3file);
-		if (tag) {
-			CP2STR(info->artist, get_tag (tag, ID3_FRAME_ARTIST));
-			CP2STR(info->title, get_tag (tag, ID3_FRAME_TITLE));
-			CP2STR(info->album, get_tag (tag, ID3_FRAME_ALBUM));
-			track = get_tag (tag, ID3_FRAME_TRACK);
+	id3file = id3_file_open (file_name, ID3_FILE_MODE_READONLY);
+	if (!id3file) return;
+	tag = id3_file_tag (id3file);
+	if (tag) {
+		CP2STR(info->artist, get_tag (tag, ID3_FRAME_ARTIST));
+		CP2STR(info->title, get_tag (tag, ID3_FRAME_TITLE));
+		CP2STR(info->album, get_tag (tag, ID3_FRAME_ALBUM));
+		track = get_tag (tag, ID3_FRAME_TRACK);
 
-			if (track) {
-				char *end;
+		if (track) {
+			char *end;
 
-				info->track = strtol (track, &end, 10);
-				if (end == track)
-					info->track = -1;
-				free (track);
-			}
+			info->track = strtol (track, &end, 10);
+			if (end == track)
+				info->track = -1;
+			free (track);
 		}
-		id3_file_close (id3file);
 	}
+	id3_file_close (id3file);
 
-	if (tags_sel & TAGS_TIME)
-		info->time = count_time (file_name);
+	info->time = count_time (file_name);
 }
 
 static inline int32_t round_sample (mad_fixed_t sample)

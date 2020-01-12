@@ -18,13 +18,13 @@ namespace options
 	extern Layout layout;
 
 	extern bool ReadTags;
-	extern str  MusicDir;
 	extern bool StartInMusicDir;
+	extern str  LastDir; // client's cwd when it was last shut down
 	extern bool Repeat;
 	extern bool Shuffle;
 	extern bool AutoNext;
-	extern bool ASCIILines;
-	extern str HTTPProxy;
+	extern bool ASCIILines, HideBorder;
+	extern str  HTTPProxy;
 
 	enum class SoundDriver_t : int { AUTO = -1, SNDIO, JACK, ALSA, OSS, NOSOUND };
 	extern SoundDriver_t SoundDriver;

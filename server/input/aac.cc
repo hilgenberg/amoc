@@ -385,48 +385,43 @@ static char *get_tag (struct id3_tag *tag, const char *what)
 
 /* Fill info structure with data from aac comments */
 static void aac_info (const char *file_name,
-		struct file_tags *info,
-		const int tags_sel)
+		struct file_tags *info)
 {
-	if (tags_sel & TAGS_COMMENTS) {
-		struct id3_tag *tag;
-		struct id3_file *id3file;
-		char *track = NULL;
+	struct id3_tag *tag;
+	struct id3_file *id3file;
+	char *track = NULL;
 
-		id3file = id3_file_open (file_name, ID3_FILE_MODE_READONLY);
-		if (!id3file)
-			return;
-		tag = id3_file_tag (id3file);
-		if (tag) {
-			info->artist = get_tag (tag, ID3_FRAME_ARTIST);
-			info->title = get_tag (tag, ID3_FRAME_TITLE);
-			info->album = get_tag (tag, ID3_FRAME_ALBUM);
-			track = get_tag (tag, ID3_FRAME_TRACK);
+	id3file = id3_file_open (file_name, ID3_FILE_MODE_READONLY);
+	if (!id3file)
+		return;
+	tag = id3_file_tag (id3file);
+	if (tag) {
+		info->artist = get_tag (tag, ID3_FRAME_ARTIST);
+		info->title = get_tag (tag, ID3_FRAME_TITLE);
+		info->album = get_tag (tag, ID3_FRAME_ALBUM);
+		track = get_tag (tag, ID3_FRAME_TRACK);
 
-			if (track) {
-				char *end;
+		if (track) {
+			char *end;
 
-				info->track = strtol (track, &end, 10);
-				if (end == track)
-					info->track = -1;
-				free (track);
-			}
+			info->track = strtol (track, &end, 10);
+			if (end == track)
+				info->track = -1;
+			free (track);
 		}
-		id3_file_close (id3file);
 	}
+	id3_file_close (id3file);
 
-	if (tags_sel & TAGS_TIME) {
-		struct aac_data *data;
+	struct aac_data *data;
 
-		data = (aac_data*) aac_open_internal (NULL, file_name);
+	data = (aac_data*) aac_open_internal (NULL, file_name);
 
-		if (data->ok)
-			info->time = aac_count_time (data);
-		else
-			logit ("%s", decoder_error_text (&data->error));
+	if (data->ok)
+		info->time = aac_count_time (data);
+	else
+		logit ("%s", decoder_error_text (&data->error));
 
-		aac_close (data);
-	}
+	aac_close (data);
 }
 
 static int aac_seek (void *unused, int sec)

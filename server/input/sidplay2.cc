@@ -52,8 +52,7 @@ struct sidplay2_data
 void *sidplay2_open (const char *file);
 void sidplay2_close (void *void_data);
 void sidplay2_get_error (void *prv_data, struct decoder_error *error);
-void sidplay2_info (const char *file_name, struct file_tags *info,
-		const int tags_sel);
+void sidplay2_info (const char *file_name, struct file_tags *info);
 int sidplay2_seek (void *void_data, int sec);
 int sidplay2_decode (void *void_data, char *buf, int buf_len,
 		struct sound_params *sound_params);
@@ -373,8 +372,7 @@ void sidplay2_get_error (void *prv_data, struct decoder_error *error)
   decoder_error_copy (error, &data->error);
 }
 
-void sidplay2_info (const char *file_name, struct file_tags *info,
-		const int)
+void sidplay2_info (const char *file_name, struct file_tags *info)
 {
   if(init_db)
     init_database();
@@ -400,7 +398,6 @@ void sidplay2_info (const char *file_name, struct file_tags *info,
     if (s)
     {
 	info->title = s;
-	info->filled |= TAGS_COMMENTS;
 	free(s);
     }
   }
@@ -416,7 +413,6 @@ void sidplay2_info (const char *file_name, struct file_tags *info,
     if (s)
     {
 	    info->artist = s;
-      info->filled |= TAGS_COMMENTS;
       free(s);
     }
   }
@@ -433,7 +429,6 @@ void sidplay2_info (const char *file_name, struct file_tags *info,
     if (s)
     {
 	    info->album = s;
-      info->filled |= TAGS_COMMENTS;
       free(s);
     }
   }
@@ -473,8 +468,6 @@ void sidplay2_info (const char *file_name, struct file_tags *info,
      info->time += defaultLength;
     }
   }
-
-  info->filled |= TAGS_TIME;
 
   delete st;
 }

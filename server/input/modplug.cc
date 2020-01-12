@@ -175,25 +175,16 @@ static void modplug_close (void *void_data)
   free (data);
 }
 
-static void modplug_info (const char *file_name, struct file_tags *info,
-		const int tags_sel)
+static void modplug_info (const char *file_name, struct file_tags *info)
 {
-  struct modplug_data *data = make_modplug_data(file_name);
+	struct modplug_data *data = make_modplug_data(file_name);
 
-  if(data->modplugfile==NULL)
-    return;
+	if(!data->modplugfile) return;
 
-  if(tags_sel & TAGS_TIME) {
-    info->time = ModPlug_GetLength(data->modplugfile) / 1000;
-    info->filled |= TAGS_TIME;
-  }
+	info->time = ModPlug_GetLength(data->modplugfile) / 1000;
+	info->title = xstrdup(ModPlug_GetName(data->modplugfile));
 
-  if(tags_sel & TAGS_COMMENTS) {
-    info->title = xstrdup(ModPlug_GetName(data->modplugfile));
-    info->filled |= TAGS_COMMENTS;
-  }
-
-  modplug_close(data);
+	modplug_close(data);
 }
 
 static int modplug_seek (void *void_data, int sec)

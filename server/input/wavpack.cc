@@ -131,8 +131,7 @@ static void wav_get_error (void *prv_data, struct decoder_error *error)
 	decoder_error_copy (error, &data->error);
 }
 
-static void wav_info (const char *file_name, struct file_tags *info,
-		const int tags_sel)
+static void wav_info (const char *file_name, struct file_tags *info)
 {
 	char wv_error[100];
 	char *tag;
@@ -149,37 +148,30 @@ static void wav_info (const char *file_name, struct file_tags *info,
 
 	int duration = WavpackGetNumSamples (wpc) / WavpackGetSampleRate (wpc);
 
-	if(tags_sel & TAGS_TIME) {
-		info->time = duration;
-		info->filled |= TAGS_TIME;
+	info->time = duration;
+
+	if ((tag_len = WavpackGetTagItem (wpc, "title", NULL, 0)) > 0) {
+		std::vector<char> buf(++tag_len); char *s = (char*)buf.data();
+		WavpackGetTagItem (wpc, "title", s, tag_len);
+		info->title = s;
 	}
 
-	if(tags_sel & TAGS_COMMENTS) {
-		if ((tag_len = WavpackGetTagItem (wpc, "title", NULL, 0)) > 0) {
-			std::vector<char> buf(++tag_len); char *s = (char*)buf.data();
-			WavpackGetTagItem (wpc, "title", s, tag_len);
-			info->title = s;
-		}
+	if ((tag_len = WavpackGetTagItem (wpc, "artist", NULL, 0)) > 0) {
+		std::vector<char> buf(++tag_len); char *s = (char*)buf.data();
+		WavpackGetTagItem (wpc, "artist", s, tag_len);
+		info->artist = s;
+	}
 
-		if ((tag_len = WavpackGetTagItem (wpc, "artist", NULL, 0)) > 0) {
-			std::vector<char> buf(++tag_len); char *s = (char*)buf.data();
-			WavpackGetTagItem (wpc, "artist", s, tag_len);
-			info->artist = s;
-		}
+	if ((tag_len = WavpackGetTagItem (wpc, "album", NULL, 0)) > 0) {
+		std::vector<char> buf(++tag_len); char *s = (char*)buf.data();
+		WavpackGetTagItem (wpc, "album", s, tag_len);
+		info->album = s;
+	}
 
-		if ((tag_len = WavpackGetTagItem (wpc, "album", NULL, 0)) > 0) {
-			std::vector<char> buf(++tag_len); char *s = (char*)buf.data();
-			WavpackGetTagItem (wpc, "album", s, tag_len);
-			info->album = s;
-		}
-
-		if ((tag_len = WavpackGetTagItem (wpc, "track", NULL, 0)) > 0) {
-			std::vector<char> buf(++tag_len); char *s = (char*)buf.data();
-			WavpackGetTagItem (wpc, "track", s, tag_len);
-			info->track = atoi (s);
-		}
-
-		info->filled |= TAGS_COMMENTS;
+	if ((tag_len = WavpackGetTagItem (wpc, "track", NULL, 0)) > 0) {
+		std::vector<char> buf(++tag_len); char *s = (char*)buf.data();
+		WavpackGetTagItem (wpc, "track", s, tag_len);
+		info->track = atoi (s);
 	}
 
 	WavpackCloseFile (wpc);

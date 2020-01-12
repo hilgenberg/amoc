@@ -238,43 +238,38 @@ static char *tag_str (const char *str)
 }
 
 /* Fill info structure with data from musepack comments */
-static void musepack_info (const char *file_name, struct file_tags *info,
-		const int tags_sel)
+static void musepack_info (const char *file_name, struct file_tags *info)
 {
-	if (tags_sel & TAGS_COMMENTS) {
-		TagLib_File *tf;
+	TagLib_File *tf;
 
-		tf = taglib_file_new_type (file_name, TagLib_File_MPC);
-		if (tf) {
-			TagLib_Tag *tt;
+	tf = taglib_file_new_type (file_name, TagLib_File_MPC);
+	if (tf) {
+		TagLib_Tag *tt;
 
-			tt = taglib_file_tag (tf);
+		tt = taglib_file_tag (tf);
 
-			if (tt) {
-				info->title = tag_str (taglib_tag_title(tt));
-				info->artist = tag_str (taglib_tag_artist(tt));
-				info->album = tag_str (taglib_tag_album(tt));
-				info->track = taglib_tag_track(tt);
+		if (tt) {
+			info->title = tag_str (taglib_tag_title(tt));
+			info->artist = tag_str (taglib_tag_artist(tt));
+			info->album = tag_str (taglib_tag_album(tt));
+			info->track = taglib_tag_track(tt);
 
-				if (info->track == 0)
-					info->track = -1;
-			}
-
-			taglib_file_free (tf);
-			taglib_tag_free_strings ();
+			if (info->track == 0)
+				info->track = -1;
 		}
-		else
-			logit ("taglib_file_new_type() failed.");
+
+		taglib_file_free (tf);
+		taglib_tag_free_strings ();
 	}
+	else
+		logit ("taglib_file_new_type() failed.");
 
-	if (tags_sel & TAGS_TIME) {
-		struct musepack_data *data = (struct musepack_data*) musepack_open (file_name);
+	struct musepack_data *data = (struct musepack_data*) musepack_open (file_name);
 
-		if (data->error.type == ERROR_OK)
-			info->time = mpc_streaminfo_get_length (&data->info);
+	if (data->error.type == ERROR_OK)
+		info->time = mpc_streaminfo_get_length (&data->info);
 
-		musepack_close (data);
-	}
+	musepack_close (data);
 }
 
 static int musepack_seek (void *prv_data, int sec)

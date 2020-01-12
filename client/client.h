@@ -13,8 +13,8 @@ public:
 	void run ();
 
 	plist playlist, dir_plist;
-	str cwd; // current position of dir_plist
-	bool synced; // is our playlist synced with the server's?
+	str   cwd; // current position of dir_plist
+	bool  synced; // is our playlist synced with the server's?
 
 	void handle_command(key_cmd cmd); // does everything that's not purely UI
 
@@ -52,24 +52,19 @@ private:
 	PlayState get_state();
 	
 	void set_cwd(const str &path);
-	bool read_last_dir ();
 	void ask_for_tags (const plist &plist);
-	void interface_message (const char *format, ...);
 	void update_state ();
 	void forward_playlist ();
 	bool go_to_dir (const char *dir);
-	int  go_to_playlist (const char *file);
-	void go_dir_up ();
+	bool go_to_playlist (const str &file);
 	void set_mixer (int val);
 	void adjust_mixer (int diff);
 	void add_to_plist (bool recursive);
 	void set_rating (int r);
-	void switch_read_tags ();
 	void delete_item ();
 	void go_to_playing_file ();
 	void seek_silent (int dt);
 	void move_item (int direction);
-
 };
 
 inline int user_wants_interrupt ()

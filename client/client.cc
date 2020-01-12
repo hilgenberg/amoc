@@ -7,22 +7,150 @@ volatile int  Client::want_quit = 0; // 1=quit client, 2=quit server
 volatile bool Client::want_interrupt = false;
 volatile bool Client::want_resize = false;
 
-static void sig_quit (int sig)
+static void sig_quit(int sig) { log_signal(sig); Client::want_interrupt = true; Client::want_quit = 1; }
+static void sig_interrupt(int sig) { log_signal(sig); Client::want_interrupt = true; }
+static void sig_winch(int sig) { log_signal(sig); Client::want_resize = true; }
+
+void interface_fatal (const char *format, ...)
 {
-	log_signal (sig);
-	Client::want_interrupt = true;
-	Client::want_quit = 1;
+	char *msg;
+	va_list va;
+
+	va_start (va, format);
+	msg = format_msg_va (format, va);
+	va_end (va);
+
+	fatal ("%s", msg);
 }
-static void sig_interrupt (int sig)
+
+Client::Client(int sock, stringlist &args)
+: srv(sock, false), synced(false)
+, want_plist_update(false), want_state_update(false)
 {
-	log_signal (sig);
-	Client::want_interrupt = true;
+	logit ("Starting MOC Interface");
+
+	/* Set locale according to the environment variables. */
+	if (!setlocale(LC_CTYPE, "")) logit ("Could not set locale!");
+
+	keys_init ();
+	iface.reset(new Interface(*this, dir_plist, playlist));
+	srv.send(CMD_GET_OPTIONS);
+
+	if (options::ShowMixer)
+	{
+		srv.send(CMD_GET_MIXER_CHANNEL_NAME);
+		iface->update_mixer_name(get_data_str());
+		iface->update_mixer_value(get_mixer_value());
+	}
+
+	xsignal(SIGQUIT,  sig_quit);
+	xsignal(SIGTERM,  sig_quit);
+	xsignal(SIGHUP,   sig_quit);
+	xsignal(SIGINT,   sig_interrupt);
+	xsignal(SIGWINCH, sig_winch);
+
+	const size_t nargs = args.size();
+	bool want_sync = false;
+	if (nargs == 0)
+	{
+		// start in current or music dir and with server playlist
+		want_sync = true; // and leave cwd empty
+	}
+	else if (nargs > 1)
+	{
+		// start in current or music dir and with args as local playlist
+		want_sync = false;
+		for (str &arg : args)
+		{
+			if (is_url(arg.c_str())) {
+				playlist += arg;
+				continue;
+			}
+			str p = absolute_path(arg);
+			if (is_dir (p.c_str()))
+				playlist.add_directory(p, true);
+			else if (is_plist_file(p.c_str())) {
+				plist tmp; tmp.load_m3u(p);
+				playlist += std::move(tmp);
+			}
+			else if (is_sound_file(p.c_str())) {
+				playlist += p;
+			}
+		}
+	}
+	else
+	{
+		const str &arg = args[0];
+		if (is_dir(arg.c_str())) {
+			// start there, use server playlist
+			set_cwd(arg);
+			if (!go_to_dir(NULL)) interface_fatal("Directory can not be read: %s", arg.c_str());
+			want_sync = true;
+		}
+		else if (is_plist_file (arg.c_str()))
+		{
+			// use as playlist (TODO: we should be playing this without
+			// killing the server plist instead and then start in the
+			// directory where arg is -- but for now do as for nargs > 1)
+			want_sync = false;
+			playlist.load_m3u(absolute_path(arg));
+		}
+		else
+		{
+			// go into file's directory and play it
+			want_sync = true;
+			set_cwd(containing_directory(arg));
+			srv.send(CMD_PLAY);
+			srv.send(-1);
+			srv.send(absolute_path(arg));
+		}
+	}
+
+	#define CHECK if(!go_to_dir(NULL)) cwd.clear()
+	if (cwd.empty() && options::StartInMusicDir && is_dir(options::MusicDir.c_str())) {
+		set_cwd(options::MusicDir); CHECK; }
+	if (cwd.empty() && !options::LastDir.empty()) { set_cwd(options::LastDir); CHECK; }
+	if (cwd.empty()) { set_cwd("."); CHECK; }
+	if (cwd.empty()) { cwd = options::Home; CHECK; }
+	if (cwd.empty()) interface_fatal ("Can't enter any directory!");
+	#undef CHECK
+
+	if (want_sync)
+	{
+		srv.send(CMD_PLIST_GET);
+		wait_for_data();
+		srv.get(playlist);
+		synced = true;
+	}
+
+	update_state ();
+
+	if (synced)
+	{
+		int idx = iface->get_curr_index();
+		if (idx >= 0) iface->select_song(idx);
+	}
+
+	ask_for_tags(playlist);
 }
-static void sig_winch (int sig)
+
+Client::~Client ()
 {
-	log_signal (sig);
-	Client::want_resize = true;
+	options::LastDir = cwd;
+
+	srv.send(want_quit > 1 ? CMD_QUIT : CMD_DISCONNECT);
+
+	iface = nullptr; // deletes the interface
+	logit ("Interface exited");
 }
+
+int Client::get_mixer_value() { srv.send(CMD_GET_MIXER); return get_data_int (); }
+int Client::get_channels() { srv.send(CMD_GET_CHANNELS); return get_data_int (); }
+int Client::get_rate() { srv.send(CMD_GET_RATE); return get_data_int (); }
+int Client::get_bitrate() { srv.send(CMD_GET_BITRATE); return get_data_int (); }
+int Client::get_avg_bitrate() { srv.send(CMD_GET_AVG_BITRATE); return get_data_int (); }
+int Client::get_curr_time() { srv.send(CMD_GET_CTIME); return get_data_int (); }
+PlayState Client::get_state() { srv.send(CMD_GET_STATE); return (PlayState)get_data_int (); }
 
 /* Wait for EV_DATA handling other events. */
 void Client::wait_for_data ()
@@ -44,34 +172,11 @@ void Client::send_tags_request (const str &file)
 	debug ("Asking for tags for %s", file.c_str());
 }
 
-int Client::get_mixer_value() { srv.send(CMD_GET_MIXER); return get_data_int (); }
-int Client::get_channels() { srv.send(CMD_GET_CHANNELS); return get_data_int (); }
-int Client::get_rate() { srv.send(CMD_GET_RATE); return get_data_int (); }
-int Client::get_bitrate() { srv.send(CMD_GET_BITRATE); return get_data_int (); }
-int Client::get_avg_bitrate() { srv.send(CMD_GET_AVG_BITRATE); return get_data_int (); }
-int Client::get_curr_time() { srv.send(CMD_GET_CTIME); return get_data_int (); }
-PlayState Client::get_state() { srv.send(CMD_GET_STATE); return (PlayState)get_data_int (); }
-
 /* Make new cwd path from CWD and this path. */
 void Client::set_cwd(const str &path)
 {
 	cwd = absolute_path(add_path(cwd, path));
 	normalize_path(cwd);
-}
-
-/* Set cwd to last directory written to a file, return 1 on success. */
-bool Client::read_last_dir ()
-{
-	FILE *dir_file = fopen(options::config_file_path("last_directory").c_str(), "r");
-	if (!dir_file) return 0;
-	
-	char buf[PATH_MAX];
-	int n = fread(buf, 1, sizeof(buf)-1, dir_file);
-	fclose (dir_file);
-	if (!n) return false;
-	buf[n] = 0;
-	cwd = buf;
-	return true;
 }
 
 /* For each file in the playlist, send a request for all the given tags if
@@ -83,15 +188,6 @@ void Client::ask_for_tags (const plist &plist)
 		if (i->tags || i->type != F_SOUND) continue;
 		send_tags_request(i->path);
 	}
-}
-
-void Client::interface_message (const char *format, ...)
-{
-	va_list va; va_start (va, format);
-	char *msg = format_msg_va (format, va);
-	va_end (va);
-	iface->message (msg);
-	free (msg);
 }
 
 /* Get and show the server state. */
@@ -120,99 +216,6 @@ void Client::update_state ()
 	iface->update_bitrate(get_bitrate());
 	iface->update_rate(get_rate());
 	if (silent_seek_pos == -1) iface->update_curr_time(get_curr_time ());
-}
-
-/* Handle server event. */
-void Client::handle_server_event (int type)
-{
-	// this can not send any commands that return EV_DATA because it
-	// gets called by wait_for_data!
-	SOCKET_DEBUG("EVENT: %d", type);
-	switch (type)
-	{
-		case EV_EXIT: interface_fatal ("The server exited!"); break;
-		case EV_BUSY: interface_fatal ("The server is busy; too many other clients are connected!"); break;
-
-		case EV_STATE: want_state_update = true; break;
-		case EV_CTIME: { int tmp = srv.get_int(); if (silent_seek_pos == -1) iface->update_curr_time(tmp); } break;
-		case EV_BITRATE: iface->update_bitrate(srv.get_int()); break;
-		case EV_RATE:  iface->update_rate(srv.get_int()); break;
-		case EV_CHANNELS: iface->update_channels(srv.get_int()); break;
-		case EV_AVG_BITRATE: iface->update_avg_bitrate(srv.get_int()); break;
-		case EV_OPTIONS: 
-		{
-			int v = srv.get_int();
-			options::AutoNext = v & 1;
-			options::Repeat   = v & 2;
-			options::Shuffle  = v & 4;
-			iface->redraw(1);
-			break;
-		}
-		case EV_SRV_ERROR: iface->error_message(srv.get_str()); break;
-		case EV_PLIST_NEW:
-			if (synced) want_plist_update = true;
-			break;
-		case EV_PLIST_ADD:
-		{
-			plist pl; srv.get(pl);
-			if (!synced || want_plist_update) break;
-			playlist += pl;
-			ask_for_tags(pl);
-			iface->redraw(2);
-			break;
-		}
-		case EV_PLIST_DEL:
-		{
-			int i = srv.get_int();
-			int n = srv.get_int();
-			if (!synced || want_plist_update) break;
-			playlist.remove(i, n);
-			iface->redraw(2);
-			break;
-		}
-		case EV_PLIST_MOVE:
-		{
-			int i = srv.get_int(), j = srv.get_int();
-			if (!synced || want_plist_update) break;
-			playlist.move(i, j);
-			iface->redraw(2);
-			break;
-		}
-
-		case EV_STATUS_MSG: iface->message(srv.get_str()); break;
-		case EV_MIXER_CHANGE:
-			iface->update_mixer_name(srv.get_str());
-			iface->update_mixer_value(srv.get_int());
-			break;
-		case EV_FILE_TAGS:
-		{
-			str file = srv.get_str();
-			file_tags *tags = srv.get_tags();
-			logit ("Received tags for %s", file.c_str());
-			playlist.set_tags(file, tags);
-			dir_plist.set_tags(file, tags);
-			if (iface->get_curr_file() == file) {
-				debug ("Tags apply to the currently played file.");
-				iface->update_curr_tags(tags);
-			}
-			else delete tags;
-			iface->redraw(2);
-			break;
-		}
-		case EV_FILE_RATING:
-		{
-			str file = srv.get_str();
-			int rating = srv.get_int();
-			debug ("Received rating for %s", file.c_str());
-			playlist.set_rating(file, rating);
-			dir_plist.set_rating(file, rating);
-			iface->redraw(2);
-			break;
-		}
-		default:
-			interface_fatal ("Unknown event: 0x%02x!", type);
-			break;
-	}
 }
 
 /* Load the directory content into dir_plist and switch the menu to it.
@@ -256,33 +259,21 @@ bool Client::go_to_dir (const char *dir)
 }
 
 /* Load the playlist file and switch the menu to it. Return 1 on success. */
-int Client::go_to_playlist (const char *file)
+bool Client::go_to_playlist (const str &file)
 {
 	iface->status("Loading playlist...");
-	if (playlist.load_m3u(file)) {
-		iface->message ("Playlist loaded.");
-		synced = false;
-		if (options::ReadTags) ask_for_tags (playlist);
-		iface->redraw(2);
-		return 1;
-	}
-	else
+	if (!playlist.load_m3u(file))
 	{
-		iface->message ("File could not be read");
+		iface->message ("Playlist could not be read");
 		iface->status ("");
-		return 0;
+		return false;
 	}
 
-}
-
-void Client::go_dir_up ()
-{
-	if (cwd.empty() || cwd == "/") return;
-	auto i = cwd.rfind('/', cwd.length()-1);
-	if (i == 0 || i == str::npos)
-		go_to_dir("/");
-	else
-		go_to_dir(cwd.substr(0, i).c_str());
+	iface->message ("Playlist loaded.");
+	synced = false;
+	if (options::ReadTags) ask_for_tags (playlist);
+	iface->redraw(2);
+	return true;
 }
 
 void Client::set_mixer (int val)
@@ -332,7 +323,7 @@ void Client::add_to_plist (bool recursive)
 		iface->redraw(2);
 	}
 
-	iface->left.move(REQ_DOWN);
+	iface->left.move_selection(REQ_DOWN);
 }
 
 void Client::set_rating (int r)
@@ -345,18 +336,6 @@ void Client::set_rating (int r)
 	srv.send(CMD_SET_RATING);
 	srv.send(item->path);
 	srv.send(r);
-}
-
-/* Switch ReadTags options and update the menu. */
-void Client::switch_read_tags ()
-{
-	options::ReadTags ^= 1;
-	iface->status(options::ReadTags ? "ReadTags: yes" : "ReadTags: no");
-	if (options::ReadTags) {
-		ask_for_tags(dir_plist);
-		ask_for_tags(playlist);
-	}
-	iface->redraw(2);
 }
 
 void Client::delete_item ()
@@ -382,7 +361,7 @@ void Client::delete_item ()
 		playlist.remove(i, n);
 		iface->redraw(2);
 	}
-	iface->select_song(i);
+	iface->select_song(i); // clear multi-selection
 }
 
 /* Select the file that is currently played. */
@@ -473,118 +452,6 @@ void Client::move_item (int direction)
 	iface->move_selection(direction);
 }
 
-Client::Client(int sock, stringlist &args)
-: srv(sock, false), synced(false)
-, want_plist_update(false), want_state_update(false)
-{
-	logit ("Starting MOC Interface");
-
-	/* Set locale according to the environment variables. */
-	if (!setlocale(LC_CTYPE, "")) logit ("Could not set locale!");
-
-	keys_init ();
-	iface.reset(new Interface(*this, dir_plist, playlist));
-	srv.send(CMD_GET_OPTIONS);
-
-	if (options::ShowMixer)
-	{
-		srv.send(CMD_GET_MIXER_CHANNEL_NAME);
-		iface->update_mixer_name(get_data_str());
-		iface->update_mixer_value(get_mixer_value());
-	}
-
-	xsignal(SIGQUIT,  sig_quit);
-	xsignal(SIGTERM,  sig_quit);
-	xsignal(SIGHUP,   sig_quit);
-	xsignal(SIGINT,   sig_interrupt);
-	xsignal(SIGWINCH, sig_winch);
-
-	const size_t nargs = args.size();
-	bool want_sync = false;
-	if (nargs == 0)
-	{
-		// start in current or music dir and with server playlist
-		want_sync = true; // and leave cwd empty
-	}
-	else if (nargs > 1)
-	{
-		// start in current or music dir and with args as local playlist
-		want_sync = false;
-		for (str &arg : args)
-		{
-			if (is_url(arg.c_str())) {
-				playlist += arg;
-				continue;
-			}
-			str p = absolute_path(arg);
-			if (is_dir (p.c_str()))
-				playlist.add_directory(p, true);
-			else if (is_plist_file(p.c_str())) {
-				plist tmp; tmp.load_m3u(p);
-				playlist += std::move(tmp);
-			}
-			else if (is_sound_file(p.c_str())) {
-				playlist += p;
-			}
-		}
-	}
-	else
-	{
-		const str &arg = args[0];
-		if (is_dir(arg.c_str())) {
-			// start there, use server playlist
-			set_cwd(arg);
-			if (!go_to_dir(NULL)) interface_fatal("Directory can not be read: %s", arg.c_str());
-			want_sync = true;
-		}
-		else if (is_plist_file (arg.c_str()))
-		{
-			// use as playlist (TODO: we should be playing this without
-			// killing the server plist instead and then start in the
-			// directory where arg is -- but for now do as for nargs > 1)
-			want_sync = false;
-			playlist.load_m3u(absolute_path(arg));
-		}
-		else
-		{
-			// go into file's directory and play it
-			want_sync = true;
-			set_cwd(containing_directory(arg));
-			srv.send(CMD_PLAY);
-			srv.send(-1);
-			srv.send(absolute_path(arg));
-		}
-	}
-
-	#define CHECK if(!go_to_dir(NULL)) cwd.clear()
-	if (cwd.empty() && options::StartInMusicDir && is_dir(options::MusicDir.c_str())) {
-		set_cwd(options::MusicDir); CHECK; }
-	if (cwd.empty() && read_last_dir()) CHECK;
-	if (cwd.empty()) { set_cwd("."); CHECK; }
-	if (cwd.empty()) { cwd = options::Home; CHECK; }
-	if (cwd.empty()) interface_fatal ("Can't enter any directory!");
-	#undef CHECK
-
-	if (want_sync)
-	{
-		srv.send(CMD_PLIST_GET);
-		wait_for_data();
-		srv.get(playlist);
-		synced = true;
-	}
-
-	update_state ();
-
-	if (synced)
-	{
-		int idx = iface->get_curr_index();
-		if (idx >= 0) iface->select_song(idx);
-	}
-
-	ask_for_tags(playlist);
-
-}
-
 void Client::run()
 {
 	bool srv_event = false;
@@ -657,34 +524,6 @@ void Client::run()
 	}
 }
 
-Client::~Client ()
-{
-	FILE *dir_file = fopen(options::config_file_path("last_directory").c_str(), "w");
-	if (!dir_file) {
-		error_errno ("Can't save current directory", errno);
-	} else {
-		fprintf (dir_file, "%s", cwd.c_str());
-		fclose (dir_file);
-	}
-
-	srv.send(want_quit > 1 ? CMD_QUIT : CMD_DISCONNECT);
-
-	iface = nullptr; // deletes the interface
-	logit ("Interface exited");
-}
-
-void interface_fatal (const char *format, ...)
-{
-	char *msg;
-	va_list va;
-
-	va_start (va, format);
-	msg = format_msg_va (format, va);
-	va_end (va);
-
-	fatal ("%s", msg);
-}
-
 void Client::handle_command(key_cmd cmd)
 {
 	logit ("KEY EVENT: 0x%02x", (int)cmd);
@@ -721,7 +560,7 @@ void Client::handle_command(key_cmd cmd)
 				go_to_dir (i->path.c_str());
 			}
 			else if (i->type == F_PLAYLIST)
-				go_to_playlist (i->path.c_str());
+				go_to_playlist (i->path);
 			break;
 		}
 		case KEY_CMD_STOP: srv.send(CMD_STOP); break;
@@ -745,7 +584,13 @@ void Client::handle_command(key_cmd cmd)
 			}
 			break;
 		case KEY_CMD_TOGGLE_READ_TAGS:
-			switch_read_tags ();
+			options::ReadTags ^= 1;
+			iface->status(options::ReadTags ? "ReadTags: yes" : "ReadTags: no");
+			if (options::ReadTags) {
+				ask_for_tags(dir_plist);
+				ask_for_tags(playlist);
+			}
+			iface->redraw(2);
 			break;
 		case KEY_CMD_TOGGLE_SHUFFLE:
 			srv.send(CMD_SET_OPTION_SHUFFLE);
@@ -821,25 +666,28 @@ void Client::handle_command(key_cmd cmd)
 			go_to_dir(NULL);
 			break;
 		case KEY_CMD_GO_MUSIC_DIR:
-		{
 			if (options::MusicDir.empty()) {
 				iface->message("ERROR: MusicDir not defined");
 				return;
 			}
-			str music_dir = normalize_path(options::MusicDir);
-
-			switch (plist_item::ftype(music_dir)) {
-				case F_DIR: go_to_dir (music_dir.c_str()); break;
-				case F_PLAYLIST: go_to_playlist (music_dir.c_str()); break;
+			switch (plist_item::ftype(options::MusicDir)) {
+				case F_DIR: go_to_dir (options::MusicDir.c_str()); break;
+				case F_PLAYLIST: go_to_playlist(options::MusicDir); break;
 				default: iface->message("ERROR: MusicDir is neither a directory nor a playlist!"); break;
 			}
 			break;
-		}
 		case KEY_CMD_PLIST_DEL:
 			delete_item ();
 			break;
 		case KEY_CMD_GO_DIR_UP:
-			if (iface->in_dir_plist()) go_dir_up ();
+			if (iface->in_dir_plist() && !cwd.empty() && cwd != "/")
+			{
+				auto i = cwd.rfind('/', cwd.length()-1);
+				if (i == 0 || i == str::npos)
+					go_to_dir("/");
+				else
+					go_to_dir(cwd.substr(0, i).c_str());
+			}
 			break;
 		case KEY_CMD_WRONG:
 			iface->message("Bad command / key not bound to anything");
@@ -872,6 +720,98 @@ void Client::handle_command(key_cmd cmd)
 		case KEY_CMD_PLIST_MOVE_DOWN: move_item (+1); break;
 		default:
 			iface->message(format("BUG: invalid key command %d!", (int)cmd));
+			break;
+	}
+}
+
+void Client::handle_server_event (int type)
+{
+	// this can not send any commands that return EV_DATA because it
+	// gets called by wait_for_data!
+	SOCKET_DEBUG("EVENT: %d", type);
+	switch (type)
+	{
+		case EV_EXIT: interface_fatal ("The server exited!"); break;
+		case EV_BUSY: interface_fatal ("The server is busy; too many other clients are connected!"); break;
+
+		case EV_STATE: want_state_update = true; break;
+		case EV_CTIME: { int tmp = srv.get_int(); if (silent_seek_pos == -1) iface->update_curr_time(tmp); } break;
+		case EV_BITRATE: iface->update_bitrate(srv.get_int()); break;
+		case EV_RATE:  iface->update_rate(srv.get_int()); break;
+		case EV_CHANNELS: iface->update_channels(srv.get_int()); break;
+		case EV_AVG_BITRATE: iface->update_avg_bitrate(srv.get_int()); break;
+		case EV_OPTIONS: 
+		{
+			int v = srv.get_int();
+			options::AutoNext = v & 1;
+			options::Repeat   = v & 2;
+			options::Shuffle  = v & 4;
+			iface->redraw(1);
+			break;
+		}
+		case EV_SRV_ERROR: iface->error_message(srv.get_str()); break;
+		case EV_PLIST_NEW:
+			if (synced) want_plist_update = true;
+			break;
+		case EV_PLIST_ADD:
+		{
+			plist pl; srv.get(pl);
+			if (!synced || want_plist_update) break;
+			playlist += pl;
+			ask_for_tags(pl);
+			iface->redraw(2);
+			break;
+		}
+		case EV_PLIST_DEL:
+		{
+			int i = srv.get_int();
+			int n = srv.get_int();
+			if (!synced || want_plist_update) break;
+			playlist.remove(i, n);
+			iface->redraw(2);
+			break;
+		}
+		case EV_PLIST_MOVE:
+		{
+			int i = srv.get_int(), j = srv.get_int();
+			if (!synced || want_plist_update) break;
+			playlist.move(i, j);
+			iface->redraw(2);
+			break;
+		}
+
+		case EV_STATUS_MSG: iface->message(srv.get_str()); break;
+		case EV_MIXER_CHANGE:
+			iface->update_mixer_name(srv.get_str());
+			iface->update_mixer_value(srv.get_int());
+			break;
+		case EV_FILE_TAGS:
+		{
+			str file = srv.get_str();
+			file_tags *tags = srv.get_tags();
+			logit ("Received tags for %s", file.c_str());
+			playlist.set_tags(file, tags);
+			dir_plist.set_tags(file, tags);
+			if (iface->get_curr_file() == file) {
+				debug ("Tags apply to the currently played file.");
+				iface->update_curr_tags(tags);
+			}
+			else delete tags;
+			iface->redraw(2);
+			break;
+		}
+		case EV_FILE_RATING:
+		{
+			str file = srv.get_str();
+			int rating = srv.get_int();
+			debug ("Received rating for %s", file.c_str());
+			playlist.set_rating(file, rating);
+			dir_plist.set_rating(file, rating);
+			iface->redraw(2);
+			break;
+		}
+		default:
+			interface_fatal ("Unknown event: 0x%02x!", type);
 			break;
 	}
 }

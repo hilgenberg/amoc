@@ -119,8 +119,7 @@ static const char *vorbis_strerror (const int code)
 }
 
 /* Fill info structure with data from ogg comments */
-static void vorbis_tags (const char *file_name, struct file_tags *info,
-		const int tags_sel)
+static void vorbis_tags (const char *file_name, struct file_tags *info)
 {
 	OggVorbis_File vf;
 	FILE *file;
@@ -133,10 +132,8 @@ static void vorbis_tags (const char *file_name, struct file_tags *info,
 
 	/* ov_test() is faster than ov_open(), but we can't read file time
 	 * with it. */
-	if (tags_sel & TAGS_TIME)
-		err_code = ov_open(file, &vf, NULL, 0);
-	else
-		err_code = ov_test(file, &vf, NULL, 0);
+	err_code = ov_open(file, &vf, NULL, 0);
+	//err_code = ov_test(file, &vf, NULL, 0);
 
 	if (err_code < 0) {
 		logit ("Can't open %s: %s", file_name, vorbis_strerror (err_code));
@@ -144,16 +141,11 @@ static void vorbis_tags (const char *file_name, struct file_tags *info,
 		return;
 	}
 
-	if (tags_sel & TAGS_COMMENTS)
-		get_comment_tags (&vf, info);
+	get_comment_tags (&vf, info);
 
-	if (tags_sel & TAGS_TIME) {
-		int64_t vorbis_time;
-
-		vorbis_time = ov_time_total (&vf, -1);
-		if (vorbis_time >= 0)
-			info->time = vorbis_time / time_scaler;
-	}
+	int64_t vorbis_time = ov_time_total (&vf, -1);
+	if (vorbis_time >= 0)
+		info->time = vorbis_time / time_scaler;
 
 	ov_clear (&vf);
 }

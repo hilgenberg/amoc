@@ -20,14 +20,14 @@ enum menu_request
 
 class Interface;
 
-struct menu
+struct Panel
 {
 	// c'tor gets  called before the interface is running!
-	menu(Interface *iface, plist &items) : iface(iface), items(items), top(0), sel(-1), xsel(0), mark(-1) {}
+	Panel(Interface *iface, plist &items) : iface(iface), items(items), top(0), sel(-1), xsel(0), mark(-1) {}
 
 	void draw(bool active) const; // no frame, draws just the inside
 
-	void move(menu_request req); // move selection
+	void move_selection(menu_request req);
 	void handle_click(int x, int y, bool dbl);
 
 	bool mark_path(const str &f); // or unmark if not found
@@ -36,9 +36,9 @@ struct menu
 	void select_item(int i);
 	bool item_visible (int i) const { return i >= top && i < top + bounds.h; };
 
-	Interface *iface;
-	plist  &items;
-	Rect    bounds;
+	Interface  *iface;
+	plist      &items;
+	Rect        bounds;
 	mutable int top; // first visible item
 	mutable int sel, mark; // selected and marked items, -1 if none
 	mutable int xsel; // if != 0: multi-sel from sel to sel+xsel (both inclusive)
