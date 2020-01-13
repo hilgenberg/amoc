@@ -142,7 +142,7 @@ bool plist::load_directory(const str &directory_, bool include_updir)
 		if (!strcmp(entry->d_name, ".")) continue;
 		bool up = !strcmp(entry->d_name, "..");
 		if (up && (root || !include_updir)) continue;
-		if (!options::ShowHiddenFiles && *entry->d_name == '.') continue;
+		if (!up && !options::ShowHiddenFiles && *entry->d_name == '.') continue;
 
 		str p = format("%s/%s", prefix, entry->d_name);
 		if (up) normalize_path(p);
