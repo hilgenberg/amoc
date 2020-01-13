@@ -9,7 +9,7 @@ public:
 	
 	void clear();
 	void add(const str &path);
-	void add(const plist &pl);
+	void add(const plist &pl, int idx);
 	void remove(int i, int n);
 	void move(int i, int j);
 

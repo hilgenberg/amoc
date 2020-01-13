@@ -185,9 +185,9 @@ void keys_init ()
 	CMD(KEY_CMD_TOGGLE_AUTO_NEXT,	"toggle_auto_next",	'X'); // Toggle AutoNext
 	CMD(KEY_CMD_TOGGLE_MENU,	"toggle_menu",	'\t'); // Switch between playlist and file list
 	CMD(KEY_CMD_TOGGLE_LAYOUT,	"toggle_layout",	'l'); // Switch between layouts
-	CMD(KEY_CMD_PLIST_ADD_FILE,	"add_file",	'a'); // Add a file/directory to the playlist
+	CMD(KEY_CMD_PLIST_ADD,		"add",	'a'); // Add a file/directory to the playlist
+	CMD(KEY_CMD_PLIST_INS,		"insert",	'i'); // Insert a file/directory after the current song
 	CMD(KEY_CMD_PLIST_CLEAR,	"clear_playlist",	'C'); // Clear the playlist
-	CMD(KEY_CMD_PLIST_ADD_DIR,	"add_directory",	'A'); // Add a directory recursively to the playlist
 	CMD(KEY_CMD_PLIST_REMOVE_DEAD_ENTRIES,	"remove_dead_entries",	'Y'); // Remove playlist entries for non-existent files
 	CMD(KEY_CMD_MIXER_DEC_1,	"volume_down_1",	'<'); // Decrease volume by 1%
 	CMD(KEY_CMD_MIXER_INC_1,	"volume_up_1",	'>'); // Increase volume by 1%
@@ -205,7 +205,7 @@ void keys_init ()
 	CMD(KEY_CMD_PLIST_SAVE,	"save_playlist",	'V'); // Save the playlist
 	CMD(KEY_CMD_GO_URL,	"go_url",	'o'); // Play from the URL
 	CMD(KEY_CMD_GO_TO_PLAYING_FILE,	"go_to_playing_file",	'G'); // Go to the currently playing file's directory
-	CMD(KEY_CMD_GO_DIR,	"go_to_a_directory",	'i'); // Go to a directory
+	CMD(KEY_CMD_GO_DIR,	"go_to_a_directory",	0); // Go to a directory
 	CMD(KEY_CMD_GO_DIR_UP,	"go_up",	'U'); // Go to '..'
 	
 	CMD(KEY_CMD_SEEK_FORWARD_5,	"seek_forward_fast",	']'); // Silent seek forward by 5s

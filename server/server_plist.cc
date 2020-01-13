@@ -226,9 +226,16 @@ void ServerPlaylist::add(const str &path)
 	if (valid_type(playlist.items.back()->type)) ++nv[0];
 
 }
-void ServerPlaylist::add(const plist &pl)
+void ServerPlaylist::add(const plist &pl, int idx)
 {
-	playlist += pl;
+	if (idx < 0)
+		playlist += pl;
+	else
+	{
+		playlist.insert(pl, idx);
+		if (i1 >= idx) i1 += pl.size();
+	}
+
 	for (auto &it : pl.items) if (valid_type(it->type)) ++nv[0];
 }
 void ServerPlaylist::remove(int i, int n)

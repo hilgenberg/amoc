@@ -74,6 +74,9 @@ public:
 	plist & operator+= (const str &f) { items.emplace_back(new plist_item(f)); return *this; }
 	plist & operator+= (const char *f) { items.emplace_back(new plist_item(f)); return *this; }
 
+	void insert(const plist &other, int pos); // pos = -1 to add
+	void insert(plist &&other, int pos); // pos = -1 to add
+
 	size_t size() const { return items.size(); }
 
 	int total_time() const

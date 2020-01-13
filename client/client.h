@@ -58,7 +58,7 @@ private:
 	bool go_to_playlist (const str &file);
 	void set_mixer (int val);
 	void adjust_mixer (int diff);
-	void add_to_plist (bool recursive);
+	void add_to_plist (bool at_end);
 	void set_rating (int r);
 	void delete_item ();
 	void go_to_playing_file ();

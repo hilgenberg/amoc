@@ -369,7 +369,7 @@ template<typename T> void add_event (client &cli, int type, const T& data)
 	sock.send(data);
 	sock.finish();
 }
-template<typename T1, typename T2> void add_event (client &cli, int type, T1 d1, T2 d2)
+template<typename T1, typename T2> void add_event (client &cli, int type, const T1 &d1, T2 d2)
 {
 	Lock lock(cli);
 	auto &sock = *cli.socket;
@@ -379,7 +379,7 @@ template<typename T1, typename T2> void add_event (client &cli, int type, T1 d1,
 	sock.finish();
 }
 
-template<typename T1, typename T2> void add_event_all(int type, T1 d1, T2 d2)
+template<typename T1, typename T2> void add_event_all(int type, const T1 &d1, T2 d2)
 {
 	bool added = false;
 
@@ -609,12 +609,13 @@ static void handle_command (const int client_id)
 			break;
 		case CMD_PLIST_ADD:
 		{
-			plist pl;
+			plist pl; int idx;
 			if ((err = !cli.socket->get(pl))) break;
+			if ((err = !cli.socket->get(idx))) break;
 			logit ("Adding %d files to the list", (int)pl.size());
-			audio_plist_add (pl);
+			audio_plist_add (pl, idx);
 			debug ("Sending EV_PLIST_ADD");
-			add_event_all(EV_PLIST_ADD, pl);
+			add_event_all(EV_PLIST_ADD, pl, idx);
 			break;
 		}
 		case CMD_PLAY:

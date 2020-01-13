@@ -60,7 +60,32 @@ plist & plist::operator+= (plist &&other)
 	for (auto &i : other.items)
 		items.emplace_back(std::move(i));
 	return *this;
+}
 
+void plist::insert(const plist &other, int pos)
+{
+	if (pos < 0 || pos >= items.size())
+	{
+		*this += other;
+		return;
+	}
+
+	items.reserve(size() + other.size());
+	auto j = items.begin() + pos;
+	for (auto &i : other.items)
+		items.emplace(j++, new plist_item(*i));
+}
+void plist::insert(plist &&other, int pos)
+{
+	if (pos < 0 || pos >= items.size())
+	{
+		*this += other;
+		return;
+	}
+
+ 	items.insert(items.begin() + pos,
+		std::make_move_iterator(std::begin(other.items)),
+		std::make_move_iterator(std::end(other.items)));
 }
 
 void plist::shuffle ()

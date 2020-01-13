@@ -289,7 +289,7 @@ void Client::adjust_mixer (int diff)
 }
 
 /* Recursively add the content of a directory to the playlist. */
-void Client::add_to_plist (bool recursive)
+void Client::add_to_plist(bool at_end)
 {
 	if (!iface->in_dir_plist()) return;
 
@@ -303,7 +303,7 @@ void Client::add_to_plist (bool recursive)
 		switch (item.type)
 		{
 			case F_SOUND: pl += item; break;
-			case F_DIR: pl.add_directory(item.path, recursive); break;
+			case F_DIR: pl.add_directory(item.path, true); break;
 			case F_PLAYLIST:
 			{
 				plist tmp;
@@ -313,14 +313,27 @@ void Client::add_to_plist (bool recursive)
 		}
 	}
 	if (pl.empty()) return;
+
+	int pos = -1;
+	if (!at_end)
+	{
+		int idx = iface->get_curr_index();
+		pos = (idx < 0 ? 0 : idx+1); // insert at beginning if nothing plays
+	}
+
 	if (synced)
 	{
 		srv.send(CMD_PLIST_ADD);
 		srv.send(pl);
+		srv.send(pos);
 	}
 	else
 	{
-		playlist += std::move(pl);
+		if (pos < 0)
+			playlist += std::move(pl);
+		else
+			playlist.insert(std::move(pl), pos);
+		
 		iface->redraw(2);
 	}
 
@@ -602,9 +615,8 @@ bool Client::handle_command(key_cmd cmd)
 			options::PlaylistFullPaths ^= 1;
 			iface->redraw(2);
 			break;
-		case KEY_CMD_PLIST_ADD_FILE:
-			add_to_plist (false);
-			break;
+		case KEY_CMD_PLIST_ADD: add_to_plist(true); break;
+		case KEY_CMD_PLIST_INS: add_to_plist(false); break;
 		case KEY_CMD_PLIST_CLEAR:
 			if (synced)
 			{
@@ -624,9 +636,6 @@ bool Client::handle_command(key_cmd cmd)
 				synced = true;
 			}
 			iface->redraw(2);
-			break;
-		case KEY_CMD_PLIST_ADD_DIR:
-			add_to_plist (true);
 			break;
 		case KEY_CMD_MIXER_DEC_1: adjust_mixer (-1); break;
 		case KEY_CMD_MIXER_DEC_5: adjust_mixer (-5); break;
@@ -751,8 +760,9 @@ void Client::handle_server_event (int type)
 		case EV_PLIST_ADD:
 		{
 			plist pl; srv.get(pl);
+			int idx; srv.get(idx);
 			if (!synced || want_plist_update) break;
-			playlist += pl;
+			playlist.insert(pl, idx);
 			ask_for_tags(pl);
 			iface->redraw(2);
 			break;

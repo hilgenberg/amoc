@@ -838,10 +838,10 @@ void audio_plist_add (const str &file)
 	UNLOCK (plist_mtx);
 }
 
-void audio_plist_add (const plist &pl)
+void audio_plist_add (const plist &pl, int idx)
 {
 	LOCK (plist_mtx);
-	playlist.add(pl);
+	playlist.add(pl, idx);
 	UNLOCK (plist_mtx);
 }
 

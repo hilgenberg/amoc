@@ -247,7 +247,7 @@ int audio_get_time ();
 int audio_get_state ();
 int audio_get_prev_state ();
 void audio_plist_add (const str &file);
-void audio_plist_add (const plist &pl);
+void audio_plist_add (const plist &pl, int idx);
 void audio_plist_clear ();
 void audio_get_plist(plist &pl);
 void audio_get_current(str &path, int &idx);
