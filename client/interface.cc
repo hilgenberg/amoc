@@ -36,6 +36,7 @@ Interface::Interface(Client &client, plist &pl1, plist &pl2)
 , state(STATE_STOP), mixer_value(-1)
 , message_display_start(0)
 , drag0(-1)
+, menu(*this)
 {
 	#define MOUSEMASK (REPORT_MOUSE_POSITION | BUTTON1_CLICKED | BUTTON1_DOUBLE_CLICKED | \
 		BUTTON1_PRESSED | BUTTON1_RELEASED | BUTTON4_PRESSED|BUTTON5_PRESSED)
@@ -245,6 +246,77 @@ bool Interface::handle_drag(int x, int y, int seq)
 	return true;
 }
 
+bool Interface::handle_command(key_cmd cmd)
+{
+	switch (cmd)
+	{
+		case KEY_CMD_MENU_DOWN:  active->move_selection(REQ_DOWN);   redraw(2); break;
+		case KEY_CMD_MENU_UP:    active->move_selection(REQ_UP);     redraw(2); break;
+		case KEY_CMD_MENU_NPAGE: active->move_selection(REQ_PGDOWN); redraw(2); break;
+		case KEY_CMD_MENU_PPAGE: active->move_selection(REQ_PGUP);   redraw(2); break;
+		case KEY_CMD_MENU_FIRST: active->move_selection(REQ_TOP);    redraw(2); break;
+		case KEY_CMD_MENU_LAST:  active->move_selection(REQ_BOTTOM); redraw(2); break;
+		case KEY_CMD_MENU_EXTEND_DOWN: active->move_selection(REQ_XDOWN); redraw(2); break;
+		case KEY_CMD_MENU_EXTEND_UP:   active->move_selection(REQ_XUP);   redraw(2); break;
+		case KEY_CMD_TOGGLE_MENU: active = (active==&left ? &right : &left); redraw(2); break;
+		case KEY_CMD_REFRESH: redraw(2); break;
+		case KEY_CMD_TOGGLE_LAYOUT: cycle_layouts(); break;
+
+		case KEY_CMD_MENU: menu.active = !menu.active; redraw(2); break;
+
+		/*case KEY_CMD_ADD_STREAM:
+			prompt("ADD URL", NULL, ...);
+			break;
+		case KEY_CMD_MENU_SEARCH:
+			prompt("SEARCH", NULL, ...);
+			iface_make_entry (ENTRY_SEARCH);
+			break;*/
+		case KEY_CMD_PLIST_SAVE:
+			if (!client.playlist.size())
+				error ("The playlist is empty.");
+			else
+			{
+				str p0 = client.cwd;
+				if (!p0.empty() && p0.back() != '/') p0 += "/";
+				p0 += ".m3u";
+				prompt("SAVE PLAYLIST", p0, p0.length()-4, [this](){
+					if (response.empty()) return;
+					str fn = response;
+					if (file_exists(fn.c_str())) {
+						prompt("File exists, overwrite (y/n)?", "", 0, [this,fn](){
+							if (response == "y")
+							{
+								status("Saving the playlist...");
+								client.playlist.save(fn.c_str());
+								status("Playlist saved.");
+							}
+							else
+								status("Aborted.");
+						});
+					}
+					else
+					{
+						status("Saving the playlist...");
+						client.playlist.save(fn.c_str());
+						client.handle_command(KEY_CMD_RELOAD);
+						status("Playlist saved.");
+					}
+				});
+			}
+			break;
+		/*case KEY_CMD_GO_DIR:
+			prompt("GO", NULL, ...);
+			break;
+		case KEY_CMD_GO_URL:
+			prompt("URL", NULL, ...);
+			iface_make_entry (ENTRY_GO_URL);
+			break;*/
+		default:
+			return client.handle_command(cmd);
+	}
+	return true;
+}
+
 void Interface::handle_input()
 {
 	wchar_t c = 0; // regular key
@@ -279,6 +351,24 @@ void Interface::handle_input()
 	{
 		resize();
 	}
+	else if (menu.active)
+	{
+		auto cmd = get_key_cmd (CON_MENU, c, f);
+		status(format("KEY %d %d --> %d", (int)c, (int)f, (int)cmd));
+		if (cmd != KEY_CMD_WRONG)
+		{
+			if (!menu.handle_command(cmd)) handle_command(cmd);
+		}
+		else
+		{
+			cmd = get_key_cmd (CON_PANEL, c, f);
+			if (cmd != KEY_CMD_WRONG && cmd != KEY_CMD_MENU)
+			{
+				handle_command(KEY_CMD_MENU);
+			}
+			handle_command(cmd);
+		}
+	}
 	else if (prompting)
 	{
 		redraw(1);
@@ -294,7 +384,6 @@ void Interface::handle_input()
 			return;
 		}
 
-		key_cmd cmd = get_key_cmd (CON_ENTRY, c, f);
 		switch (f)
 		{
 			case KEY_LEFT:  --cursor; return;
@@ -305,6 +394,7 @@ void Interface::handle_input()
 			case KEY_BACKSPACE: if (cursor) strdel(response, --cursor);  return;
 			case KEY_DC: if (cursor) strdel(response, cursor); return;
 		}
+		key_cmd cmd = get_key_cmd (CON_ENTRY, c, f);
 		switch (cmd)
 		{
 			case KEY_CMD_CANCEL: prompting = false; return;
@@ -363,72 +453,8 @@ void Interface::handle_input()
 	else
 	{
 		//status(format("KEY %d %d", (int)c, (int)f));
-		auto cmd = get_key_cmd (CON_MENU, c, f);
-		switch (cmd)
-		{
-		case KEY_CMD_MENU_DOWN:  active->move_selection(REQ_DOWN);   redraw(2); break;
-		case KEY_CMD_MENU_UP:    active->move_selection(REQ_UP);     redraw(2); break;
-		case KEY_CMD_MENU_NPAGE: active->move_selection(REQ_PGDOWN); redraw(2); break;
-		case KEY_CMD_MENU_PPAGE: active->move_selection(REQ_PGUP);   redraw(2); break;
-		case KEY_CMD_MENU_FIRST: active->move_selection(REQ_TOP);    redraw(2); break;
-		case KEY_CMD_MENU_LAST:  active->move_selection(REQ_BOTTOM); redraw(2); break;
-		case KEY_CMD_MENU_EXTEND_DOWN: active->move_selection(REQ_XDOWN); redraw(2); break;
-		case KEY_CMD_MENU_EXTEND_UP:   active->move_selection(REQ_XUP);   redraw(2); break;
-		case KEY_CMD_TOGGLE_MENU: active = (active==&left ? &right : &left); redraw(2); break;
-		case KEY_CMD_REFRESH: redraw(2); break;
-		case KEY_CMD_TOGGLE_LAYOUT: cycle_layouts(); break;
-
-		/*case KEY_CMD_ADD_STREAM:
-			prompt("ADD URL", NULL, ...);
-			break;
-		case KEY_CMD_MENU_SEARCH:
-			prompt("SEARCH", NULL, ...);
-			iface_make_entry (ENTRY_SEARCH);
-			break;*/
-		case KEY_CMD_PLIST_SAVE:
-			if (!client.playlist.size())
-				error ("The playlist is empty.");
-			else
-			{
-				str p0 = client.cwd;
-				if (!p0.empty() && p0.back() != '/') p0 += "/";
-				p0 += ".m3u";
-				prompt("SAVE PLAYLIST", p0, p0.length()-4, [this](){
-					if (response.empty()) return;
-					str fn = response;
-					if (file_exists(fn.c_str())) {
-						prompt("File exists, overwrite (y/n)?", "", 0, [this,fn](){
-							if (response == "y")
-							{
-								status("Saving the playlist...");
-								client.playlist.save(fn.c_str());
-								status("Playlist saved.");
-							}
-							else
-								status("Aborted.");
-						});
-					}
-					else
-					{
-						status("Saving the playlist...");
-						client.playlist.save(fn.c_str());
-						client.handle_command(KEY_CMD_RELOAD);
-						status("Playlist saved.");
-					}
-				});
-			}
-			break;
-		/*case KEY_CMD_GO_DIR:
-			prompt("GO", NULL, ...);
-			break;
-		case KEY_CMD_GO_URL:
-			prompt("URL", NULL, ...);
-			iface_make_entry (ENTRY_GO_URL);
-			break;*/
-		default:
-			client.handle_command(cmd);
-			break;
-		}
+		auto cmd = get_key_cmd (CON_PANEL, c, f);
+		handle_command(cmd);
 	}
 }
 
@@ -830,6 +856,8 @@ void Interface::draw(bool force)
 			}
 		}
 	}
+
+	if (menu.active) menu.draw();
 
 	need_redraw = 0;
 	win.flush();

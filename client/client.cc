@@ -518,13 +518,13 @@ void Client::run()
 	}
 }
 
-void Client::handle_command(key_cmd cmd)
+bool Client::handle_command(key_cmd cmd)
 {
 	logit ("KEY EVENT: 0x%02x", (int)cmd);
 	switch (cmd)
 	{
-		case KEY_CMD_QUIT_CLIENT: want_quit = 1; return;
-		case KEY_CMD_QUIT:        want_quit = 2; return;
+		case KEY_CMD_QUIT_CLIENT: want_quit = 1; return true;
+		case KEY_CMD_QUIT:        want_quit = 2; return true;
 
 		case KEY_CMD_GO:
 		{
@@ -662,7 +662,7 @@ void Client::handle_command(key_cmd cmd)
 		case KEY_CMD_GO_MUSIC_DIR:
 			if (options::MusicDir.empty()) {
 				iface->message("ERROR: MusicDir not defined");
-				return;
+				return true;
 			}
 			switch (plist_item::ftype(options::MusicDir)) {
 				case F_DIR: go_to_dir (options::MusicDir.c_str()); break;
@@ -682,9 +682,6 @@ void Client::handle_command(key_cmd cmd)
 				else
 					go_to_dir(cwd.substr(0, i).c_str());
 			}
-			break;
-		case KEY_CMD_WRONG:
-			iface->message("Bad command / key not bound to anything");
 			break;
 		case KEY_CMD_SEEK_FORWARD_5: seek_silent (options::SilentSeekTime); break;
 		case KEY_CMD_SEEK_BACKWARD_5: seek_silent (-options::SilentSeekTime); break;
@@ -712,10 +709,14 @@ void Client::handle_command(key_cmd cmd)
 		case KEY_CMD_TOGGLE_MAKE_MONO: srv.send(CMD_TOGGLE_MAKE_MONO); break;
 		case KEY_CMD_PLIST_MOVE_UP:   move_item (-1); break;
 		case KEY_CMD_PLIST_MOVE_DOWN: move_item (+1); break;
+		case KEY_CMD_WRONG:
+			iface->message("Bad command / key not bound to anything");
+			break;
 		default:
 			iface->message(format("BUG: invalid key command %d!", (int)cmd));
-			break;
+			return false;
 	}
+ 	return true;
 }
 
 void Client::handle_server_event (int type)

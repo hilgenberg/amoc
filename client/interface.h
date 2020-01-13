@@ -7,6 +7,7 @@
 #include "Panel.h"
 #include "Rect.h"
 #include "../server/server.h" // PlayState
+#include "Menu.h"
 class Client;
 class plist;
 
@@ -23,6 +24,7 @@ public:
 	void redraw(int k) { need_redraw = std::max(need_redraw, k); }
 	void resize(); // Handle terminal size change.
 	void handle_input(); // read the next key stroke
+	bool handle_command(key_cmd cmd);
 	bool handle_click(int x, int y, bool dbl);
 	bool handle_drag(int x, int y, int seq);
 	bool handle_scroll(int x, int y, int dy);
@@ -105,6 +107,7 @@ public:
 	Window  win;
 	Panel   left, right, *active;
 	Client &client;
+	Menu    menu;
 
 private:
 	str curr_file; int curr_idx;

@@ -293,7 +293,7 @@ void Panel::draw(bool active) const
 	}
 	if (avail < 6)
 	{
-		win.color(CLR_MENU_ITEM_FILE);
+		win.color(CLR_PANEL_FILE);
 		str s(":::TOO SMALL:::");
 		for (int y = 0; y < bounds.h; ++y)
 		{
@@ -352,16 +352,16 @@ void Panel::draw(bool active) const
 			(xsel <  0 && i >= sel+xsel && i <= sel));
 
 		auto info_color = 
-			selected && i == mark ? CLR_MENU_ITEM_INFO_MARKED_SELECTED :
-			selected ? CLR_MENU_ITEM_INFO_SELECTED :
-			i == mark ? CLR_MENU_ITEM_INFO_MARKED :
-			CLR_MENU_ITEM_INFO;
+			selected && i == mark ? CLR_PANEL_INFO_MARKED_SELECTED :
+			selected ? CLR_PANEL_INFO_SELECTED :
+			i == mark ? CLR_PANEL_INFO_MARKED :
+			CLR_PANEL_INFO;
 		auto file_color = 
-			selected && i == mark ? CLR_MENU_ITEM_FILE_MARKED_SELECTED :
-			i == mark ? CLR_MENU_ITEM_FILE_MARKED :
-			it.type == F_DIR ? (selected ? CLR_MENU_ITEM_DIR_SELECTED : CLR_MENU_ITEM_DIR) :
-			it.type == F_PLAYLIST ? (selected ? CLR_MENU_ITEM_PLAYLIST_SELECTED : CLR_MENU_ITEM_PLAYLIST) :
-			selected ? CLR_MENU_ITEM_FILE_SELECTED : CLR_MENU_ITEM_FILE;
+			selected && i == mark ? CLR_PANEL_FILE_MARKED_SELECTED :
+			i == mark ? CLR_PANEL_FILE_MARKED :
+			it.type == F_DIR ? (selected ? CLR_PANEL_DIR_SELECTED : CLR_PANEL_DIR) :
+			it.type == F_PLAYLIST ? (selected ? CLR_PANEL_PLAYLIST_SELECTED : CLR_PANEL_PLAYLIST) :
+			selected ? CLR_PANEL_FILE_SELECTED : CLR_PANEL_FILE;
 		
 		win.color(info_color);
 

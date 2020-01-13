@@ -13,7 +13,12 @@ int  strins(str &s, int i, wchar_t c); // returns width of c
 
 int xwaddstr (WINDOW *win, const str &s);
 int xmvwaddstr (WINDOW *win, const int y, const int x, const str &s);
-void xwprintfield(WINDOW *win, const str &s, int field_width, char ellipsis = 'r');
+
+// format: r: cut off at the right:     [foo...]
+//         l: cut off at the left:      [...foo]
+//         c: cut off in the center:    [f...oo]
+//         R: right-align or same as l: [   foo]
+void xwprintfield(WINDOW *win, const str &s, int field_width, char format = 'r');
 
 str iconv_str (const iconv_t desc, const str &input);
 str files_iconv_str (const str &s);

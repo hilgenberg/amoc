@@ -1,18 +1,37 @@
-#ifndef KEYS_H
-#define KEYS_H
+#pragma once
+
+#ifndef KEY_ESCAPE
+#define KEY_ESCAPE	27
+#endif
+
+#define META_KEY_FLAG	0x80
+
+/* Key context is the place where the user presses a key. A key can have
+ * different meanings in different places. */
+enum key_context
+{
+	CON_MENU  = 0,
+	CON_PANEL = 1,
+	CON_ENTRY = 2
+};
 
 enum key_cmd
 {
 	KEY_CMD_QUIT_CLIENT,
 	KEY_CMD_GO,
+
 	KEY_CMD_MENU_DOWN,
 	KEY_CMD_MENU_UP,
+	KEY_CMD_MENU_LEFT,
+	KEY_CMD_MENU_RIGHT,
 	KEY_CMD_MENU_NPAGE,
 	KEY_CMD_MENU_PPAGE,
 	KEY_CMD_MENU_FIRST,
 	KEY_CMD_MENU_LAST,
 	KEY_CMD_MENU_EXTEND_DOWN,
 	KEY_CMD_MENU_EXTEND_UP,
+	KEY_CMD_MENU_EXEC,
+	KEY_CMD_MENU_EXEC_NOCLOSE,
 	KEY_CMD_QUIT,
 	KEY_CMD_STOP,
 	KEY_CMD_NEXT,
@@ -23,7 +42,6 @@ enum key_cmd
 	KEY_CMD_TOGGLE_AUTO_NEXT,
 	KEY_CMD_TOGGLE_MENU,
 	KEY_CMD_TOGGLE_LAYOUT,
-	KEY_CMD_TOGGLE_PERCENT,
 	KEY_CMD_PLIST_ADD_FILE,
 	KEY_CMD_PLIST_CLEAR,
 	KEY_CMD_PLIST_ADD_DIR,
@@ -74,8 +92,6 @@ enum key_cmd
 	KEY_CMD_EQUALIZER_PREV,
 	KEY_CMD_EQUALIZER_NEXT,
 	KEY_CMD_TOGGLE_MAKE_MONO,
-	KEY_CMD_QUEUE_TOGGLE_FILE,
-	KEY_CMD_QUEUE_CLEAR,
 	KEY_CMD_RATE_0,
 	KEY_CMD_RATE_1,
 	KEY_CMD_RATE_2,
@@ -92,27 +108,10 @@ enum key_cmd
 	KEY_CMD_SEEK_7,
 	KEY_CMD_SEEK_8,
 	KEY_CMD_SEEK_9,
+	KEY_CMD_MENU,
 	KEY_CMD_WRONG
 };
 
-/* Key context is the place where the user presses a key. A key can have
- * different meanings in different places. */
-enum key_context
-{
-	CON_MENU,
-	CON_ENTRY_SEARCH,
-	CON_ENTRY
-};
-
-#ifndef KEY_ESCAPE
-# define KEY_ESCAPE	27
-#endif
-
-#define META_KEY_FLAG	0x80
-#define CTRL_KEY_CODE	0x1F
-
-struct iface_key;
-enum key_cmd get_key_cmd (const enum key_context context, wchar_t c, int f); // c: regular key, f: Fkey, arrow, ...
-void keys_init ();
-
-#endif
+void    keys_init();
+key_cmd get_key_cmd(key_context context, wchar_t c, int f); // c: regular key, f: Fkey, arrow, ...
+str     hotkey(key_cmd cmd); // for display in menu items

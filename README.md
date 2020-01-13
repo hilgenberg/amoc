@@ -4,6 +4,7 @@ Fork of [MOC](http://moc.daper.net/) with the following changes:
 * C++ port (in progress, but the interface is somewhat done. Lots of things still removed (lyrics f.e.))
 * ratings
 * three-column layout (artist/album/title)
+* menu (similar to Midnight Commander's, opens with F9 by default)
 * multi-selection: Shift+arrows extend the selection, which can then be moved, deleted or added all at once
 * mouse interface (actually quite useful on a tablet!) - layout can be dragged, timebar can be clicked for sseking,
 double-click files to play them, ...

@@ -49,18 +49,18 @@ static void set_default_colors ()
 	make_color (CLR_BACKGROUND, COLOR_WHITE, COLOR_BLUE, A_NORMAL);
 	make_color (CLR_FRAME, COLOR_WHITE, COLOR_BLUE, A_NORMAL);
 	make_color (CLR_WIN_TITLE, COLOR_WHITE, COLOR_BLUE, A_NORMAL);
-	make_color (CLR_MENU_ITEM_DIR, COLOR_WHITE, COLOR_BLUE, A_BOLD);
-	make_color (CLR_MENU_ITEM_DIR_SELECTED, COLOR_WHITE, COLOR_BLACK, A_BOLD);
-	make_color (CLR_MENU_ITEM_PLAYLIST, COLOR_WHITE, COLOR_BLUE, A_BOLD);
-	make_color (CLR_MENU_ITEM_PLAYLIST_SELECTED, COLOR_WHITE, COLOR_BLACK, A_BOLD);
-	make_color (CLR_MENU_ITEM_FILE, COLOR_WHITE, COLOR_BLUE, A_NORMAL);
-	make_color (CLR_MENU_ITEM_FILE_SELECTED, COLOR_WHITE, COLOR_BLACK, A_NORMAL);
-	make_color (CLR_MENU_ITEM_FILE_MARKED, COLOR_GREEN, COLOR_BLUE, A_BOLD);
-	make_color (CLR_MENU_ITEM_FILE_MARKED_SELECTED, COLOR_GREEN, COLOR_BLACK, A_BOLD);
-	make_color (CLR_MENU_ITEM_INFO, COLOR_BLUE, COLOR_BLUE, A_BOLD);
-	make_color (CLR_MENU_ITEM_INFO_SELECTED, COLOR_BLUE, COLOR_BLACK, A_BOLD);
-	make_color (CLR_MENU_ITEM_INFO_MARKED, COLOR_BLUE, COLOR_BLUE, A_BOLD);
-	make_color (CLR_MENU_ITEM_INFO_MARKED_SELECTED, COLOR_BLUE, COLOR_BLACK, A_BOLD);
+	make_color (CLR_PANEL_DIR, COLOR_WHITE, COLOR_BLUE, A_BOLD);
+	make_color (CLR_PANEL_DIR_SELECTED, COLOR_WHITE, COLOR_BLACK, A_BOLD);
+	make_color (CLR_PANEL_PLAYLIST, COLOR_WHITE, COLOR_BLUE, A_BOLD);
+	make_color (CLR_PANEL_PLAYLIST_SELECTED, COLOR_WHITE, COLOR_BLACK, A_BOLD);
+	make_color (CLR_PANEL_FILE, COLOR_WHITE, COLOR_BLUE, A_NORMAL);
+	make_color (CLR_PANEL_FILE_SELECTED, COLOR_WHITE, COLOR_BLACK, A_NORMAL);
+	make_color (CLR_PANEL_FILE_MARKED, COLOR_GREEN, COLOR_BLUE, A_BOLD);
+	make_color (CLR_PANEL_FILE_MARKED_SELECTED, COLOR_GREEN, COLOR_BLACK, A_BOLD);
+	make_color (CLR_PANEL_INFO, COLOR_BLUE, COLOR_BLUE, A_BOLD);
+	make_color (CLR_PANEL_INFO_SELECTED, COLOR_BLUE, COLOR_BLACK, A_BOLD);
+	make_color (CLR_PANEL_INFO_MARKED, COLOR_BLUE, COLOR_BLUE, A_BOLD);
+	make_color (CLR_PANEL_INFO_MARKED_SELECTED, COLOR_BLUE, COLOR_BLACK, A_BOLD);
 	make_color (CLR_STATUS, COLOR_WHITE, COLOR_BLUE, A_NORMAL);
 	make_color (CLR_TITLE, COLOR_WHITE, COLOR_BLUE, A_BOLD);
 	make_color (CLR_STATE, COLOR_WHITE, COLOR_BLUE, A_BOLD);
@@ -81,6 +81,11 @@ static void set_default_colors ()
 	make_color (CLR_ERROR, COLOR_RED, COLOR_BLUE, A_BOLD);
 	make_color (CLR_MESSAGE, COLOR_GREEN, COLOR_BLUE, A_BOLD);
 	make_color (CLR_PLIST_TIME, COLOR_WHITE, COLOR_BLUE, A_NORMAL);
+
+	make_color (CLR_MENU_ITEM, COLOR_WHITE, COLOR_BLUE, A_BOLD);
+	make_color (CLR_MENU_SELECTED, COLOR_WHITE, COLOR_BLACK, A_BOLD);
+	make_color (CLR_MENU_GREY, COLOR_YELLOW, COLOR_BLUE, A_BOLD);
+	make_color (CLR_MENU_GREY_SELECTED, COLOR_RED, COLOR_BLACK, A_BOLD);
 }
 
 /* Set default colors for black and white terminal. */
@@ -89,18 +94,18 @@ static void set_bw_colors ()
 	colors[CLR_BACKGROUND] = A_NORMAL;
 	colors[CLR_FRAME] = A_NORMAL;
 	colors[CLR_WIN_TITLE] = A_NORMAL;
-	colors[CLR_MENU_ITEM_DIR] = A_NORMAL;
-	colors[CLR_MENU_ITEM_DIR_SELECTED] = A_REVERSE;
-	colors[CLR_MENU_ITEM_PLAYLIST] = A_NORMAL;
-	colors[CLR_MENU_ITEM_PLAYLIST_SELECTED] = A_REVERSE;
-	colors[CLR_MENU_ITEM_FILE] = A_NORMAL;
-	colors[CLR_MENU_ITEM_FILE_SELECTED] = A_REVERSE;
-	colors[CLR_MENU_ITEM_FILE_MARKED] = A_BOLD;
-	colors[CLR_MENU_ITEM_FILE_MARKED_SELECTED] = A_BOLD | A_REVERSE;
-	colors[CLR_MENU_ITEM_INFO] = A_NORMAL;
-	colors[CLR_MENU_ITEM_INFO_SELECTED] = A_REVERSE;
-	colors[CLR_MENU_ITEM_INFO_MARKED] = A_BOLD;
-	colors[CLR_MENU_ITEM_INFO_MARKED_SELECTED] = A_BOLD | A_REVERSE;
+	colors[CLR_PANEL_DIR] = A_NORMAL;
+	colors[CLR_PANEL_DIR_SELECTED] = A_REVERSE;
+	colors[CLR_PANEL_PLAYLIST] = A_NORMAL;
+	colors[CLR_PANEL_PLAYLIST_SELECTED] = A_REVERSE;
+	colors[CLR_PANEL_FILE] = A_NORMAL;
+	colors[CLR_PANEL_FILE_SELECTED] = A_REVERSE;
+	colors[CLR_PANEL_FILE_MARKED] = A_BOLD;
+	colors[CLR_PANEL_FILE_MARKED_SELECTED] = A_BOLD | A_REVERSE;
+	colors[CLR_PANEL_INFO] = A_NORMAL;
+	colors[CLR_PANEL_INFO_SELECTED] = A_REVERSE;
+	colors[CLR_PANEL_INFO_MARKED] = A_BOLD;
+	colors[CLR_PANEL_INFO_MARKED_SELECTED] = A_BOLD | A_REVERSE;
 	colors[CLR_STATUS] = A_NORMAL;
 	colors[CLR_TITLE] = A_BOLD;
 	colors[CLR_STATE] = A_BOLD;
@@ -121,6 +126,11 @@ static void set_bw_colors ()
 	colors[CLR_ERROR] = A_BOLD;
 	colors[CLR_MESSAGE] = A_BOLD;
 	colors[CLR_PLIST_TIME] = A_NORMAL;
+
+	colors[CLR_MENU_ITEM] = A_BOLD;
+	colors[CLR_MENU_SELECTED] = A_REVERSE;
+	colors[CLR_MENU_GREY] = A_NORMAL;
+	colors[CLR_MENU_GREY_SELECTED] = A_REVERSE;
 }
 
 /* Find the index of a color element by name. Return CLR_LAST if not found. */
@@ -134,18 +144,24 @@ static enum color_index find_color_element_name (const char *name)
 		{ "background",		CLR_BACKGROUND },
 		{ "frame",		CLR_FRAME },
 		{ "window_title",	CLR_WIN_TITLE },
-		{ "directory",		CLR_MENU_ITEM_DIR },
-		{ "selected_directory", CLR_MENU_ITEM_DIR_SELECTED },
-		{ "playlist",		CLR_MENU_ITEM_PLAYLIST },
-		{ "selected_playlist",	CLR_MENU_ITEM_PLAYLIST_SELECTED },
-		{ "file",		CLR_MENU_ITEM_FILE },
-		{ "selected_file",	CLR_MENU_ITEM_FILE_SELECTED },
-		{ "marked_file",	CLR_MENU_ITEM_FILE_MARKED },
-		{ "marked_selected_file", CLR_MENU_ITEM_FILE_MARKED_SELECTED },
-		{ "info",		CLR_MENU_ITEM_INFO },
-		{ "selected_info",	CLR_MENU_ITEM_INFO_SELECTED },
-		{ "marked_info",	CLR_MENU_ITEM_INFO_MARKED },
-		{ "marked_selected_info", CLR_MENU_ITEM_INFO_MARKED_SELECTED },
+		{ "directory",		CLR_PANEL_DIR },
+		{ "selected_directory", CLR_PANEL_DIR_SELECTED },
+		{ "playlist",		CLR_PANEL_PLAYLIST },
+		{ "selected_playlist",	CLR_PANEL_PLAYLIST_SELECTED },
+		{ "file",		CLR_PANEL_FILE },
+		{ "selected_file",	CLR_PANEL_FILE_SELECTED },
+		{ "marked_file",	CLR_PANEL_FILE_MARKED },
+		{ "marked_selected_file", CLR_PANEL_FILE_MARKED_SELECTED },
+		{ "info",		CLR_PANEL_INFO },
+		{ "selected_info",	CLR_PANEL_INFO_SELECTED },
+		{ "marked_info",	CLR_PANEL_INFO_MARKED },
+		{ "marked_selected_info", CLR_PANEL_INFO_MARKED_SELECTED },
+
+		{ "menu_item",		CLR_MENU_ITEM },
+		{ "menu_selected",	CLR_MENU_SELECTED },
+		{ "menu_greyed",	CLR_MENU_GREY },
+		{ "menu_greyed_selected",CLR_MENU_GREY_SELECTED },
+
 		{ "status",		CLR_STATUS },
 		{ "title",		CLR_TITLE },
 		{ "state",		CLR_STATE },

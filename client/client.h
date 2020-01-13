@@ -16,7 +16,7 @@ public:
 	str   cwd; // current position of dir_plist
 	bool  synced; // is our playlist synced with the server's?
 
-	void handle_command(key_cmd cmd); // does everything that's not purely UI
+	bool handle_command(key_cmd cmd); // does everything that's not purely UI
 
 	static volatile int  want_quit; // 1=quit client, 2=quit server
 	static volatile bool want_interrupt;

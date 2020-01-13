@@ -235,13 +235,21 @@ static int xwaddnstr (WINDOW *win, const str &s, int len)
 	return xwaddstr(win, convert(j < m ? ws.substr(0, j) : ws));
 }
 
-void xwprintfield(WINDOW *win, const str &s, int W, char ellipsis)
+void xwprintfield(WINDOW *win, const str &s, int W, char fmt)
 {
 	int w = strwidth(s);
 	if (w <= W)
 	{
-		xwaddstr(win, s);
-		while (w++ < W) waddch (win, ' ');
+		if (fmt == 'R')
+		{
+			while (w++ < W) waddch (win, ' ');
+			xwaddstr(win, s);
+		}
+		else
+		{
+			xwaddstr(win, s);
+			while (w++ < W) waddch (win, ' ');
+		}
 		return;
 	}
 	
@@ -251,13 +259,14 @@ void xwprintfield(WINDOW *win, const str &s, int W, char ellipsis)
 		return;
 	}
 
-	switch (ellipsis)
+	switch (fmt)
 	{
 		case 'r':
 			xwaddnstr(win, s, W-3);
 			xwaddstr(win, "...");
 			break;
 		case 'l':
+		case 'R':
 		{
 			xwaddstr(win, "...");
 			xwaddstr(win, xstrtail(s, W-3));

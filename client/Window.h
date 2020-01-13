@@ -28,6 +28,7 @@ public:
 	void put_ascii(const char *s) { waddstr(win, s); }
 	void put(const str &s) { xwaddstr(win, s); }
 	void field(const str &s, int w, char ellipsis = 'r') { xwprintfield(win, s, w, ellipsis); }
+	void spaces(int n) { while (n-- > 0) waddch(win, ' '); } // unlike clear, this moves the cursor
 	
 	void time(int sec); static constexpr int TIME_WIDTH = 5;
 	void total_time(int sec); static constexpr int TOTAL_TIME_WIDTH = 11;
