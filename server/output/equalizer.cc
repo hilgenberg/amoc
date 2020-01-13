@@ -503,168 +503,145 @@ void equalizer_shutdown()
 
 void equalizer_refresh()
 {
-  t_eq_setup *eqs = NULL;
-  char buf[1024];
+	t_eq_setup *eqs = NULL;
+	char buf[1024];
 
-  char *current_set_name = NULL;
+	char *current_set_name = NULL;
 
-  if(current_equ && current_equ->set)
-  {
-    current_set_name = xstrdup(current_equ->set->name);
-  }
-  else
-  {
-    if(config_preset_name)
-      current_set_name = xstrdup(config_preset_name);
-  }
+	if(current_equ && current_equ->set)
+		current_set_name = xstrdup(current_equ->set->name);
+	else if(config_preset_name)
+		current_set_name = xstrdup(config_preset_name);
 
-  clear_eq_set(&equ_list);
+	clear_eq_set(&equ_list);
 
-  current_equ = NULL;
+	current_equ = NULL;
 
-  DIR *d = opendir(eqsetdir.c_str());
+	DIR *d = opendir(eqsetdir.c_str());
 
-  if(!d)
-  {
-    return;
-  }
+	if(!d) return;
 
-  struct dirent *de = readdir(d);
-  struct stat st;
+	struct dirent *de = NULL;
+	struct stat st;
 
-  t_eq_set_list *last_elem;
+	t_eq_set_list *last_elem;
+	last_elem = &equ_list;
 
-  last_elem = &equ_list;
+	while((de = readdir(d)))
+	{
+		if (!de->d_name || de->d_name[0] == '.') continue;
+		str filename = options::config_file_path(format("eqsets/%s", de->d_name).c_str());
 
-  while(de)
-  {
-    str filename = options::config_file_path(format("eqsets/%s", de->d_name).c_str());
+		stat(filename.c_str(), &st);
+		if(!S_ISREG(st.st_mode)) continue;
+		
+		FILE *f = fopen(filename.c_str(), "r");
+		if (!f) continue;
+		
+		char filebuffer[4096];
 
-    stat(filename.c_str(), &st);
+		char *fb = filebuffer;
 
-    if( S_ISREG(st.st_mode) )
-    {
-      FILE *f = fopen(filename.c_str(), "r");
+		int maxread = 4095 - (fb - filebuffer);
 
-      if(f)
-      {
-        char filebuffer[4096];
+		// read in whole file
+		while(!feof(f) && maxread>0)
+		{
+			maxread = 4095 - (fb - filebuffer);
+			int rb = fread(fb, sizeof(char), maxread, f);
+			fb+=rb;
+		}
 
-        char *fb = filebuffer;
+		fclose(f);
 
-        int maxread = 4095 - (fb - filebuffer);
+		*fb = 0;
+		int r = read_setup(de->d_name, filebuffer, &eqs);
 
-        // read in whole file
-        while(!feof(f) && maxread>0)
-        {
-          maxread = 4095 - (fb - filebuffer);
-          int rb = fread(fb, sizeof(char), maxread, f);
-          fb+=rb;
-        }
+		if(r==0)
+		{
+			int i, channel;
+			t_eq_set *eqset = (t_eq_set *)xmalloc(sizeof(t_eq_set));
+			eqset->b = (t_biquad *)xmalloc(sizeof(t_biquad)*eqs->bcount*equ_channels);
 
-        fclose(f);
+			eqset->name = xstrdup(eqs->name);
+			eqset->preamp = eqs->preamp;
+			eqset->bcount = eqs->bcount;
+			eqset->channels = equ_channels;
 
-        *fb = 0;
-        int r = read_setup(de->d_name, filebuffer, &eqs);
+			for(i=0; i<eqs->bcount; i++)
+			{
+				mk_biquad(eqs->dg[i], eqs->cf[i], sample_rate, eqs->bw[i], &eqset->b[i]);
 
-        if(r==0)
-        {
-          int i, channel;
-          t_eq_set *eqset = (t_eq_set *)xmalloc(sizeof(t_eq_set));
-          eqset->b = (t_biquad *)xmalloc(sizeof(t_biquad)*eqs->bcount*equ_channels);
+				for(channel=1; channel<equ_channels; channel++)
+				{
+					eqset->b[channel*eqset->bcount + i] = eqset->b[i];
+				}
+			}
 
-          eqset->name = xstrdup(eqs->name);
-          eqset->preamp = eqs->preamp;
-          eqset->bcount = eqs->bcount;
-          eqset->channels = equ_channels;
+			last_elem = append_eq_set(eqset, last_elem);
 
-          for(i=0; i<eqs->bcount; i++)
-          {
-            mk_biquad(eqs->dg[i], eqs->cf[i], sample_rate, eqs->bw[i], &eqset->b[i]);
+			free(eqs->name);
+			free(eqs->cf);
+			free(eqs->bw);
+			free(eqs->dg);
+		}
+		else switch(r)
+		{
+			case 0:
+				logit ("This should not happen: No error but no EQSET was parsed: %s", filename);
+				break;
+			case -1:
+				logit ("Not an EQSET (empty file): %s", filename);
+				break;
+			case -2:
+				logit ("Not an EQSET (invalid header): %s", filename);
+				break;
+			case -3:
+				logit ("Error while parsing settings from EQSET: %s", filename);
+				break;
+			default:
+				logit ("Unknown error while parsing EQSET: %s", filename);
+				break;
+		}
 
-            for(channel=1; channel<equ_channels; channel++)
-            {
-              eqset->b[channel*eqset->bcount + i] = eqset->b[i];
-            }
-          }
+		free(eqs);
+		eqs = NULL;
+	}
 
-          last_elem = append_eq_set(eqset, last_elem);
+	closedir(d);
 
-          free(eqs->name);
-          free(eqs->cf);
-          free(eqs->bw);
-          free(eqs->dg);
+	current_equ = &equ_list;
 
-        }
-        else
-        {
-          switch(r)
-          {
-            case 0:
-              logit ("This should not happen: No error but no EQSET was parsed: %s", filename);
-              break;
-            case -1:
-              logit ("Not an EQSET (empty file): %s", filename);
-              break;
-            case -2:
-              logit ("Not an EQSET (invalid header): %s", filename);
-              break;
-            case -3:
-              logit ("Error while parsing settings from EQSET: %s", filename);
-              break;
-            default:
-              logit ("Unknown error while parsing EQSET: %s", filename);
-              break;
-          }
-        }
+	if(current_set_name)
+	{
+		current_equ = &equ_list;
 
-        if(eqs)
-          free(eqs);
+		while(current_equ)
+		{
+			if(current_equ->set)
+			{
+				if(strcmp(current_set_name, current_equ->set->name)==0)
+					break;
+			}
+			current_equ = current_equ->next;
+		}
 
-        eqs = NULL;
-      }
-    }
+		// only free name when EQ was found to allow logging
+		if(current_equ) free(current_set_name);
+	}
 
-    de = readdir(d);
-  }
+	if (!current_equ && current_set_name)
+	{
+		logit ("EQ %s not found.", current_set_name);
+		/* equalizer not found, pick next equalizer */
+		current_equ = &equ_list;
+		// free name now
+		free(current_set_name);
+	}
+	if(current_equ && !current_equ->set)
+		equalizer_next();
 
-  closedir(d);
-
-  current_equ = &equ_list;
-
-  if(current_set_name)
-  {
-    current_equ = &equ_list;
-
-    while(current_equ)
-    {
-      if(current_equ->set)
-      {
-        if(strcmp(current_set_name, current_equ->set->name)==0)
-          break;
-      }
-      current_equ = current_equ->next;
-    }
-
-    if(current_equ)
-    {
-      // only free name when EQ was found to allow logging
-      free(current_set_name);
-    }
-  }
-
-  if (!current_equ && current_set_name)
-  {
-    logit ("EQ %s not found.", current_set_name);
-    /* equalizer not found, pick next equalizer */
-    current_equ = &equ_list;
-    // free name now
-    free(current_set_name);
-  }
-  if(current_equ && !current_equ->set)
-    equalizer_next();
-
-  equalizer_adjust_preamp();
+	equalizer_adjust_preamp();
 }
 
 /* sound processing code */
