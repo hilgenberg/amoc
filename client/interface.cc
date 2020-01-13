@@ -71,7 +71,18 @@ void Interface::prompt(const str &prompt, const str &s0, int cur0, std::function
 
 bool Interface::handle_click(int x, int y, bool dbl)
 {
-	if (options::layout != SINGLE && left.bounds.contains(x,y))
+	if (y == 0 && !menu.active)
+	{
+		menu.active = true;
+		redraw(2);
+		return true;
+	}
+	else if (menu.active)
+	{
+		menu.handle_click(x, y);
+		return true;
+	}
+	else if (options::layout != SINGLE && left.bounds.contains(x,y))
 	{
 		if (active == &right) { active = &left; redraw(2); }
 		left.handle_click(x, y, dbl);
@@ -177,6 +188,22 @@ bool Interface::handle_scroll(int x, int y, int dy)
 
 bool Interface::handle_drag(int x, int y, int seq)
 {
+	if (seq < 0 && y == 0 && !menu.active)
+	{
+		menu.active = true;
+		redraw(2);
+		menu.handle_hover(x, y);
+		return true;
+	}
+	else if (menu.active)
+	{
+		if (seq > 0) 
+			menu.handle_click(x, y);
+		else
+			menu.handle_hover(x, y);
+		return true;
+	}
+
 	if (options::layout == SINGLE) return false;
 
 	if (seq < 0)
@@ -351,6 +378,50 @@ void Interface::handle_input()
 	{
 		resize();
 	}
+	else if (f == KEY_MOUSE)
+	{
+		MEVENT ev;
+		while (getmouse(&ev) == OK)
+		{
+			// if dragging does not work, the following might help:
+			// $ export TERM=xterm-1002
+
+			//#define MOUSE_DEBUG(T) status(format("MOUSE %s (%d,%d) %d", T, ev.x, ev.y, (int)ev.bstate))
+			#define MOUSE_DEBUG(...) 
+
+			if ((ev.bstate & BUTTON1_RELEASED))
+			{
+				MOUSE_DEBUG("UP");
+				//mousemask(MOUSEMASK, NULL);
+				handle_drag(ev.x, ev.y, 1);
+			}
+			else if ((ev.bstate & REPORT_MOUSE_POSITION))
+			{
+				MOUSE_DEBUG(drag0 >= 0 ? "DRAG" : "MOVE");
+				handle_drag(ev.x, ev.y, 0);
+			}
+			else if ((ev.bstate & BUTTON1_PRESSED))
+			{
+				MOUSE_DEBUG("DOWN");
+				handle_drag(ev.x, ev.y, -1);
+			}
+			else if ((ev.bstate & (BUTTON1_CLICKED|BUTTON1_DOUBLE_CLICKED)))
+			{
+				MOUSE_DEBUG("CLICK");
+				handle_click(ev.x, ev.y, ev.bstate & BUTTON1_DOUBLE_CLICKED);
+			}
+			else if ((ev.bstate & (BUTTON4_PRESSED|BUTTON5_PRESSED)))
+			{
+				bool up = ev.bstate & BUTTON4_PRESSED;
+				MOUSE_DEBUG(up ? "SCROLL UP" : "SCROLL DOWN");
+				handle_scroll(ev.x, ev.y, up ? -1 : 1);
+			}
+			else
+			{
+				MOUSE_DEBUG("GARBAGE");
+			}
+		}
+	}
 	else if (menu.active)
 	{
 		auto cmd = get_key_cmd (CON_MENU, c, f);
@@ -402,52 +473,6 @@ void Interface::handle_input()
 			case KEY_CMD_HISTORY_DOWN: /*TODO*/ return;
 			case KEY_CMD_DELETE_START: strdel(response, 0, cursor); cursor = 0; return;
 			case KEY_CMD_DELETE_END: strdel(response, cursor, strwidth(response)); return;
-		}
-	}
-	else if (f == KEY_MOUSE)
-	{
-		MEVENT ev;
-		while (getmouse(&ev) == OK)
-		{
-			// if dragging does not work, the following might help:
-			// $ export TERM=xterm-1002
-
-			//#define MOUSE_DEBUG(T) status(format("MOUSE %s (%d,%d) %d", T, ev.x, ev.y, (int)ev.bstate))
-			#define MOUSE_DEBUG(...) 
-
-			if ((ev.bstate & BUTTON1_RELEASED))
-			{
-				MOUSE_DEBUG("UP");
-				//mousemask(MOUSEMASK, NULL);
-				handle_drag(ev.x, ev.y, 1);
-			}
-			else if ((ev.bstate & REPORT_MOUSE_POSITION))
-			{
-				MOUSE_DEBUG(drag0 >= 0 ? "DRAG" : "MOVE");
-				handle_drag(ev.x, ev.y, 0);
-			}
-			else if ((ev.bstate & BUTTON1_PRESSED))
-			{
-				MOUSE_DEBUG("DOWN");
-				if (handle_drag(ev.x, ev.y, -1))
-					;//mousemask(BUTTON1_RELEASED /*| REPORT_MOUSE_POSITION*/, NULL);
-					 // ^-- did not work at all
-			}
-			else if ((ev.bstate & (BUTTON1_CLICKED|BUTTON1_DOUBLE_CLICKED)))
-			{
-				MOUSE_DEBUG("CLICK");
-				handle_click(ev.x, ev.y, ev.bstate & BUTTON1_DOUBLE_CLICKED);
-			}
-			else if ((ev.bstate & (BUTTON4_PRESSED|BUTTON5_PRESSED)))
-			{
-				bool up = ev.bstate & BUTTON4_PRESSED;
-				MOUSE_DEBUG(up ? "SCROLL UP" : "SCROLL DOWN");
-				handle_scroll(ev.x, ev.y, up ? -1 : 1);
-			}
-			else
-			{
-				MOUSE_DEBUG("GARBAGE");
-			}
 		}
 	}
 	else
@@ -518,6 +543,7 @@ void Interface::draw(bool force)
 			win.put((H-1)/2, x, s[i]);
 		}
 		need_redraw = 0;
+		menu.active = false;
 		win.flush();
 		return;
 	}

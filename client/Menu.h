@@ -44,11 +44,12 @@ public:
 	void draw();
 
 	bool handle_command(key_cmd cmd);
-	bool handle_click(int x, int y, bool dbl);
-	bool handle_hover(int x, int y);
+	void handle_click(int x, int y);
+	void handle_hover(int x, int y);
 
 private:
 	std::vector<SubMenu> items;
 	int sel;
 	Interface &iface;
+	int sub_x0, sub_w, sub_spc; // position and size of active submenu
 };

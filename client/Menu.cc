@@ -8,7 +8,7 @@ void MenuItem::execute(Interface &iface) const
 	if (cmd != KEY_CMD_WRONG) iface.handle_command(cmd);
 }
 
-Menu::Menu(Interface &iface) : iface(iface), active(false)
+Menu::Menu(Interface &iface) : iface(iface), active(false), sub_x0(-1), sub_w(0), sub_spc(0)
 {
 	SubMenu *m = NULL; MenuItem *mi = NULL;
 	#define MENU(s) items.emplace_back(s); m = &items.back()
@@ -113,7 +113,7 @@ void Menu::draw()
 	if (!active) return;
 	
 	const int W = COLS, H = LINES;
-	const int N = (int)items.size(); if (!N || W < 8 || H < 6) return;
+	const int N = (int)items.size(); if (!N) return;
 	Window &win = iface.win;
 
 	sel = CLAMP(0, sel, N-1);
@@ -149,10 +149,14 @@ void Menu::draw()
 	if (w2) ++w2;
 
 	int mw = 2+w1+2 + w0*4 + w2;
-	if (mw > W) { w1 = W-4-w0*4-w2; if (w1 < 4) return; }
+	if (mw > W) { w1 = W-4-w0*4-w2; if (w1 < 4) { sub_w = 0; return; } }
 	if (x0 + mw > W) x0 = W-mw; if (x0 < 0) x0 = 0;
+	
+	sub_spc = spc;
+	sub_x0  = x0;
+	sub_w   = mw;
 
-	win.color(CLR_MENU_ITEM); win.moveto(1, x0); win.spaces(2+w1+w0*4+2+w2);
+	win.color(CLR_MENU_ITEM); win.moveto(1, x0); win.spaces(mw);
 
 	for (int i = 0; i < n; ++i)
 	{
@@ -180,7 +184,7 @@ void Menu::draw()
 		win.color(CLR_MENU_ITEM); win.put(' ');
 	}
 
-	if (2+n < H) { win.color(CLR_MENU_ITEM); win.moveto(2+n, x0); win.spaces(2+w1+w0*4+2+w2); }
+	if (2+n < H) { win.color(CLR_MENU_ITEM); win.moveto(2+n, x0); win.spaces(mw); }
 }
 
 bool Menu::handle_command(key_cmd cmd)
@@ -211,4 +215,59 @@ bool Menu::handle_command(key_cmd cmd)
 	iface.redraw(sel != sel0 ? 2 : 1);
 
 	return true;
+}
+
+void Menu::handle_hover(int x, int y)
+{
+	if (!active) return;
+
+
+	if (y == 0)
+	{
+		const int N = (int)items.size();
+		int x0 = 0;
+		for (int i = 0; i < N && x0 <= x; ++i)
+		{
+			int w = items[i].title.length() + 4;
+			if (x >= x0 && x < x0 + w)
+			{
+				if (i != sel) iface.redraw(2);
+				sel = i;
+				return;
+			}
+			x0 += w + sub_spc;
+		}
+		return;
+	}
+
+	y -= 2;
+
+	if (sel < 0) return; auto &m = items[sel];
+	const int n = (int)m.items.size();
+
+	if (y >= 0 && y < n && !m.items[y].is_separator() &&
+	    x >= sub_x0 && x < sub_x0 + sub_w)
+	{
+		if (m.sel != y) iface.redraw(1);
+		m.sel = y;
+	}
+}
+void Menu::handle_click(int x, int y)
+{
+	if (!active || y == 0 || sel < 0) return;
+	auto &m = items[sel];
+	const int n = (int)m.items.size();
+
+	y -= 2;
+
+	if (y <= n && x >= sub_x0 && x < sub_x0 + sub_w)
+	{
+		// clicked on the submenu
+		if (y < 0 || y >= n) return;
+		auto &mi = m.items[y];
+		if (mi.is_separator() || mi.greyed()) return;
+		mi.execute(iface);
+	}
+	active = false;
+	iface.redraw(2);
 }
