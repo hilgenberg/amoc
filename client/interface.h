@@ -8,6 +8,8 @@
 #include "Rect.h"
 #include "../server/server.h" // PlayState
 #include "Menu.h"
+#include "FrameView.h"
+#include "InfoView.h"
 class Client;
 class plist;
 
@@ -25,9 +27,6 @@ public:
 	void resize(); // Handle terminal size change.
 	void handle_input(); // read the next key stroke
 	bool handle_command(key_cmd cmd);
-	bool handle_click(int x, int y, bool dbl);
-	bool handle_drag(int x, int y, int seq);
-	bool handle_scroll(int x, int y, int dy);
 
 	bool in_dir_plist() const { return active == &left; }
 	void go_to_dir_plist() { if (in_dir_plist()) return; active = &left; redraw(2); }
@@ -40,7 +39,7 @@ public:
 		redraw(2);
 	}
 
-	int  selected_song() { assert(!in_dir_plist()); return right.xsel ? -1 : right.sel; }
+	int selected_song() { assert(!in_dir_plist()); return right.xsel ? -1 : right.sel; }
 	plist_item *sel_item() { auto &m = *active; return (m.sel < 0 || m.sel >= m.items.size()) ? NULL : m.items.items[m.sel].get(); }
 	std::pair<int,int>  selection() // returns [min, max]
 	{
@@ -102,14 +101,15 @@ public:
 	UPD(int, mixer_value)
 	#undef UPD
 
-	str cwd() const;
-
-	Window  win;
-	Panel   left, right, *active;
-	Client &client;
-	Menu    menu;
+	Window    win;
+	Panel     left, right, *active;
+	Client   &client;
+	Menu      menu;
+	InfoView  info;
+	FrameView frame;
 
 private:
+	friend class InfoView;
 	str curr_file; int curr_idx;
 	std::unique_ptr<file_tags> curr_tags;
 	int bitrate, avg_bitrate; // in kbps
@@ -121,8 +121,8 @@ private:
 	int mixer_value;
 
 	void cycle_layouts();
-	int  drag0; // last x or y value or -1 if not dragging anything
-	bool dragTime; // dragging in the time bar?
+
+	View *dragging;
 
 	int need_redraw; // 1: info only, 2: everything
 

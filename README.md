@@ -6,7 +6,7 @@ Fork of [MOC](http://moc.daper.net/) with the following changes:
 * three-column layout (artist/album/title)
 * menu (similar to Midnight Commander's, opens with F9 by default)
 * multi-selection: Shift+arrows extend the selection, which can then be moved, deleted or added all at once
-* mouse interface (actually quite useful on a tablet!) - layout can be dragged, timebar can be clicked for sseking,
+* mouse interface (actually quite useful on a tablet!) - layout can be dragged, timebar can be clicked for seeking,
 double-click files to play them, ...
 * clients no longer sync the playlist amongst themselves - the server holds the playlist and the "clear playlist" command
 now creates an empty local playlist for the client. Playing from that list sends it off to become the new server playlist.

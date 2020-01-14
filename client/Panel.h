@@ -3,6 +3,7 @@
 #include <ncurses.h>
 #include "../playlist.h"
 #include "Rect.h"
+#include "View.h"
 
 enum menu_request
 {
@@ -20,15 +21,16 @@ enum menu_request
 
 class Interface;
 
-struct Panel
+struct Panel : public View
 {
 	// c'tor gets  called before the interface is running!
 	Panel(Interface *iface, plist &items) : iface(iface), items(items), top(0), sel(-1), xsel(0), mark(-1) {}
 
-	void draw(bool active) const; // no frame, draws just the inside
+	void set_active(bool a) { active = a; }
+	void draw() const override; // no frame, draws just the inside
 
 	void move_selection(menu_request req);
-	void handle_click(int x, int y, bool dbl);
+	bool handle_click(int x, int y, bool dbl) override;
 
 	bool mark_path(const str &f); // or unmark if not found
 	void mark_item(int i); // this and mark_path take the selection along if sel==mark
@@ -39,6 +41,7 @@ struct Panel
 	Interface  *iface;
 	plist      &items;
 	Rect        bounds;
+	bool        active;
 	mutable int top; // first visible item
 	mutable int sel, mark; // selected and marked items, -1 if none
 	mutable int xsel; // if != 0: multi-sel from sel to sel+xsel (both inclusive)

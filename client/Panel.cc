@@ -153,8 +153,9 @@ void Panel::move_selection(menu_request req)
 	if (sel >= N) sel = N-1;
 	if (sel <  0) sel = 0;
 }
-void Panel::handle_click(int x, int y, bool dbl)
+bool Panel::handle_click(int x, int y, bool dbl)
 {
+	if (!bounds.contains(x,y)) return false;
 	const int N = items.size();
 	int i = top+y-bounds.y;
 	bool hit = (i >= 0 && i < N);
@@ -162,9 +163,10 @@ void Panel::handle_click(int x, int y, bool dbl)
 	if (i <  0) i = 0;
 	if (i != sel || xsel) { sel = i; xsel = 0; iface->redraw(2); }
 	if (dbl && hit) iface->client.handle_command(KEY_CMD_GO);
+	return true;
 }
 
-void Panel::draw(bool active) const
+void Panel::draw() const
 {
 	auto &win = iface->win;
 
@@ -184,7 +186,7 @@ void Panel::draw(bool active) const
 	if (top + bounds.h > N) top = N-bounds.h;
 	if (top < 0) top = 0;
 
-	bool have_up = items.is_dir && N && iface->cwd() != "/";
+	bool have_up = items.is_dir && N && iface->client.cwd != "/";
 	str mhome = options::MusicDir; if (!mhome.empty()) mhome += '/'; if (mhome.length() < 2) mhome.clear();
 	str uhome = options::Home;     if (!uhome.empty()) uhome += '/'; if (uhome.length() < 2) uhome.clear();
 

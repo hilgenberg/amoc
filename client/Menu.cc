@@ -108,7 +108,7 @@ MENU("Sound");
 	ITEM("Softmixer", KEY_CMD_TOGGLE_SOFTMIXER);
 }
 
-void Menu::draw()
+void Menu::draw() const
 {
 	if (!active) return;
 	
@@ -252,9 +252,11 @@ void Menu::handle_hover(int x, int y)
 		m.sel = y;
 	}
 }
-void Menu::handle_click(int x, int y)
+bool Menu::handle_click(int x, int y, bool dbl)
 {
-	if (!active || y == 0 || sel < 0) return;
+	if (y == 0) active = true;
+	if (!active) return false;
+	if (y == 0 || sel < 0) return true;
 	auto &m = items[sel];
 	const int n = (int)m.items.size();
 
@@ -263,11 +265,38 @@ void Menu::handle_click(int x, int y)
 	if (y <= n && x >= sub_x0 && x < sub_x0 + sub_w)
 	{
 		// clicked on the submenu
-		if (y < 0 || y >= n) return;
+		if (y < 0 || y >= n) return true;
 		auto &mi = m.items[y];
-		if (mi.is_separator() || mi.greyed()) return;
+		if (mi.is_separator() || mi.greyed()) return true;
 		mi.execute(iface);
 	}
 	active = false;
 	iface.redraw(2);
+	return true;
+}
+
+bool Menu::start_drag(int x, int y)
+{
+	if (y == 0)
+	{
+		active = true;
+		iface.redraw(2);
+	}
+	if (active)
+	{
+		handle_hover(x, y);
+		return true;
+	}
+
+	return false;
+}
+void Menu::handle_drag(int x, int y)
+{
+	if (!active) return;
+	handle_hover(x, y);
+}
+void Menu::finish_drag(int x, int y)
+{
+	if (!active) return;
+	handle_click(x, y, false);
 }
