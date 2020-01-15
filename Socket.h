@@ -8,6 +8,23 @@
 #define SOCKET_DEBUG(...) 
 #endif
 
+//---------------------------------------------------------------
+// Socket sends data between the client and server. Optionally
+// buffering many smaller pieces into one larger send() call.
+// It can also do packaging, which creates buffered chunks with
+// a header that get stored in a queue until they can be sent
+// without blocking (used by the server for almost everything
+// it sends to the clients).
+//
+// Main pieces are:
+// - s: a socket handle
+// - buf: the buffer, which can be moved into...
+// - packets: the package queue
+//
+// Errors either call fatal (if the option is set in c'tor) or
+// just return false. (TODO: should be exceptions instead).
+//---------------------------------------------------------------
+
 class Socket
 {
 public:

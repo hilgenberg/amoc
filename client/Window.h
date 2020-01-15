@@ -6,6 +6,12 @@
 #include "themes.h"
 #include "utf8.h"
 
+//---------------------------------------------------------------
+// Window wraps NCurses' WINDOW pointer and adds UTF-8 support
+// as well as some convenience methods (like drawing formatted
+// times f.i.).
+//---------------------------------------------------------------
+
 class Window
 {
 public:
@@ -37,7 +43,7 @@ public:
 	void vl(int h) { wvline(win, vert,  h); } // same here
 	void clear(int w) { whline(win, ' ', w); }
 
-	void frame(color_index color, const Rect &r, const str &title, int title_space = 0, bool draw_bottom = true);
+	void frame(const Rect &r, const str &title, int title_space = 0, bool draw_bottom = true);
 
 	static chtype vert;	// vertical
 	static chtype horiz;	// horizontal

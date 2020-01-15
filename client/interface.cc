@@ -1,22 +1,7 @@
-#include <locale.h>
-#include <time.h>
-#include <signal.h>
-#include <sys/socket.h>
-#include <sys/wait.h>
-#include <dirent.h>
-#include <sys/select.h>
-
 #include "interface.h"
 #include "client.h"
-#include "utf8.h"
-#include "Panel.h"
 #include "themes.h"
 #include "keys.h"
-#include "../playlist.h"
-#include "../protocol.h"
-#include "../server/input/decoder.h"
-#include "../server/output/softmixer.h"
-#include "../server/ratings.h"
 
 Interface::Interface(Client &client, plist &pl1, plist &pl2)
 : client(client)
@@ -25,9 +10,7 @@ Interface::Interface(Client &client, plist &pl1, plist &pl2)
 , active(&right)
 , prompting(false)
 , need_redraw(2)
-, bitrate(-1), avg_bitrate(-1), rate(-1)
-, curr_time(0), channels(0)
-, state(STATE_STOP), mixer_value(-1)
+, left_total(-1), right_total(-1)
 , message_display_start(0)
 , menu(*this)
 , frame(*this)
@@ -222,22 +205,9 @@ void Interface::handle_input()
 			}
 		}
 	}
-	else if (menu.active)
+	else if (menu.handle_key(c, f))
 	{
-		auto cmd = get_key_cmd (CON_MENU, c, f);
-		if (cmd != KEY_CMD_WRONG)
-		{
-			if (!menu.handle_command(cmd)) handle_command(cmd);
-		}
-		else
-		{
-			cmd = get_key_cmd (CON_PANEL, c, f);
-			if (cmd != KEY_CMD_WRONG && cmd != KEY_CMD_MENU)
-			{
-				handle_command(KEY_CMD_MENU);
-			}
-			handle_command(cmd);
-		}
+		return;
 	}
 	else if (prompting)
 	{
@@ -282,7 +252,7 @@ void Interface::handle_input()
 	}
 }
 
-void Interface::draw(bool force)
+void Interface::draw()
 {
 	if (user_wants_interrupt() && prompting)
 	{
@@ -290,37 +260,23 @@ void Interface::draw(bool force)
 		redraw(1);
 	}
 
-	if (force) need_redraw = 2;
-
 	if (!messages.empty())
 	{
 		time_t t = time(NULL);
 		if (message_display_start == 0)
 		{
 			message_display_start = t;
-			need_redraw = std::max(need_redraw, 1);
+			redraw(1);
 		}
 		else if (t > message_display_start + options::MessageLingerTime)
 		{
 			messages.pop();
 			message_display_start = (messages.empty() ? 0 : t);
-			need_redraw = std::max(need_redraw, 1);
+			redraw(1);
 		}
 	}
 
 	if (!need_redraw) return;
-
-	// make sure there is always a selection
-	if (active->items.empty())
-	{
-		if (!left.items.empty()) active = &left;
-		if (!right.items.empty()) active = &right;
-	}
-	auto &am = *active;
-	if (am.sel == -1 && am.mark == -1 && !am.items.empty())
-		am.sel = 0;
-
-	const auto frame_color = dragging==&frame ? CLR_PANEL_FILE_SELECTED : CLR_FRAME;
 
 	const int W = COLS, H = LINES;
 	if (W < 8 || H < 6)
@@ -347,15 +303,22 @@ void Interface::draw(bool force)
 		return;
 	}
 
-	if (state == STATE_STOP)
+	if (info.get_state() == STATE_STOP)
 	{
 		curr_file.clear();
 		curr_tags.reset(nullptr);
-		bitrate = avg_bitrate = rate = 0;
-		curr_time = 0;
-		channels = 0;
 	}
 	
+	// make sure there is always a selection
+	if (active->items.empty())
+	{
+		if (!left.items.empty()) active = &left;
+		if (!right.items.empty()) active = &right;
+	}
+	auto &am = *active;
+	if (am.sel == -1 && am.mark == -1 && !am.items.empty())
+		am.sel = 0;
+
 	if (need_redraw > 1) // tags or sizes changed?
 	{
 		win.clear();
@@ -397,53 +360,13 @@ void Interface::draw(bool force)
 		other->set_active(false); if (options::layout != SINGLE) other->draw();
 		active->set_active(true); active->draw();
 
-		frame.draw();
+		left_total = left.items.total_time();
+		right_total = right.items.total_time();
 	}
 
-	//--- Info area ---------------------------------------------------------------------
-	const int total_time = curr_tags ? curr_tags->time : 0;
-
-	// status message
-	if (!status_msg.empty())
-	{
-		int w = 0, sw = (int)status_msg.length();
-
-		if (options::layout == HSPLIT)
-		{
-			if (left.bounds.w >= 30) w = left.bounds.w - 15;
-			if (w < sw) w = left.bounds.w - 2;
-			if (w < sw && right.bounds.w >= 30) w = W - 17;
-		}
-		else
-		{
-			if (w < sw && W >= 32) w = W - 17;
-		}
-	
-		if (w < sw) w = W - 4;
-		if (w < sw) sw = w;
-
-		win.color(frame_color);
-		win.moveto(H-4, 1);
-		win.hl(w+2); // overwrite playlist times if needed
-		int x0 = 1+(w-sw)/2;
-		win.put(H-4, x0, ' '); //win.rtee);
-		win.put(H-4, x0+sw+1, ' '); //win.ltee);
-
-		win.color(CLR_STATUS);
-		win.moveto(H-4, x0+1);
-		win.field(status_msg, sw);
-	}
-
-	if (total_time <= 0 || options::TimeBarLine.empty())
-	{
-		win.moveto(H-1, 1);
-		win.color(frame_color);
-		win.hl(W-2);
-	}
-
+	frame.draw();
 	info.draw();
-
-	if (menu.active) menu.draw();
+	menu.draw();
 
 	need_redraw = 0;
 	win.flush();

@@ -21,6 +21,11 @@ enum menu_request
 
 class Interface;
 
+//---------------------------------------------------------------
+// Panel draws the playlist views and handles selection, current
+// song mark and various events. Closely related to FrameView.
+//---------------------------------------------------------------
+
 struct Panel : public View
 {
 	// c'tor gets  called before the interface is running!

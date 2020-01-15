@@ -22,25 +22,21 @@ bool FrameView::handle_click(int x, int y, bool dbl)
 		return true;
 	}
 
-	auto &left = iface.left, &right = iface.right, *active = iface.active;
+	auto &left = iface.left, &right = iface.right, *&active = iface.active;
 
 	if (options::layout != SINGLE && left.bounds.contains(x,y))
 	{
 		if (active == &right) { active = &left; iface.redraw(2); }
-		left.handle_click(x, y, dbl);
-		return true;
+		return left.handle_click(x, y, dbl);
 	}
 	else if (options::layout != SINGLE && right.bounds.contains(x,y))
 	{
 		if (active == &left) { active = &right; iface.redraw(2); }
-		right.handle_click(x, y, dbl);
-		return true;
+		return right.handle_click(x, y, dbl);
 	}
 	else if (options::layout == SINGLE && active->bounds.contains(x,y))
 	{
-		active->handle_click(x, y, dbl);
-		iface.redraw(2);
-		return true;
+		return active->handle_click(x, y, dbl);
 	}
 
 	return false;
@@ -48,14 +44,14 @@ bool FrameView::handle_click(int x, int y, bool dbl)
 
 bool FrameView::handle_scroll(int x, int y, int dy)
 {
-	auto &left = iface.left, &right = iface.right, *active = iface.active;
+	auto &left = iface.left, &right = iface.right, *&active = iface.active;
 	Panel *m = NULL;
 	if (options::layout != SINGLE && left.bounds.contains(x,y)) m = &left;
 	else if (options::layout != SINGLE && right.bounds.contains(x,y)) m = &right;
 	else if (options::layout == SINGLE && active->bounds.contains(x,y)) m = active;
 	if (m)
 	{
-		iface.active = m;
+		active = m;
 		while (dy < 0) { m->move_selection(REQ_SCROLL_UP);   ++dy; }
 		while (dy > 0) { m->move_selection(REQ_SCROLL_DOWN); --dy; }
 		iface.redraw(2);
@@ -69,7 +65,7 @@ bool FrameView::start_drag(int x, int y)
 {
 	drag0 = -1;
 
-	if (!hits_divider(x, y)) return false;
+	if (!hits_divider(x, y)) return handle_click(x, y, false);
 
 	if (options::layout == HSPLIT)
 	{
@@ -82,31 +78,26 @@ bool FrameView::start_drag(int x, int y)
 		options::vsplit = std::make_pair(iface.right.bounds.h, iface.left.bounds.h);
 	}
 
-	iface.redraw(2); // draw frame in selected color
 	return true;
 }
 
 void FrameView::handle_drag(int x, int y)
 {
+	if (drag0 < 0) return;
+
 	auto &r = CURR_RATIO;
 	int p = (options::layout == HSPLIT ?  x :  y);
 	int s = (options::layout == HSPLIT ? +1 : -1);
 
 	if (p != drag0)
 	{
-		iface.redraw(2);
 		r.first  -= s*(p-drag0);
 		r.second += s*(p-drag0);
 		if (r.first  < 0) { r.second -= r.first;  r.first  = 0; }
 		if (r.second < 0) { r.first  -= r.second; r.second = 0; }
 		drag0 = p;
+		iface.redraw(2);
 	}
-}
-
-void FrameView::finish_drag(int x, int y)
-{
-	drag0 = -1;
-	iface.redraw(2); // put frame back to normal color
 }
 
 void FrameView::draw() const
@@ -117,7 +108,6 @@ void FrameView::draw() const
 	Rect r1 = left.bounds.inset(-1), r2 = right.bounds.inset(-1);
 
 	const int W = COLS, H = LINES;
-	const auto frame_color = drag0 != -1 ? CLR_PANEL_FILE_SELECTED : CLR_FRAME;
 
 	str mhome = options::MusicDir; if (!mhome.empty()) mhome += '/'; if (mhome.length() < 2) mhome.clear();
 	str uhome = options::Home;     if (!uhome.empty()) uhome += '/'; if (uhome.length() < 2) uhome.clear();
@@ -140,13 +130,13 @@ void FrameView::draw() const
 		sanitize(s);
 		if (options::FileNamesIconv) s = files_iconv_str (s);
 		if (options::UseRCCForFilesystem) s = rcc_reencode(s);
-		win.frame(frame_color, r1, s, options::layout == VSPLIT ? 14 : 0, false);
+		win.frame(r1, s, options::layout == VSPLIT ? 14 : 0, false);
 	}
 	if (options::layout != SINGLE || active == &right)
-		win.frame(frame_color, r2, client.synced ? "Playlist" : "Playlist (local)", 0, false);
+		win.frame(r2, client.synced ? "Playlist" : "Playlist (local)", 0, false);
 
 	// bottom frame
-	win.color(frame_color);
+	win.color(CLR_FRAME);
 	win.put(H-4, 0, win.ltee);
 	win.hl(W-2);
 	win.put(H-4, W-1, win.rtee);
@@ -178,9 +168,9 @@ void FrameView::draw() const
 		
 		win.color(CLR_PLIST_TIME);
 		win.moveto(y, x0+1);
-		win.total_time(left.items.total_time());
+		win.total_time(iface.left_total);
 
-		win.color(frame_color);
+		win.color(CLR_FRAME);
 		win.put(y, x0, '[');
 		win.put(y, x1, ']');
 	}
@@ -191,11 +181,42 @@ void FrameView::draw() const
 
 		win.color(CLR_PLIST_TIME);
 		win.moveto(y, x0+1);
-		win.total_time(right.items.total_time());
+		win.total_time(iface.right_total);
 
-		win.color(frame_color);
+		win.color(CLR_FRAME);
 		win.put(y, x0, '[');
 		win.put(y, x1, ']');
+	}
+
+	// status message
+	if (!iface.status_msg.empty())
+	{
+		int w = 0, sw = (int)iface.status_msg.length();
+
+		if (options::layout == HSPLIT)
+		{
+			if (left.bounds.w >= 30) w = left.bounds.w - 15;
+			if (w < sw) w = left.bounds.w - 2;
+			if (w < sw && right.bounds.w >= 30) w = W - 17;
+		}
+		else
+		{
+			if (w < sw && W >= 32) w = W - 17;
+		}
+	
+		if (w < sw) w = W - 4;
+		if (w < sw) sw = w;
+
+		win.color(CLR_FRAME);
+		win.moveto(H-4, 1);
+		win.hl(w+2); // overwrite playlist times if needed
+		int x0 = 1+(w-sw)/2;
+		win.put(H-4, x0, ' '); //win.rtee);
+		win.put(H-4, x0+sw+1, ' '); //win.ltee);
+
+		win.color(CLR_STATUS);
+		win.moveto(H-4, x0+1);
+		win.field(iface.status_msg, sw);
 	}
 
 }

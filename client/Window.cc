@@ -76,7 +76,7 @@ Window::~Window()
 	if (endwin () == ERR && endwin () == ERR) logit ("endwin() failed!");
 
 	/* Make sure that the next line after we exit will be clear. */
-	printf ("\n");
+	//printf ("\n");
 	fflush (stdout);
 }
 
@@ -86,11 +86,11 @@ void Window::clear()
 	werase (win);
 }
 
-void Window::frame(color_index color, const Rect &r, const str &title, int title_space, bool draw_bottom)
+void Window::frame(const Rect &r, const str &title, int title_space, bool draw_bottom)
 {
 	if (r.w < 2 || r.h < 2) return;
 
-	wattrset (win, get_color(color));
+	wattrset (win, get_color(CLR_FRAME));
 	wmove (win, r.y, r.x);
 	waddch (win, ulcorn);
 	whline (win, horiz, r.w - 2);
@@ -115,7 +115,7 @@ void Window::frame(color_index color, const Rect &r, const str &title, int title
 		waddch(win, rtee);
 		wattrset (win, get_color(CLR_WIN_TITLE));
 		xwprintfield(win, title, tw);
-		wattrset (win, get_color(color));
+		wattrset (win, get_color(CLR_FRAME));
 		waddch (win, ltee);
 	}
 }

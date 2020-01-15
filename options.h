@@ -1,6 +1,7 @@
 #pragma once
 
 enum Component { CLI, GUI, SERVER };
+
 enum Layout { HSPLIT=0, VSPLIT=1, SINGLE=2 };
 
 namespace options

@@ -1,5 +1,10 @@
 #pragma once
 
+//---------------------------------------------------------------
+// View is some bit of the interface that can be drawn to the
+// screen and optionally handle user input.
+//---------------------------------------------------------------
+
 class View
 {
 public:
@@ -14,4 +19,7 @@ public:
 	virtual bool handle_click(int x, int y, bool dbl) { return false; }
 
 	virtual bool handle_scroll(int x, int y, int dy) { return false; }
+
+	// c = regular key, f = function key
+	virtual bool handle_key(wchar_t c, int f) { return false; }
 };

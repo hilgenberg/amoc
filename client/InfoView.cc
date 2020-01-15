@@ -26,10 +26,20 @@
 // width of the toggles for shuffle, repeat, ...
 static constexpr int w_toggles = 6+3+7+6+4+5*2+4*1;
 
+InfoView::InfoView(Interface &iface)
+: iface(iface), drag_x0(-1)
+, bitrate(-1), avg_bitrate(-1), rate(-1)
+, curr_time(0), channels(0)
+, state(STATE_STOP), mixer_value(-1)
+{
+}
+
+void InfoView::redraw(int i) { iface.redraw(i); }
+
 bool InfoView::handle_click(int x, int y, bool dbl)
 {
 	const int W = COLS, H = LINES;
-	const int total_time = iface.curr_tags ? iface.curr_tags->time : 0;
+	const int total_time = iface.get_total_time();
 	auto &client = iface.client;
 
 	// time bar --> seek
@@ -103,7 +113,7 @@ void InfoView::finish_drag(int x, int y)
 bool InfoView::handle_scroll(int x, int y, int dy)
 {
 	const int W = COLS, H = LINES;
-	const int total_time = iface.curr_tags ? iface.curr_tags->time : 0;
+	const int total_time = iface.get_total_time();
 
 	// time bar --> seek
 	if (y == H-1 && x >= 1 && x <= W-2 && W > 8)
@@ -119,15 +129,22 @@ bool InfoView::handle_scroll(int x, int y, int dy)
 void InfoView::draw() const
 {
 	const int W = COLS, H = LINES;
-	const int total_time = iface.curr_tags ? iface.curr_tags->time : 0;
+	const int total_time = iface.get_total_time();
 	auto &win = iface.win;
+
+	if (state == STATE_STOP)
+	{
+		bitrate = avg_bitrate = rate = 0;
+		curr_time = 0;
+		channels = 0;
+	}
 
 	// current song: play/pause state
 	win.color(CLR_BACKGROUND);
 	win.moveto(H-3, 1); win.clear(W-2);
 	win.color(CLR_STATE);
 	win.moveto(H-3, 1);
-	switch (iface.get_state()) {
+	switch (state) {
 		case STATE_PLAY:  win.put_ascii(" > "); break;
 		case STATE_STOP:  win.put_ascii("[] "); break;
 		case STATE_PAUSE: win.put_ascii("|| "); break;
@@ -168,9 +185,15 @@ void InfoView::draw() const
 
 	// time bar
 	str c1 = options::TimeBarLine, c2 = options::TimeBarSpace;
-	if (total_time > 0 && !c1.empty())
+	if (total_time <= 0 || c1.empty())
 	{
-		int l1 = std::max(0, std::min(W-2, (W-2)*iface.curr_time/total_time));
+		win.moveto(H-1, 1);
+		win.color(CLR_FRAME);
+		win.hl(W-2);
+	}
+	else
+	{
+		int l1 = std::max(0, std::min(W-2, (W-2)*curr_time/total_time));
 		if (c1.empty()) c1 = win.horiz;
 		if (c2.empty()) c2 = c1;
 		win.moveto(H-1, 1);
@@ -234,7 +257,7 @@ void InfoView::draw() const
 			win.moveto(H-2, x+w-w_toggles);
 			#define SW(x, v) win.color((v) ? CLR_INFO_ENABLED : CLR_INFO_DISABLED);\
 				win.put_ascii("[" #x "]")
-			SW(STEREO, iface.channels==2); win.put(' ');
+			SW(STEREO, channels==2); win.put(' ');
 			SW(NET, is_url(iface.curr_file.c_str())); win.put(' ');
 			SW(SHUFFLE, options::Shuffle); win.put(' ');
 			SW(REPEAT, options::Repeat); win.put(' ');
@@ -249,13 +272,13 @@ void InfoView::draw() const
 		if (w >= 5)
 		{
 			win.moveto(H-2, x);
-			win.time(iface.curr_time);
+			win.time(curr_time);
 			x += TW+1; // time + one space
 			w -= TW+1;
 		}
 		if (w >= 13)
 		{
-			win.moveto(H-2, x); win.time(total_time - iface.curr_time);
+			win.moveto(H-2, x); win.time(total_time - curr_time);
 			win.moveto(H-2, x+TW+2); win.time(total_time);
 			win.color(CLR_TIME_TOTAL_FRAMES);
 			win.put(H-2, x+TW+1,   '[');
@@ -274,16 +297,16 @@ void InfoView::draw() const
 
 			win.color(CLR_SOUND_PARAMS);
 			win.moveto(H-2, x);
-			if (iface.rate >= 0) win.put_ascii(format("%3d", iface.rate)); else win.put_ascii("   ");
+			if (rate >= 0) win.put_ascii(format("%3d", rate)); else win.put_ascii("   ");
 			win.moveto(H-2, x+7);
-			if (iface.bitrate >= 0) win.put_ascii(format("%4d", std::min(iface.bitrate, 9999))); else win.put_ascii("    ");
+			if (bitrate >= 0) win.put_ascii(format("%4d", std::min(bitrate, 9999))); else win.put_ascii("    ");
 			x += 15+2;
 			w -= 15+2;
 		}
 
 		if (options::ShowMixer)
 		{
-			str ms = format("%s: %02d%%", iface.mixer_name.c_str(), iface.mixer_value);
+			str ms = format("%s: %02d%%", mixer_name.c_str(), mixer_value);
 			if (w >= ms.length())
 			{
 				win.color(CLR_SOUND_PARAMS);

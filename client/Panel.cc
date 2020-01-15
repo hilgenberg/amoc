@@ -153,6 +153,7 @@ void Panel::move_selection(menu_request req)
 	if (sel >= N) sel = N-1;
 	if (sel <  0) sel = 0;
 }
+
 bool Panel::handle_click(int x, int y, bool dbl)
 {
 	if (!bounds.contains(x,y)) return false;

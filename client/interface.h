@@ -2,11 +2,7 @@
 #include <functional>
 
 #include "Window.h"
-#include "keys.h"
-#include "../playlist.h"
 #include "Panel.h"
-#include "Rect.h"
-#include "../server/server.h" // PlayState
 #include "Menu.h"
 #include "FrameView.h"
 #include "InfoView.h"
@@ -22,7 +18,7 @@ class Interface
 public:
 	Interface(Client &client, plist &left, plist &right);
 
-	void draw(bool force=false);
+	void draw();
 	void redraw(int k) { need_redraw = std::max(need_redraw, k); }
 	void resize(); // Handle terminal size change.
 	void handle_input(); // read the next key stroke
@@ -84,23 +80,12 @@ public:
 		redraw(2);
 		return true;
 	}
+	str get_curr_file()  const { return curr_file; }
 	int get_curr_index() const { return curr_idx; }
-	void update_curr_tags(file_tags *t) { curr_tags.reset(t); redraw(1); }
-	int  get_total_time() const { return curr_tags ? curr_tags->time : 0; }
-	str  get_curr_file() const { return curr_file; }
-	#define UPD(T,x)\
-		void update_ ## x(T v) { if (x==v) return; x=v; redraw(1); } \
-		T get_ ## x() const { return x; }
-	UPD(int, bitrate)
-	UPD(int, avg_bitrate)
-	UPD(int, rate)
-	UPD(int, curr_time)
-	UPD(int, channels)
-	UPD(PlayState, state)
-	UPD(str, mixer_name)
-	UPD(int, mixer_value)
-	#undef UPD
 
+	int  get_total_time() const { return curr_tags ? curr_tags->time : 0; }
+	void update_curr_tags(file_tags *t) { curr_tags.reset(t); redraw(1); }
+	
 	Window    win;
 	Panel     left, right, *active;
 	Client   &client;
@@ -110,15 +95,10 @@ public:
 
 private:
 	friend class InfoView;
+	friend class FrameView;
 	str curr_file; int curr_idx;
 	std::unique_ptr<file_tags> curr_tags;
-	int bitrate, avg_bitrate; // in kbps
-	int rate;		  // in kHz
-	int curr_time;
-	int channels;
-	PlayState state; // STATE_(PLAY | STOP | PAUSE)
-	str mixer_name;
-	int mixer_value;
+	int left_total, right_total;
 
 	void cycle_layouts();
 

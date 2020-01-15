@@ -203,11 +203,11 @@ str absolute_path(const str &p)
 		return q.replace(0, 1, options::Home);
 	}
 
-	char buf[PATH_MAX];
-	if (!getcwd (buf, sizeof(buf)))
-		interface_fatal ("Can't get CWD: %s", xstrerror (errno));
-	
-	return add_path(buf, p);
+	char *cwd = getcwd(NULL,0);
+	if (!cwd) interface_fatal ("Can't get CWD: %s", xstrerror (errno));
+	auto ret = add_path(cwd, p);
+	free(cwd);
+	return ret;
 }
 
 str containing_directory(const str &path)

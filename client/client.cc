@@ -40,8 +40,8 @@ Client::Client(int sock, stringlist &args)
 	if (options::ShowMixer)
 	{
 		srv.send(CMD_GET_MIXER_CHANNEL_NAME);
-		iface->update_mixer_name(get_data_str());
-		iface->update_mixer_value(get_mixer_value());
+		iface->info.update_mixer_name(get_data_str());
+		iface->info.update_mixer_value(get_mixer_value());
 	}
 
 	xsignal(SIGQUIT,  sig_quit);
@@ -196,9 +196,9 @@ void Client::update_state ()
 {
 	want_state_update = false;
 
-	auto old_state = iface->get_state();
+	auto old_state = iface->info.get_state();
 	auto new_state = get_state ();
-	iface->update_state(new_state);
+	iface->info.update_state(new_state);
 
 	/* Silent seeking makes no sense if the state has changed. */
 	if (old_state != new_state) silent_seek_pos = -1;
@@ -213,10 +213,10 @@ void Client::update_state ()
 			send_tags_request(file); // TODO: see if we already have them first
 	}
 
-	iface->update_channels(get_channels());
-	iface->update_bitrate(get_bitrate());
-	iface->update_rate(get_rate());
-	if (silent_seek_pos == -1) iface->update_curr_time(get_curr_time ());
+	iface->info.update_channels(get_channels());
+	iface->info.update_bitrate(get_bitrate());
+	iface->info.update_rate(get_rate());
+	if (silent_seek_pos == -1) iface->info.update_curr_time(get_curr_time ());
 }
 
 /* Load the directory content into dir_plist and switch the menu to it.
@@ -413,13 +413,13 @@ static double now()
 /* Handle silent seek key. */
 void Client::seek_silent (int sec)
 {
-	if (iface->get_state() != STATE_PLAY || is_url(iface->get_curr_file().c_str())) return;
+	if (iface->info.get_state() != STATE_PLAY || is_url(iface->get_curr_file().c_str())) return;
 
-	if (silent_seek_pos == -1) silent_seek_pos = iface->get_curr_time();
+	if (silent_seek_pos == -1) silent_seek_pos = iface->info.get_curr_time();
 	silent_seek_pos += sec;
 	silent_seek_pos = CLAMP(0, silent_seek_pos, iface->get_total_time());
 
-	iface->update_curr_time(silent_seek_pos);
+	iface->info.update_curr_time(silent_seek_pos);
 
 	silent_seek_key_last = now();
 }
@@ -524,7 +524,7 @@ void Client::run()
 		}
 
 		if (options::ShowMixer)
-			iface->update_mixer_value(get_mixer_value());
+			iface->info.update_mixer_value(get_mixer_value());
 
 
 		iface->draw();
@@ -573,7 +573,7 @@ bool Client::handle_command(key_cmd cmd)
 		case KEY_CMD_STOP: srv.send(CMD_STOP); break;
 		case KEY_CMD_NEXT:
 		{
-			if (iface->get_state() != STATE_STOP)
+			if (iface->info.get_state() != STATE_STOP)
 				srv.send(CMD_NEXT);
 			else if (playlist.size()) {
 				srv.send(CMD_PLAY);
@@ -584,7 +584,7 @@ bool Client::handle_command(key_cmd cmd)
 		}
 		case KEY_CMD_PREVIOUS: srv.send(CMD_PREV); break;
 		case KEY_CMD_PAUSE:
-			switch (iface->get_state()) {
+			switch (iface->info.get_state()) {
 				case STATE_PLAY: srv.send(CMD_PAUSE); break;
 				case STATE_PAUSE: srv.send(CMD_UNPAUSE); break;
 				default: logit ("User pressed pause when not playing."); break;
@@ -739,11 +739,11 @@ void Client::handle_server_event (int type)
 		case EV_BUSY: interface_fatal ("The server is busy; too many other clients are connected!"); break;
 
 		case EV_STATE: want_state_update = true; break;
-		case EV_CTIME: { int tmp = srv.get_int(); if (silent_seek_pos == -1) iface->update_curr_time(tmp); } break;
-		case EV_BITRATE: iface->update_bitrate(srv.get_int()); break;
-		case EV_RATE:  iface->update_rate(srv.get_int()); break;
-		case EV_CHANNELS: iface->update_channels(srv.get_int()); break;
-		case EV_AVG_BITRATE: iface->update_avg_bitrate(srv.get_int()); break;
+		case EV_CTIME: { int tmp = srv.get_int(); if (silent_seek_pos == -1) iface->info.update_curr_time(tmp); } break;
+		case EV_BITRATE: iface->info.update_bitrate(srv.get_int()); break;
+		case EV_RATE:  iface->info.update_rate(srv.get_int()); break;
+		case EV_CHANNELS: iface->info.update_channels(srv.get_int()); break;
+		case EV_AVG_BITRATE: iface->info.update_avg_bitrate(srv.get_int()); break;
 		case EV_OPTIONS: 
 		{
 			int v = srv.get_int();
@@ -787,8 +787,8 @@ void Client::handle_server_event (int type)
 
 		case EV_STATUS_MSG: iface->message(srv.get_str()); break;
 		case EV_MIXER_CHANGE:
-			iface->update_mixer_name(srv.get_str());
-			iface->update_mixer_value(srv.get_int());
+			iface->info.update_mixer_name(srv.get_str());
+			iface->info.update_mixer_value(srv.get_int());
 			break;
 		case EV_FILE_TAGS:
 		{

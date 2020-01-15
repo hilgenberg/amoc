@@ -4,11 +4,7 @@
 #include <stdexcept>
 #include <cassert>
 
-/**
- * Like sprintf for std::string.
- * @param fmt Passed to vsnprintf, so it supports all the usual % escapes.
- * @return The formatted string.
- */
+// like sprintf for std::string.
 std::string format(const char *fmt, ...);
 
 std::string spaces(int n);

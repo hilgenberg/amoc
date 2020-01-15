@@ -28,15 +28,3 @@ char *read_line (FILE *file);
 char *find_match_dir (char *dir);
 
 bool purge_directory (const char *dir_path);
-
-
-/* Maximum path length, we don't consider exceptions like mounted NFS */
-#ifndef PATH_MAX
-# if defined(_POSIX_PATH_MAX)
-#  define PATH_MAX	_POSIX_PATH_MAX /* Posix */
-# elif defined(MAXPATHLEN)
-#  define PATH_MAX	MAXPATHLEN      /* Solaris? Also linux...*/
-# else
-#  define PATH_MAX	4096             /* Suppose, we have 4096 */
-# endif
-#endif

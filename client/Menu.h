@@ -13,6 +13,7 @@ enum MenuState
 	Unselected,  // ( ) Item Text
 	Selected,    // (*) Item Text
 };
+
 struct MenuItem
 {
 	MenuItem(const char *title, key_cmd cmd) : title(title), cmd(cmd) {}
@@ -29,6 +30,7 @@ struct MenuItem
 	std::function<MenuState(void)> state_fn;
 	std::function<bool(void)> greyed_fn;
 };
+
 struct SubMenu
 {
 	SubMenu(const char *title) : title(title), sel(0) {}
@@ -37,6 +39,10 @@ struct SubMenu
 	mutable int sel;
 };
 
+//---------------------------------------------------------------
+// Menu draws and handles the F9-menu.
+//---------------------------------------------------------------
+
 class Menu : public View
 {
 public:
@@ -44,6 +50,7 @@ public:
 	bool active;
 	void draw() const override;
 
+	bool handle_key(wchar_t c, int f) override;
 	bool handle_command(key_cmd cmd);
 	bool handle_click(int x, int y, bool dbl) override;
 	void handle_hover(int x, int y);

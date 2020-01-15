@@ -187,6 +187,27 @@ void Menu::draw() const
 	if (2+n < H) { win.color(CLR_MENU_ITEM); win.moveto(2+n, x0); win.spaces(mw); }
 }
 
+bool Menu::handle_key(wchar_t c, int f)
+{
+	if (!active) return false;
+	auto cmd = get_key_cmd (CON_MENU, c, f);
+	if (cmd != KEY_CMD_WRONG)
+	{
+		if (handle_command(cmd)) return true;
+	}
+	else
+	{
+		cmd = get_key_cmd (CON_PANEL, c, f);
+		if (cmd == KEY_CMD_WRONG) return true;
+		
+		active = false;
+		iface.redraw(2);
+		if (cmd == KEY_CMD_MENU) return true;
+	}
+	iface.handle_command(cmd);
+	return true;
+}
+
 bool Menu::handle_command(key_cmd cmd)
 {
 	const int N = (int)items.size();
