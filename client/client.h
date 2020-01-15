@@ -25,6 +25,7 @@ public:
 	void seek (int sec) { srv.send(CMD_SEEK); srv.send(sec); }
 	void jump_to (int sec) { srv.send(CMD_JUMP_TO); srv.send(sec); }
 	void seek_to_percent (int percent) { srv.send(CMD_JUMP_TO); srv.send(-percent); }
+	void add_url(const str &url, bool at_end);
 
 private:
 	Socket srv;

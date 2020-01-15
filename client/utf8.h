@@ -18,6 +18,7 @@ int xmvwaddstr (WINDOW *win, const int y, const int x, const str &s);
 //         l: cut off at the left:      [...foo]
 //         c: cut off in the center:    [f...oo]
 //         R: right-align or same as l: [   foo]
+//         C: centered or r
 void xwprintfield(WINDOW *win, const str &s, int field_width, char format = 'r');
 
 str iconv_str (const iconv_t desc, const str &input);

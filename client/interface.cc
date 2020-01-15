@@ -8,7 +8,6 @@ Interface::Interface(Client &client, plist &pl1, plist &pl2)
 , left(this, pl1)
 , right(this, pl2)
 , active(&right)
-, prompting(false)
 , need_redraw(2)
 , left_total(-1), right_total(-1)
 , message_display_start(0)
@@ -34,16 +33,6 @@ void Interface::cycle_layouts()
 	redraw(2);
 }
 
-void Interface::prompt(const str &prompt, const str &s0, int cur0, std::function<void(void)> cb)
-{
-	prompting = true;
-	prompt_str = prompt;
-	response = s0;
-	cursor = hscroll = cur0;
-	callback = cb;
-	redraw(1);
-}
-
 bool Interface::handle_command(key_cmd cmd)
 {
 	switch (cmd)
@@ -62,10 +51,11 @@ bool Interface::handle_command(key_cmd cmd)
 
 		case KEY_CMD_MENU: menu.active = !menu.active; redraw(2); break;
 
-		/*case KEY_CMD_ADD_STREAM:
-			prompt("ADD URL", NULL, ...);
+		case KEY_CMD_ADD_STREAM:
+			dlg.reset(new Dialog(*this, Dialog::ADD_URL));
+			redraw(2);
 			break;
-		case KEY_CMD_MENU_SEARCH:
+		/*case KEY_CMD_MENU_SEARCH:
 			prompt("SEARCH", NULL, ...);
 			iface_make_entry (ENTRY_SEARCH);
 			break;*/
@@ -74,32 +64,8 @@ bool Interface::handle_command(key_cmd cmd)
 				error ("The playlist is empty.");
 			else
 			{
-				str p0 = client.cwd;
-				if (!p0.empty() && p0.back() != '/') p0 += "/";
-				p0 += ".m3u";
-				prompt("SAVE PLAYLIST", p0, p0.length()-4, [this](){
-					if (response.empty()) return;
-					str fn = response;
-					if (file_exists(fn.c_str())) {
-						prompt("File exists, overwrite (y/n)?", "", 0, [this,fn](){
-							if (response == "y")
-							{
-								status("Saving the playlist...");
-								client.playlist.save(fn.c_str());
-								status("Playlist saved.");
-							}
-							else
-								status("Aborted.");
-						});
-					}
-					else
-					{
-						status("Saving the playlist...");
-						client.playlist.save(fn.c_str());
-						client.handle_command(KEY_CMD_RELOAD);
-						status("Playlist saved.");
-					}
-				});
+				dlg.reset(new Dialog(*this, Dialog::SAVE_PLIST));
+				redraw(2);
 			}
 			break;
 		/*case KEY_CMD_GO_DIR:
@@ -164,19 +130,20 @@ void Interface::handle_input()
 			{
 				MOUSE_DEBUG("UP");
 				if (dragging) dragging->finish_drag(ev.x, ev.y);
-				else if (menu.active) menu.finish_drag(ev.x, ev.y);
+				else if (!dlg && menu.active) menu.finish_drag(ev.x, ev.y);
 				dragging = NULL;
 			}
 			else if ((ev.bstate & REPORT_MOUSE_POSITION))
 			{
 				MOUSE_DEBUG(dragging ? "DRAG" : "MOVE");
 				if (dragging) dragging->handle_drag(ev.x, ev.y);
-				else if (menu.active) menu.handle_drag(ev.x, ev.y);
+				else if (!dlg && menu.active) menu.handle_drag(ev.x, ev.y);
 			}
 			else if ((ev.bstate & BUTTON1_PRESSED))
 			{
 				MOUSE_DEBUG("DOWN");
-				if      ( menu.start_drag(ev.x, ev.y)) dragging = &menu; 
+				if (dlg &&dlg->start_drag(ev.x, ev.y)) dragging = dlg.get(); 
+				else if ( menu.start_drag(ev.x, ev.y)) dragging = &menu; 
 				else if ( info.start_drag(ev.x, ev.y)) dragging = &info; 
 				else if (frame.start_drag(ev.x, ev.y)) dragging = &frame;
 				else                                   dragging = NULL;
@@ -186,6 +153,7 @@ void Interface::handle_input()
 				MOUSE_DEBUG("CLICK");
 				dragging = NULL;
 				bool dbl = ev.bstate & BUTTON1_DOUBLE_CLICKED;
+				(dlg && dlg->handle_click(ev.x, ev.y, dbl)) ||
 				menu .handle_click(ev.x, ev.y, dbl) ||
 				frame.handle_click(ev.x, ev.y, dbl) ||
 				info .handle_click(ev.x, ev.y, dbl);
@@ -195,6 +163,7 @@ void Interface::handle_input()
 				bool up = ev.bstate & BUTTON4_PRESSED;
 				MOUSE_DEBUG(up ? "SCROLL UP" : "SCROLL DOWN");
 				int dy = up ? -1 : 1;
+				(dlg && dlg->handle_scroll(ev.x, ev.y, dy)) ||
 				menu .handle_scroll(ev.x, ev.y, dy) ||
 				frame.handle_scroll(ev.x, ev.y, dy) ||
 				info .handle_scroll(ev.x, ev.y, dy);
@@ -205,44 +174,13 @@ void Interface::handle_input()
 			}
 		}
 	}
+	else if (dlg)
+	{
+		dlg->handle_key(c, f);
+	}
 	else if (menu.handle_key(c, f))
 	{
 		return;
-	}
-	else if (prompting)
-	{
-		redraw(1);
-		if (c == '\n')
-		{
-			prompting = false;
-			callback();
-			return;
-		}
-		else if (c)
-		{
-			cursor += strins(response, cursor, c);
-			return;
-		}
-
-		switch (f)
-		{
-			case KEY_LEFT:  --cursor; return;
-			case KEY_RIGHT: ++cursor; return;
-			case KEY_HOME: cursor = 0; return;
-			case KEY_END: cursor = strwidth(response); return;
-
-			case KEY_BACKSPACE: if (cursor) strdel(response, --cursor);  return;
-			case KEY_DC: if (cursor) strdel(response, cursor); return;
-		}
-		key_cmd cmd = get_key_cmd (CON_ENTRY, c, f);
-		switch (cmd)
-		{
-			case KEY_CMD_CANCEL: prompting = false; return;
-			case KEY_CMD_HISTORY_UP: /*TODO*/ return;
-			case KEY_CMD_HISTORY_DOWN: /*TODO*/ return;
-			case KEY_CMD_DELETE_START: strdel(response, 0, cursor); cursor = 0; return;
-			case KEY_CMD_DELETE_END: strdel(response, cursor, strwidth(response)); return;
-		}
 	}
 	else
 	{
@@ -254,10 +192,9 @@ void Interface::handle_input()
 
 void Interface::draw()
 {
-	if (user_wants_interrupt() && prompting)
+	if (user_wants_interrupt() && dlg)
 	{
-		prompting = false;
-		redraw(1);
+		clear_dialog();
 	}
 
 	if (!messages.empty())
@@ -367,6 +304,9 @@ void Interface::draw()
 	frame.draw();
 	info.draw();
 	menu.draw();
+
+	// dlg must be last so the cursor stays in the right place
+	if (dlg) dlg->draw(); else curs_set(0);
 
 	need_redraw = 0;
 	win.flush();

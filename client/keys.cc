@@ -206,7 +206,7 @@ void keys_init ()
 	CMD(KEY_CMD_GO_URL,	"go_url",	'o'); // Play from the URL
 	CMD(KEY_CMD_GO_TO_PLAYING_FILE,	"go_to_playing_file",	'G'); // Go to the currently playing file's directory
 	CMD(KEY_CMD_GO_DIR,	"go_to_a_directory",	0); // Go to a directory
-	CMD(KEY_CMD_GO_DIR_UP,	"go_up",	'U'); // Go to '..'
+	CMD(KEY_CMD_GO_DIR_UP,	"go_up",	0); // Go to '..'
 	
 	CMD(KEY_CMD_SEEK_FORWARD_5,	"seek_forward_fast",	']'); // Silent seek forward by 5s
 	CMD(KEY_CMD_SEEK_BACKWARD_5,	"seek_backward_fast",	'['); // Silent seek backward by 5s
@@ -246,7 +246,7 @@ void keys_init ()
  	CMD(KEY_CMD_TOGGLE_MAKE_MONO,	"toggle_make_mono",	'J'); // Toggle mono-mixing
  	CMD(KEY_CMD_PLIST_MOVE_UP,	"plist_move_up",	'u'); // Move playlist item up
  	CMD(KEY_CMD_PLIST_MOVE_DOWN,	"plist_move_down",	'j'); // Move playlist item down
- 	CMD(KEY_CMD_ADD_STREAM,	"plist_add_stream",	CTRL('U')); // Add a URL to the playlist using entry
+ 	CMD(KEY_CMD_ADD_STREAM,	"plist_add_stream",	'U'); // Add a URL to the playlist using entry
 	CMD(KEY_CMD_MENU,	"menu_show",	KEY_F(9)); // Show or hide the menu
 
  	CMD(KEY_CMD_TOGGLE_PLAYLIST_FULL_PATHS,	"playlist_full_paths",	'P'); // Toggle displaying full paths in the playlist

@@ -222,7 +222,8 @@ str containing_directory(const str &path)
 /* Is the string a URL? */
 bool is_url (const str &str)
 {
-	return has_prefix(str, "http://", true) || has_prefix(str, "ftp://", true);
+	return has_prefix(str, "http://", true) || has_prefix(str, "https://", true) ||
+	       has_prefix(str, "ftp://", true);
 }
 
 /* Return 1 if the file is a directory, 0 if not, -1 on error. */

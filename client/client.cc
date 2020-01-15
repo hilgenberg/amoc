@@ -326,18 +326,44 @@ void Client::add_to_plist(bool at_end)
 		srv.send(CMD_PLIST_ADD);
 		srv.send(pl);
 		srv.send(pos);
+		iface->select_song(pos < 0 ? playlist.size() : pos);
 	}
 	else
 	{
-		if (pos < 0)
-			playlist += std::move(pl);
-		else
-			playlist.insert(std::move(pl), pos);
-		
+		playlist.insert(std::move(pl), pos);
+		iface->select_song(pos < 0 ? playlist.size()-1 : pos);
 		iface->redraw(2);
 	}
 
 	iface->left.move_selection(REQ_DOWN);
+}
+
+void Client::add_url(const str &url, bool at_end)
+{
+	if (!is_url(url)) return;
+	plist pl;
+
+	int pos = -1;
+	if (!at_end)
+	{
+		int idx = iface->get_curr_index();
+		pos = (idx < 0 ? 0 : idx+1); // insert at beginning if nothing plays
+	}
+
+	if (synced)
+	{
+		srv.send(CMD_PLIST_ADD);
+		srv.send(url);
+		srv.send("");
+		srv.send(pos);
+		iface->select_song(pos < 0 ? playlist.size() : pos);
+	}
+	else
+	{
+		playlist.insert(url, pos);
+		iface->select_song(pos < 0 ? playlist.size()-1 : pos);
+		iface->redraw(2);
+	}
 }
 
 void Client::set_rating (int r)

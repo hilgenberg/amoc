@@ -245,6 +245,13 @@ void xwprintfield(WINDOW *win, const str &s, int W, char fmt)
 			while (w++ < W) waddch (win, ' ');
 			xwaddstr(win, s);
 		}
+		else if (fmt == 'C')
+		{
+			int k = W-w;
+			for (int i = 0; i < k/2; ++i) waddch (win, ' ');
+			xwaddstr(win, s);
+			for (int i = k/2; i < k; ++i) waddch (win, ' ');
+		}
 		else
 		{
 			xwaddstr(win, s);
@@ -262,6 +269,7 @@ void xwprintfield(WINDOW *win, const str &s, int W, char fmt)
 	switch (fmt)
 	{
 		case 'r':
+		case 'C':
 			xwaddnstr(win, s, W-3);
 			xwaddstr(win, "...");
 			break;

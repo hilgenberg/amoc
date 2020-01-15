@@ -6,6 +6,7 @@ struct Rect
 	Rect(int x, int y, int w, int h) : x(x), y(y), w(w), h(h) {}
 	
 	Rect inset(int d) const { return Rect(x+d, y+d, w-2*d, h-2*d); }
+	void center(int W, int H) { x = std::max(0, (W-w)/2); y = std::max(0, (H-h)/2); }
 
 	void set(int x_, int y_, int w_, int h_) { x=x_; y=y_; w=w_; h=h_; }
 	

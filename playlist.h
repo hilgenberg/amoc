@@ -76,6 +76,7 @@ public:
 
 	void insert(const plist &other, int pos); // pos = -1 to add
 	void insert(plist &&other, int pos); // pos = -1 to add
+	void insert(const str &f, int pos); // pos = -1 to add
 
 	size_t size() const { return items.size(); }
 

@@ -87,6 +87,17 @@ void plist::insert(plist &&other, int pos)
 		std::make_move_iterator(std::begin(other.items)),
 		std::make_move_iterator(std::end(other.items)));
 }
+void plist::insert(const str &f, int pos)
+{
+	if (pos < 0 || pos >= items.size())
+	{
+		*this += f;
+		return;
+	}
+
+	auto j = items.begin() + pos;
+	items.emplace(j++, new plist_item(f));
+}
 
 void plist::shuffle ()
 {

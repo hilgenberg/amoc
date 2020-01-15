@@ -6,6 +6,7 @@
 #include "Menu.h"
 #include "FrameView.h"
 #include "InfoView.h"
+#include "Dialog.h"
 class Client;
 class plist;
 
@@ -92,15 +93,23 @@ public:
 	Menu      menu;
 	InfoView  info;
 	FrameView frame;
+	std::unique_ptr<Dialog> dlg;
 
 private:
 	friend class InfoView;
 	friend class FrameView;
+	friend class Dialog;
 	str curr_file; int curr_idx;
 	std::unique_ptr<file_tags> curr_tags;
 	int left_total, right_total;
 
 	void cycle_layouts();
+	void clear_dialog()
+	{
+		if (dlg) redraw(2);
+		if (dragging == dlg.get()) dragging = NULL;
+		dlg.reset(nullptr);
+	}
 
 	View *dragging;
 
@@ -109,9 +118,4 @@ private:
 	std::queue<str> messages;
 	time_t message_display_start; // for current message, if any
 	str status_msg;
-
-	void prompt(const str &prompt, const str &resp0, int curs0, std::function<void(void)> callback);
-	bool prompting;
-	str prompt_str, response; int cursor, hscroll; // libreadline?
-	std::function<void(void)> callback;
 };
