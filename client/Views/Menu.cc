@@ -17,6 +17,7 @@ Menu::Menu(Interface &iface) : iface(iface), active(false), sub_x0(-1), sub_w(0)
 	#define SEPARATOR m->items.emplace_back("",KEY_CMD_WRONG); mi = &m->items.back()
 	#define ONLY_IN_DIR mi->execute_fn = [&iface](){ iface.go_to_dir_plist(); }
 	#define CHK(x) mi->state_fn = [&iface]()->MenuState{ return (x) ? Checked : Unchecked; }
+	#define SEL(x) mi->state_fn = [&iface]()->MenuState{ return (x) ? Selected : Unselected; }
 	#define GREY(X) mi->greyed_fn = [&iface]()->bool{ return X; }
 
 MENU("Files");
@@ -36,7 +37,14 @@ MENU("View");
 	ITEM("Show hidden files", KEY_CMD_TOGGLE_SHOW_HIDDEN_FILES); CHK(options::ShowHiddenFiles);
 	ITEM("Show full paths", KEY_CMD_TOGGLE_PLAYLIST_FULL_PATHS); CHK(options::PlaylistFullPaths);
 	SEPARATOR;
+	ITEM("Horizontal layout", KEY_CMD_WRONG); SEL(options::layout == HSPLIT);
+		mi->execute_fn = [&iface](){ options::layout = HSPLIT; iface.redraw(2); };
+	ITEM("Vertical layout", KEY_CMD_WRONG); SEL(options::layout == VSPLIT);
+		mi->execute_fn = [&iface](){ options::layout = VSPLIT; iface.redraw(2); };
+	ITEM("Tabbed layout", KEY_CMD_WRONG); SEL(options::layout == SINGLE);
+		mi->execute_fn = [&iface](){ options::layout = SINGLE; iface.redraw(2); };
 	ITEM("Cycle to next layout", KEY_CMD_TOGGLE_LAYOUT);
+	SEPARATOR;
 	ITEM("Hide message", KEY_CMD_HIDE_MESSAGE);
 	ITEM("Refresh display", KEY_CMD_REFRESH);
 
