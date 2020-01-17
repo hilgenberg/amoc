@@ -679,6 +679,7 @@ static struct decoder spx_decoder = {
 	spx_decode,
 	spx_seek,
 	spx_info,
+	NULL,
 	spx_get_bitrate,
 	spx_get_duration,
 	spx_get_error,

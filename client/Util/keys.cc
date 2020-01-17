@@ -179,7 +179,12 @@ void keys_init ()
 	CMD(KEY_CMD_NEXT,		"next",	'n'); // Play next file
 	CMD(KEY_CMD_PREVIOUS,		"previous",'b'); // Play previous file
 	CMD(KEY_CMD_PAUSE,		"pause", ' '); // Pause
+	
 	CMD(KEY_CMD_TOGGLE_READ_TAGS,	"toggle_read_tags",	'f'); // Toggle ReadTags option
+	CMD(KEY_CMD_TAG_ARTIST,		"tag_artist",	KEY_F(1));
+	CMD(KEY_CMD_TAG_ALBUM,		"tag_album",	KEY_F(2));
+	CMD(KEY_CMD_TAG_TITLE,		"tag_title",	KEY_F(3));
+
 	CMD(KEY_CMD_TOGGLE_SHUFFLE,	"toggle_shuffle",	'S'); // Toggle Shuffle
 	CMD(KEY_CMD_TOGGLE_REPEAT,	"toggle_repeat",	'R'); // Toggle Repeat
 	CMD(KEY_CMD_TOGGLE_AUTO_NEXT,	"toggle_auto_next",	'X'); // Toggle AutoNext

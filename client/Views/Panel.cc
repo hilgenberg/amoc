@@ -10,12 +10,11 @@
  */
 
 #include "Panel.h"
-#include "../rcc.h"
-#include "utf8.h"
-#include "../server/input/decoder.h"
-#include "themes.h"
-#include "interface.h"
-#include "client.h"
+#include "../../rcc.h"
+#include "../Util/utf8.h"
+#include "../Util/themes.h"
+#include "../interface.h"
+#include "../client.h"
 
 // distribute available screen width among columns
 static void distribute(int W, int &c0, int &c1, int &c2)
@@ -101,7 +100,7 @@ void Panel::select_item(int i)
 	if (i >= items.size()) i = items.size()-1;
 	if (i == sel && xsel == 0) return;
 	sel = i; xsel = 0;
-	iface->redraw(2);
+	iface.redraw(2);
 }
 
 void Panel::move_selection(menu_request req)
@@ -162,14 +161,14 @@ bool Panel::handle_click(int x, int y, bool dbl)
 	bool hit = (i >= 0 && i < N);
 	if (i >= N) i = N-1;
 	if (i <  0) i = 0;
-	if (i != sel || xsel) { sel = i; xsel = 0; iface->redraw(2); }
-	if (dbl && hit) iface->client.handle_command(KEY_CMD_GO);
+	if (i != sel || xsel) { sel = i; xsel = 0; iface.redraw(2); }
+	if (dbl && hit) iface.client.handle_command(KEY_CMD_GO);
 	return true;
 }
 
 void Panel::draw() const
 {
-	auto &win = iface->win;
+	auto &win = iface.win;
 
 	const int N = items.size();
 	const int lookahead = std::min(5, bounds.h/4);
@@ -187,7 +186,7 @@ void Panel::draw() const
 	if (top + bounds.h > N) top = N-bounds.h;
 	if (top < 0) top = 0;
 
-	bool have_up = items.is_dir && N && iface->client.cwd != "/";
+	bool have_up = items.is_dir && N && iface.client.cwd != "/";
 	str mhome = options::MusicDir; if (!mhome.empty()) mhome += '/'; if (mhome.length() < 2) mhome.clear();
 	str uhome = options::Home;     if (!uhome.empty()) uhome += '/'; if (uhome.length() < 2) uhome.clear();
 
@@ -210,41 +209,35 @@ void Panel::draw() const
 			const auto &it = *ip;
 			if (first) { first = false; if (have_up) continue; } // should not have tags anyway...
 
-			if (it.type == F_SOUND && !it.tags)
+			if (it.type != F_SOUND) continue;
+			
+			str title = sanitized(iface.client.get_title(it));
+			if (title.empty())
 			{
 				first_tagged = false;
 				common_artist.clear();
 				common_album.clear();
+				continue;
 			}
 
-			if (!it.tags) continue;
-			auto &tags = *it.tags;
-
-			if (tags.title.empty())
+			++n_tagged;
+			str v0 = sanitized(iface.client.get_artist(it));
+			str v1 = sanitized(iface.client.get_album(it));
+			if (first_tagged)
 			{
-				continue;
+				common_artist = v0;
+				common_album  = v1;
+				first_tagged  = false;
 			}
 			else
 			{
-				++n_tagged;
-				str v0 = sanitized(tags.artist);
-				str v1 = sanitized(tags.album);
-				if (first_tagged)
-				{
-					common_artist = v0;
-					common_album = v1;
-					first_tagged = false;
-				}
-				else
-				{
-					if (v0 != common_artist) common_artist.clear();
-					if (v1 != common_album) common_album.clear();
-				}
-				M  = std::max(M,  tags.track);
-				c0 = std::max(c0, (int)strwidth(v0));
-				c1 = std::max(c1, (int)strwidth(v1));
-				c2 = std::max(c2, (int)strwidth(sanitized(tags.title)));
+				if (v0 != common_artist) common_artist.clear();
+				if (v1 != common_album) common_album.clear();
 			}
+			M  = std::max(M,  iface.client.get_track(it));
+			c0 = std::max(c0, (int)strwidth(v0));
+			c1 = std::max(c1, (int)strwidth(v1));
+			c2 = std::max(c2, (int)strwidth(title));
 		}
 		all_same_artist = !common_artist.empty();
 		all_same_album  = !common_album.empty();
@@ -402,27 +395,27 @@ void Panel::draw() const
 		win.color(file_color);
 		win.moveto(y, x0);
 
-		if (!is_up_dir && readtags && it.tags && !it.tags->title.empty())
+		str title = (!is_up_dir && readtags && it.type == F_SOUND) ? sanitized(iface.client.get_title(it)) : str();
+
+		if (!title.empty())
 		{
-			auto &tags = *it.tags;
 			if (!hide_artist)
 			{
-				win.field(sanitized(tags.artist), c0);
+				win.field(sanitized(iface.client.get_artist(it)), c0);
 				win.put_ascii("   ");
 			}
 			if (!hide_album)
 			{
-				win.field(sanitized(tags.album), c1);
+				win.field(sanitized(iface.client.get_album(it)), c1);
 				win.put_ascii("   ");
 			}
 
 			if (items.is_dir)
 			{
-				win.put_ascii(tags.track > 0 ?
-					format("%*d ", cn-1, tags.track) :
-					spaces(cn));
+				int k = iface.client.get_track(it);
+				win.put_ascii(k > 0 ? format("%*d ", cn-1, k) : spaces(cn));
 			}
-			win.field(sanitized(tags.title), c2);
+			win.field(title, c2);
 		}
 		else if (is_up_dir && it.type == F_DIR)
 		{

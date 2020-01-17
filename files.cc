@@ -17,7 +17,7 @@
 #include "client/interface.h"
 #include "server/input/decoder.h"
 #include "files.h"
-#include "client/utf8.h"
+#include "client/Util/utf8.h"
 #include "server/ratings.h"
 
 #define READ_LINE_INIT_SIZE	256

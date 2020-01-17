@@ -126,12 +126,15 @@ struct decoder
 	 * Get requested file's tags. If some tags are not available, the
 	 * decoder can just not fill the field. The function can even not
 	 * fill any field.
-	 *
-	 * \param file File for which to get tags.
-	 * \param tags Pointer to the tags structure where we must put
-	 * the tags. All strings must be malloc()ed.
 	 */
 	void (*info)(const char *file, file_tags *tags);
+
+	/** Set tags for a file.
+	 *
+	 * Write changed tags for a file. Must be able to handle 
+	 * artist, album, title and track number.
+	 */
+	void (*write_info)(const char *file, const file_tags *tags);
 
 	/** Get the current bitrate.
 	 *

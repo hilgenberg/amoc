@@ -1,6 +1,6 @@
 #pragma once
 #include "View.h"
-#include "../server/server.h" // PlayState
+#include "../../server/server.h" // PlayState
 
 class Interface;
 

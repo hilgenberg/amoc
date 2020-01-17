@@ -1239,6 +1239,7 @@ static struct decoder ffmpeg_decoder = {
 	ffmpeg_decode,
 	ffmpeg_seek,
 	ffmpeg_info,
+	NULL,
 	ffmpeg_get_bitrate,
 	ffmpeg_get_duration,
 	ffmpeg_get_error,

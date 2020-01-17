@@ -1,5 +1,6 @@
 #include "Menu.h"
-#include "interface.h"
+#include "../interface.h"
+#include "../client.h"
 
 void MenuItem::execute(Interface &iface) const
 {
@@ -16,6 +17,7 @@ Menu::Menu(Interface &iface) : iface(iface), active(false), sub_x0(-1), sub_w(0)
 	#define SEPARATOR m->items.emplace_back("",KEY_CMD_WRONG); mi = &m->items.back()
 	#define ONLY_IN_DIR mi->execute_fn = [&iface](){ iface.go_to_dir_plist(); }
 	#define CHK(x) mi->state_fn = [&iface]()->MenuState{ return (x) ? Checked : Unchecked; }
+	#define GREY(X) mi->greyed_fn = [&iface]()->bool{ return X; }
 
 MENU("Files");
 	ITEM("Go to music directory", KEY_CMD_GO_MUSIC_DIR);
@@ -31,11 +33,11 @@ MENU("Files");
 
 MENU("View");
 	ITEM("Read tags", KEY_CMD_TOGGLE_READ_TAGS); CHK(options::ReadTags);
-	ITEM("Cycle to next layout", KEY_CMD_TOGGLE_LAYOUT);
-	ITEM("Hide message", KEY_CMD_HIDE_MESSAGE);
 	ITEM("Show hidden files", KEY_CMD_TOGGLE_SHOW_HIDDEN_FILES); CHK(options::ShowHiddenFiles);
 	ITEM("Show full paths", KEY_CMD_TOGGLE_PLAYLIST_FULL_PATHS); CHK(options::PlaylistFullPaths);
 	SEPARATOR;
+	ITEM("Cycle to next layout", KEY_CMD_TOGGLE_LAYOUT);
+	ITEM("Hide message", KEY_CMD_HIDE_MESSAGE);
 	ITEM("Refresh display", KEY_CMD_REFRESH);
 
 MENU("Playlist");
@@ -73,8 +75,13 @@ MENU("Seek");
 	ITEM("Seek to 80%", KEY_CMD_SEEK_8);
 	ITEM("Seek to 90%", KEY_CMD_SEEK_9);
 
-MENU("Rating");
-	ITEM("Unrated",  KEY_CMD_RATE_0);
+MENU("Tags");
+	ITEM("Change artist",  KEY_CMD_TAG_ARTIST); GREY(!iface.can_tag());
+	ITEM("Change album",  KEY_CMD_TAG_ALBUM); GREY(!iface.can_tag());
+	ITEM("Change title",  KEY_CMD_TAG_TITLE); GREY(!iface.can_tag());
+	ITEM("Write changes to disk",  KEY_CMD_WRITE_TAGS); GREY(iface.client.tag_changes.empty());
+	SEPARATOR;
+	ITEM("No Rating",  KEY_CMD_RATE_0);
 	ITEM("Rate 1/5", KEY_CMD_RATE_1);
 	ITEM("Rate 2/5", KEY_CMD_RATE_2);
 	ITEM("Rate 3/5", KEY_CMD_RATE_3);

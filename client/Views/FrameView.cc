@@ -1,7 +1,7 @@
 #include "FrameView.h"
-#include "interface.h"
-#include "client.h"
-#include "../rcc.h"
+#include "../interface.h"
+#include "../client.h"
+#include "../../rcc.h"
 
 #define CURR_RATIO (options::layout == HSPLIT ? options::hsplit : options::vsplit)
 

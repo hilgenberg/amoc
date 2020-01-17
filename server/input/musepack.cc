@@ -461,6 +461,7 @@ static struct decoder musepack_decoder = {
 	musepack_decode,
 	musepack_seek,
 	musepack_info,
+	NULL,
 	musepack_get_bitrate,
 	musepack_get_duration,
 	musepack_get_error,

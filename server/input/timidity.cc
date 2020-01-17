@@ -189,6 +189,7 @@ static struct decoder timidity_decoder =
   timidity_decode,
   timidity_seek,
   timidity_info,
+	NULL,
   timidity_get_bitrate,
   timidity_get_duration,
   timidity_get_error,

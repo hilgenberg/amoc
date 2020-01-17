@@ -433,6 +433,7 @@ static struct decoder vorbis_decoder = {
 	vorbis_decode,
 	vorbis_seek,
 	vorbis_tags,
+	NULL,
 	vorbis_get_bitrate,
 	vorbis_get_duration,
 	vorbis_get_error,

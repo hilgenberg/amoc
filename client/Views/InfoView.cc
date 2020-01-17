@@ -1,8 +1,7 @@
 #include "InfoView.h"
-#include "interface.h"
-#include "Window.h"
-#include "keys.h"
-#include "../server/server.h" // PlayState
+#include "../interface.h"
+#include "../Util/Window.h"
+#include "../Util/keys.h"
 
 #include <locale.h>
 #include <time.h>
@@ -12,16 +11,15 @@
 #include <dirent.h>
 #include <sys/select.h>
 
-#include "client.h"
-#include "utf8.h"
-#include "themes.h"
-#include "keys.h"
-#include "../playlist.h"
-#include "../protocol.h"
-#include "../rcc.h"
-#include "../server/input/decoder.h"
-#include "../server/output/softmixer.h"
-#include "../server/ratings.h"
+#include "../client.h"
+#include "../Util/utf8.h"
+#include "../Util/themes.h"
+#include "../Util/keys.h"
+#include "../../playlist.h"
+#include "../../protocol.h"
+#include "../../rcc.h"
+#include "../../server/input/decoder.h"
+#include "../../server/output/softmixer.h"
 
 // width of the toggles for shuffle, repeat, ...
 static constexpr int w_toggles = 6+3+7+6+4+5*2+4*1;

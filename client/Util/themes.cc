@@ -10,7 +10,6 @@
  */
 
 #include "themes.h"
-#include "interface.h"
 #include <ncurses.h>
 #include <iostream>
 #include <fstream>

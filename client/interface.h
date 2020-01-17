@@ -1,17 +1,15 @@
 #pragma once
 #include <functional>
 
-#include "Window.h"
-#include "Panel.h"
-#include "Menu.h"
-#include "FrameView.h"
-#include "InfoView.h"
-#include "Dialog.h"
+#include "Util/Window.h"
+#include "Views/Panel.h"
+#include "Views/Menu.h"
+#include "Views/FrameView.h"
+#include "Views/InfoView.h"
+#include "Views/Dialog.h"
 class Client;
 class plist;
 
-extern void interface_error (const char *msg);
-extern void interface_fatal (const char *format, ...);
 typedef std::pair<int,int> Ratio;
 
 class Interface
@@ -37,10 +35,16 @@ public:
 	}
 
 	int selected_song() { assert(!in_dir_plist()); return right.xsel ? -1 : right.sel; }
-	plist_item *sel_item() { auto &m = *active; return (m.sel < 0 || m.sel >= m.items.size()) ? NULL : m.items.items[m.sel].get(); }
-	std::pair<int,int>  selection() // returns [min, max]
+	plist_item *sel_item() const
 	{
 		auto &m = *active;
+		if (m.xsel || m.sel < 0 || m.sel >= m.items.size()) return NULL;
+		return m.items.items[m.sel].get();
+	}
+	std::pair<int,int> selection() const // returns [min, max]
+	{
+		auto &m = *active;
+		if (m.sel < 0) return std::make_pair(-1, -1);
 		return m.xsel < 0 ? std::make_pair(m.sel+m.xsel, m.sel)
 		                  : std::make_pair(m.sel, m.sel+m.xsel);
 	}
@@ -71,6 +75,7 @@ public:
 			messages.push(msg);
 		}
 	}
+	void confirm_quit(int i);
 
 	// update and get info set by client:
 	bool update_curr_file(const str &f, int idx)
@@ -99,6 +104,7 @@ private:
 	friend class InfoView;
 	friend class FrameView;
 	friend class Dialog;
+	friend class Menu;
 	str curr_file; int curr_idx;
 	std::unique_ptr<file_tags> curr_tags;
 	int left_total, right_total;
@@ -110,6 +116,7 @@ private:
 		if (dragging == dlg.get()) dragging = NULL;
 		dlg.reset(nullptr);
 	}
+	bool can_tag() const;
 
 	View *dragging;
 

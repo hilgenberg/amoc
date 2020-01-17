@@ -153,6 +153,31 @@ int Client::get_avg_bitrate() { srv.send(CMD_GET_AVG_BITRATE); return get_data_i
 int Client::get_curr_time() { srv.send(CMD_GET_CTIME); return get_data_int (); }
 PlayState Client::get_state() { srv.send(CMD_GET_STATE); return (PlayState)get_data_int (); }
 
+str Client::get_title(const plist_item &it) const
+{
+	auto ch = tag_changes.find(it.path);
+	if (ch != tag_changes.end() && !ch->second.title.empty()) return ch->second.title;
+	return it.tags ? it.tags->title : str();
+}
+str Client::get_artist(const plist_item &it) const
+{
+	auto ch = tag_changes.find(it.path);
+	if (ch != tag_changes.end() && !ch->second.artist.empty()) return ch->second.artist;
+	return it.tags ? it.tags->artist : str();
+}
+str Client::get_album(const plist_item &it) const
+{
+	auto ch = tag_changes.find(it.path);
+	if (ch != tag_changes.end() && !ch->second.album.empty()) return ch->second.album;
+	return it.tags ? it.tags->album : str();
+}
+int Client::get_track(const plist_item &it) const
+{
+	auto ch = tag_changes.find(it.path);
+	if (ch != tag_changes.end() && ch->second.track > 0) return ch->second.track;
+	return it.tags ? it.tags->track : -1;
+}
+
 /* Wait for EV_DATA handling other events. */
 void Client::wait_for_data ()
 {
@@ -417,7 +442,7 @@ void Client::go_to_playing_file ()
 		}
 	}
 
-	str path = iface->get_curr_file(); if (path.empty()) return;
+	str path = iface->get_curr_file(); if (path.empty() || is_url(path)) return;
 	if (!go_to_dir(containing_directory(path).c_str()))
 	{
 		iface->status("File not found!");
@@ -562,8 +587,13 @@ bool Client::handle_command(key_cmd cmd)
 	logit ("KEY EVENT: 0x%02x", (int)cmd);
 	switch (cmd)
 	{
-		case KEY_CMD_QUIT_CLIENT: want_quit = 1; return true;
-		case KEY_CMD_QUIT:        want_quit = 2; return true;
+		case KEY_CMD_QUIT_CLIENT: iface->confirm_quit(1); return true;
+		case KEY_CMD_QUIT:        iface->confirm_quit(2); return true;
+
+		case KEY_CMD_WRITE_TAGS:
+			// TODO
+			//tag_changes.clear();
+			return true;
 
 		case KEY_CMD_GO:
 		{

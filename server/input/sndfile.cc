@@ -264,6 +264,7 @@ static struct decoder sndfile_decoder = {
 	sndfile_decode,
 	sndfile_seek,
 	sndfile_info,
+	NULL,
 	sndfile_get_bitrate,
 	sndfile_get_duration,
 	sndfile_get_error,

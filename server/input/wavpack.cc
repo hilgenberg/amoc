@@ -266,6 +266,7 @@ static struct decoder wv_decoder = {
         wav_decode,
         wav_seek,
         wav_info,
+	NULL,
         wav_get_bitrate,
         wav_get_duration,
         wav_get_error,

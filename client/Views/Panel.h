@@ -1,8 +1,8 @@
 #pragma once
 
 #include <ncurses.h>
-#include "../playlist.h"
-#include "Rect.h"
+#include "../../playlist.h"
+#include "../Util/Rect.h"
 #include "View.h"
 
 enum menu_request
@@ -29,7 +29,7 @@ class Interface;
 struct Panel : public View
 {
 	// c'tor gets  called before the interface is running!
-	Panel(Interface *iface, plist &items) : iface(iface), items(items), top(0), sel(-1), xsel(0), mark(-1) {}
+	Panel(Interface &iface, plist &items) : iface(iface), items(items), top(0), sel(-1), xsel(0), mark(-1) {}
 
 	void set_active(bool a) { active = a; }
 	void draw() const override; // no frame, draws just the inside
@@ -43,7 +43,7 @@ struct Panel : public View
 	void select_item(int i);
 	bool item_visible (int i) const { return i >= top && i < top + bounds.h; };
 
-	Interface  *iface;
+	Interface  &iface;
 	plist      &items;
 	Rect        bounds;
 	bool        active;

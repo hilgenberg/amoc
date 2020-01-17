@@ -9,6 +9,11 @@ struct file_tags
 	int time; // in seconds or -1 for streams
 	str title, artist, album;
 	int track, rating;
+
+	bool empty() const
+	{
+		return track < 0 && title.empty() && artist.empty() && album.empty();
+	}
 };
 
 enum file_type
@@ -34,6 +39,7 @@ public:
 	{}
 
 	bool read_file_tags();
+	bool can_tag() const; // can we write tags for this?
 
 	const str path; // absolute path or URL
 	file_type type;
@@ -49,6 +55,10 @@ public:
 	plist(plist &&p) : is_dir(p.is_dir) { items.swap(p.items); }
 
 	bool empty() const { return items.empty(); }
+
+	plist_item& operator[] (int i) { assert(i >= 0 && i < (int)items.size()); return *items[i]; }
+	const plist_item& operator[] (int i) const { assert(i >= 0 && i < (int)items.size()); return *items[i]; }
+
 	void clear() { items.clear(); }
 	void remove(int i, int n = 1)
 	{

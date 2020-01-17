@@ -11,7 +11,7 @@
 
 
 #include "utf8.h"
-#include "../rcc.h"
+#include "../../rcc.h"
 
 #include <iconv.h>
 #include <nl_types.h>

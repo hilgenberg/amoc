@@ -277,6 +277,7 @@ static struct decoder modplug_decoder =
   modplug_decode,
   modplug_seek,
   modplug_info,
+	NULL,
   modplug_get_bitrate,
   modplug_get_duration,
   modplug_get_error,

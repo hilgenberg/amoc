@@ -1,12 +1,12 @@
 #include "interface.h"
 #include "client.h"
-#include "themes.h"
-#include "keys.h"
+#include "Util/themes.h"
+#include "Util/keys.h"
 
 Interface::Interface(Client &client, plist &pl1, plist &pl2)
 : client(client)
-, left(this, pl1)
-, right(this, pl2)
+, left(*this, pl1)
+, right(*this, pl2)
 , active(&right)
 , need_redraw(2)
 , left_total(-1), right_total(-1)
@@ -33,6 +33,20 @@ void Interface::cycle_layouts()
 	redraw(2);
 }
 
+bool Interface::can_tag() const
+{
+	auto sel = selection();
+	const int n = (sel.second+1-sel.first);
+	if (sel.first < 0 || n <= 0) return false;
+	auto &pl = active->items;
+	for (int i = sel.first; i <= sel.second; ++i)
+	{
+		auto &it = pl[i];
+		if (!it.can_tag()) return false;
+	}
+	return true;
+}
+
 bool Interface::handle_command(key_cmd cmd)
 {
 	switch (cmd)
@@ -55,19 +69,22 @@ bool Interface::handle_command(key_cmd cmd)
 			dlg.reset(new Dialog(*this, Dialog::ADD_URL));
 			redraw(2);
 			break;
-		/*case KEY_CMD_MENU_SEARCH:
-			prompt("SEARCH", NULL, ...);
-			iface_make_entry (ENTRY_SEARCH);
-			break;*/
+
 		case KEY_CMD_PLIST_SAVE:
 			if (!client.playlist.size())
 				error ("The playlist is empty.");
 			else
-			{
 				dlg.reset(new Dialog(*this, Dialog::SAVE_PLIST));
-				redraw(2);
-			}
 			break;
+
+		case KEY_CMD_TAG_ARTIST: if (can_tag()) dlg.reset(new Dialog(*this, Dialog::EDIT_ARTIST)); break;
+		case KEY_CMD_TAG_ALBUM:  if (can_tag()) dlg.reset(new Dialog(*this, Dialog::EDIT_ALBUM)); break;
+		case KEY_CMD_TAG_TITLE:  if (can_tag()) dlg.reset(new Dialog(*this, Dialog::EDIT_TITLE)); break;
+
+		/*case KEY_CMD_MENU_SEARCH:
+			prompt("SEARCH", NULL, ...);
+			iface_make_entry (ENTRY_SEARCH);
+			break;*/
 		/*case KEY_CMD_GO_DIR:
 			prompt("GO", NULL, ...);
 			break;
@@ -79,6 +96,16 @@ bool Interface::handle_command(key_cmd cmd)
 			return client.handle_command(cmd);
 	}
 	return true;
+}
+
+void Interface::confirm_quit(int i)
+{
+	if (client.tag_changes.empty())
+	{
+		client.want_quit = i;
+		return;
+	}
+	dlg.reset(new Dialog(*this, i == 2 ? Dialog::CONFIRM_QUIT : Dialog::CONFIRM_QUIT_CLIENT));
 }
 
 void Interface::handle_input()

@@ -1,5 +1,8 @@
 #pragma once
 
+extern void interface_error (const char *msg);
+extern void interface_fatal (const char *format, ...);
+
 #ifdef DEBUG
 # define debug logit
 #else

@@ -1,7 +1,7 @@
 #pragma once
 #include "interface.h"
 #include "../playlist.h"
-#include "keys.h"
+#include "Util/keys.h"
 #include "../protocol.h"
 #include "../Socket.h"
 
@@ -26,6 +26,19 @@ public:
 	void jump_to (int sec) { srv.send(CMD_JUMP_TO); srv.send(sec); }
 	void seek_to_percent (int percent) { srv.send(CMD_JUMP_TO); srv.send(-percent); }
 	void add_url(const str &url, bool at_end);
+
+	#define CHK if (tag.empty() && tag_changes[path].empty()) tag_changes.erase(path)
+	void change_artist(const str &path, const str &tag) { tag_changes[path].artist = tag; CHK; }
+	void change_album (const str &path, const str &tag) { tag_changes[path].album  = tag; CHK; }
+	void change_title (const str &path, const str &tag) { tag_changes[path].title  = tag; CHK; }
+	#undef CHK
+
+	std::map<str, file_tags> tag_changes;
+
+	str get_title(const plist_item &it) const;
+	str get_artist(const plist_item &it) const;
+	str get_album(const plist_item &it) const;
+	int get_track(const plist_item &it) const;
 
 private:
 	Socket srv;

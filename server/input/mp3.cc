@@ -25,7 +25,7 @@
 #include "../audio.h"
 #include "decoder.h"
 #include "io.h"
-#include "../../client/utf8.h"
+#include "../../client/Util/utf8.h"
 #include "../../rcc.h"
 
 #define INPUT_BUFFER	(32 * 1024)
@@ -736,6 +736,7 @@ static struct decoder mp3_decoder = {
 	mp3_decode,
 	mp3_seek,
 	mp3_info,
+	NULL,
 	mp3_get_bitrate,
 	mp3_get_duration,
 	mp3_get_error,

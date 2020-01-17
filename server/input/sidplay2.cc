@@ -575,6 +575,7 @@ static struct decoder sidplay2_decoder =
   sidplay2_decode,
   sidplay2_seek,
   sidplay2_info,
+	NULL,
   sidplay2_get_bitrate,
   sidplay2_get_duration,
   sidplay2_get_error,

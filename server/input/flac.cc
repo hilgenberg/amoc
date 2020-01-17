@@ -554,6 +554,7 @@ static struct decoder flac_decoder = {
 	flac_decode,
 	flac_seek,
 	flac_info,
+	NULL,
 	flac_get_bitrate,
 	flac_get_duration,
 	flac_get_error,

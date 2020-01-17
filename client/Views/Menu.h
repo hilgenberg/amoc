@@ -1,7 +1,7 @@
 #pragma once
 #include "View.h"
-#include "keys.h"
-#include "utf8.h"
+#include "../Util/keys.h"
+#include "../Util/utf8.h"
 #include <functional>
 class Interface;
 
