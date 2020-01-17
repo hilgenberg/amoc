@@ -18,7 +18,7 @@
 #include <signal.h>
 #include <pthread.h>
 
-#include "../protocol.h"
+#include "protocol.h"
 #include "../Socket.h"
 #include "audio.h"
 #include "output/oss.h"
@@ -544,29 +544,6 @@ void req_toggle_make_mono()
 	status_msg(format("Mono-Mixing set to: %s", softmixer_is_mono()?"on":"off").c_str());
 }
 
-/* Handle CMD_GET_FILE_TAGS. Return 0 on error. */
-static int get_file_tags (const int cli_id)
-{
-	str file;
-	if (!clients[cli_id].socket->get(file))
-		return 0;
-
-	tc->add_request (file.c_str(), cli_id);
-
-	return 1;
-}
-
-static int abort_tags_requests (const int cli_id)
-{
-	str file;
-	if (!clients[cli_id].socket->get(file))
-		return 0;
-
-	tc->clear_up_to (file.c_str(), cli_id);
-
-	return 1;
-}
-
 static void send_ev_options(int where = -1)
 {
 	int v = options::AutoNext + 2*options::Repeat + 4*options::Shuffle;
@@ -786,13 +763,21 @@ static void handle_command (const int client_id)
 			break;
 		}
 		case CMD_GET_FILE_TAGS:
-			if (!get_file_tags(client_id))
-				err = 1;
+		{
+			str file;
+			if (!clients[client_id].socket->get(file)) { err = 1; break; }
+			tc->add_request (file.c_str(), client_id);
 			break;
-		case CMD_ABORT_TAGS_REQUESTS:
-			if (!abort_tags_requests(client_id))
-				err = 1;
+		}
+		case CMD_SET_FILE_TAGS:
+		{
+			str file;
+			if (!clients[client_id].socket->get(file)) { err = 1; break; }
+			auto *tags = clients[client_id].socket->get_tags();
+			if (!tags) { err = 1; break; }
+			tc->add_request (file.c_str(), client_id, tags);
 			break;
+		}
 		case CMD_TOGGLE_EQUALIZER:
 			req_toggle_equalizer();
 			break;
@@ -979,9 +964,9 @@ void ctime_change ()
 	add_event_all (EV_CTIME, (int)MAX(0, audio_get_time()));
 }
 
-void status_msg (const char *msg)
+void status_msg (const str &msg)
 {
-	logit("%s", msg);
+	logit("%s", msg.c_str());
 	add_event_all (EV_STATUS_MSG, msg);
 }
 

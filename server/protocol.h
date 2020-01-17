@@ -50,7 +50,7 @@ enum ServerCommands : int
 	CMD_PLIST_DEL,		/* delete an item from the server's playlist */
 	CMD_PLIST_MOVE,		/* move an item */
 	CMD_GET_FILE_TAGS,	/* get tags for the specified file */
-	CMD_ABORT_TAGS_REQUESTS,/* abort all previous CMD_GET_FILE_TAGS requests */
+	CMD_SET_FILE_TAGS,	/* update tags for the specified file */
 	CMD_SET_RATING,		/* change rating for a file */
 
 	CMD_GET_CURRENT,	/* (19) get the current song index and path */

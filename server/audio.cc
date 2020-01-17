@@ -39,7 +39,6 @@
 #include "output/equalizer.h"
 
 #include "output/out_buf.h"
-#include "../protocol.h"
 #include "output/player.h"
 #include "audio.h"
 #include "input/io.h"

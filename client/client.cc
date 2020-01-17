@@ -591,8 +591,13 @@ bool Client::handle_command(key_cmd cmd)
 		case KEY_CMD_QUIT:        iface->confirm_quit(2); return true;
 
 		case KEY_CMD_WRITE_TAGS:
-			// TODO
-			//tag_changes.clear();
+			for (auto &it : tag_changes)
+			{
+				srv.send(CMD_SET_FILE_TAGS);
+				srv.send(it.first);
+				srv.send(&it.second);
+			}
+			tag_changes.clear();
 			return true;
 
 		case KEY_CMD_GO:

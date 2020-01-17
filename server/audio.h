@@ -2,8 +2,8 @@
 #define AUDIO_H
 
 #include <stdlib.h>
+#include "protocol.h"
 #include "../playlist.h"
-#include "../protocol.h"
 class Socket;
 
 // TODO: use indices a lot more and support the same file being in a playlist more than once

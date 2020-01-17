@@ -19,11 +19,10 @@ public:
 
 	/* Request queue manipulation functions: */
 	void clear_queue (int client_id);
-	void clear_up_to (const char *file, int client_id);
 
 	/* Cache DB manipulation functions: */
 	void load (const str &cache_dir);
-	void add_request (const char *file, int client_id);
+	void add_request (const char *file, int client_id, file_tags *tags=NULL);
 	file_tags get_immediate (const char *file);
 	void ratings_changed(const char *file, int rating);
 
@@ -46,9 +45,17 @@ private:
 	void sync();
 	void add(DBT &key, const cache_record &rec);
 	file_tags read_add(const char *file, int client_id);
+	void write_add(const char *file, file_tags *tags, int client_id);
 	static void *reader_thread (void *cache_ptr);
 
-	typedef std::queue<str> request_queue;
+	struct Request
+	{
+		str path;
+		std::unique_ptr<file_tags> tags;
+		Request(const str &p) : path(p) {}
+		Request(const str &p, file_tags *t) : path(p), tags(t) {}
+	};
+	typedef std::queue<Request> request_queue;
 	request_queue queues[CLIENTS_MAX]; /* requests queues for each client */
 	bool stop_reader_thread; /* request for stopping read thread (if non-zero) */
 	pthread_cond_t request_cond; /* condition for signalizing new requests */

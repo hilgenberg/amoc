@@ -23,7 +23,7 @@ void set_info_bitrate (const int bitrate);
 void set_info_avg_bitrate (const int avg_bitrate);
 void tags_change ();
 void ctime_change ();
-void status_msg (const char *msg);
+void status_msg (const str &msg);
 void tags_response (const int client_id, const char *file,
 		const struct file_tags *tags);
 void ev_audio_start ();

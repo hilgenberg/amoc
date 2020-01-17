@@ -16,7 +16,6 @@
 #include "../Util/themes.h"
 #include "../Util/keys.h"
 #include "../../playlist.h"
-#include "../../protocol.h"
 #include "../../rcc.h"
 #include "../../server/input/decoder.h"
 #include "../../server/output/softmixer.h"

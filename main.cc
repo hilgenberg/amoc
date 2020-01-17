@@ -22,7 +22,7 @@
 #include "server/server.h"
 #include "server/input/decoder.h"
 #include "client/client.h"
-#include "protocol.h"
+#include "server/protocol.h"
 #include "Socket.h"
 #include "rcc.h"
 

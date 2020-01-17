@@ -1,6 +1,6 @@
 #pragma once
 #include "playlist.h"
-#include "protocol.h"
+#include "server/protocol.h"
 
 #if 0
 #define SOCKET_DEBUG logit

@@ -2,7 +2,7 @@
 #include "interface.h"
 #include "../playlist.h"
 #include "Util/keys.h"
-#include "../protocol.h"
+#include "../server/protocol.h"
 #include "../Socket.h"
 
 class Client

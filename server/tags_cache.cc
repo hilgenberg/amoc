@@ -6,6 +6,8 @@
 #include "../playlist.h"
 #include "tags_cache.h"
 #include "audio.h"
+#include "input/decoder.h"
+#include "ratings.h"
 
 #undef STRERROR_FN
 #define STRERROR_FN bdb_strerror
@@ -225,13 +227,45 @@ file_tags tags_cache::read_add (const char *file, int client_id)
 		}
 	}
 
-	rec.tags.read_file_tags(file);
+	auto *df = get_decoder (file);
+	if (df && df->info) df->info (file, &rec.tags);
+	rec.tags.rating = ratings_read_file (file);
+
 	rec.mod_time = current_mtime;
 	add (key, rec);
 
 	if (client_id != -1) tags_response (client_id, file, &rec.tags);
 
 	return rec.tags;
+}
+
+
+/* Read the selected tags for this file and add it to the cache.
+ * If client_id != -1, the server is notified using tags_response().
+ * If client_id == -1, copy of file_tags is returned. */
+void tags_cache::write_add (const char *file, file_tags *tags, int client_id)
+{
+	assert (file != NULL);
+	debug ("Setting tags for %s", file);
+
+	auto *df = get_decoder (file);
+	if (!df || !df->write_info)
+	{
+		status_msg(format("Can not write tags for %s", file));
+		delete tags;
+		return;
+	}
+	bool ok = df->write_info(file, tags);
+	delete tags;
+
+	if (!ok)
+	{
+		status_msg(format("Failed writing tags for %s", file));
+		return;
+	}
+
+	assert (client_id != -1);
+	read_add(file, client_id);
 }
 
 void tags_cache::ratings_changed(const char *file, int rating)
@@ -297,9 +331,15 @@ void *tags_cache::reader_thread(void *cache_ptr)
 		if (!q.empty())
 		{
 			last_client = client;
-			str file = q.front(); q.pop();
+			auto &rq = q.front();
+			str file = rq.path;
+			file_tags *tags = rq.tags.release();
+			q.pop();
 			UNLOCK (c->mutex);
-			c->read_add (file.c_str(), client);
+			if (!tags)
+				c->read_add (file.c_str(), client);
+			else
+				c->write_add(file.c_str(), tags, client);
 			LOCK (c->mutex);
 		}
 		else if (client == last_client)
@@ -363,43 +403,46 @@ tags_cache::~tags_cache()
 	if (rc != 0) log_errno ("Can't destroy request_cond", rc);
 }
 
-void tags_cache::add_request (const char *file, int client_id)
+void tags_cache::add_request (const char *file, int client_id, file_tags *tags)
 {
 	assert (file != NULL);
 	assert (LIMIT(client_id, CLIENTS_MAX));
 
-	debug ("Request for tags for '%s' from client %d", file, client_id);
+	if (!tags)
+	{
+		debug ("Request for tags for '%s' from client %d", file, client_id);
 
-	DBT key, record;
-	memset (&key, 0, sizeof (key));
-	key.data = (void *) file;
-	key.size = strlen (file);
-	memset (&record, 0, sizeof (record));
-	record.flags = DB_DBT_MALLOC;
+		DBT key, record;
+		memset (&key, 0, sizeof (key));
+		key.data = (void *) file;
+		key.size = strlen (file);
+		memset (&record, 0, sizeof (record));
+		record.flags = DB_DBT_MALLOC;
 
-	Lock lock(*this, key);
+		Lock lock(*this, key);
 
-	struct cache_record rec;
+		struct cache_record rec;
 
-	int db_ret = db->get (db, NULL, &key, &record, 0);
+		int db_ret = db->get (db, NULL, &key, &record, 0);
 
-	if (db_ret && db_ret != DB_NOTFOUND) {
-		error_errno ("Cache DB search error", db_ret);
-	}
-
-	bool ok = (db_ret == 0 && cache_record_deserialize(rec, (const char*)record.data, record.size));
-	free(record.data);
-	if (ok) {
-		if (rec.mod_time == get_mtime(file)) {
-			tags_response (client_id, file, &rec.tags);
-			debug ("Tags are present in the cache");
-			return;
+		if (db_ret && db_ret != DB_NOTFOUND) {
+			error_errno ("Cache DB search error", db_ret);
 		}
-		debug ("Found outdated tags in the cache");
+
+		bool ok = (db_ret == 0 && cache_record_deserialize(rec, (const char*)record.data, record.size));
+		free(record.data);
+		if (ok) {
+			if (rec.mod_time == get_mtime(file)) {
+				tags_response (client_id, file, &rec.tags);
+				debug ("Tags are present in the cache");
+				return;
+			}
+			debug ("Found outdated tags in the cache");
+		}
 	}
 
 	LOCK (mutex);
-	queues[client_id].push(file);
+	queues[client_id].emplace(file, tags);
 	pthread_cond_signal (&request_cond);
 	UNLOCK (mutex);
 }
@@ -410,23 +453,6 @@ void tags_cache::clear_queue (int client_id)
 	LOCK (mutex);
 	request_queue().swap(queues[client_id]);
 	debug ("Cleared requests queue for client %d", client_id);
-	UNLOCK (mutex);
-}
-
-/* Remove all pending requests from the queue for the given client up to
- * the request associated with the given file. */
-void tags_cache::clear_up_to (const char *file, int client_id)
-{
-	assert (LIMIT(client_id, CLIENTS_MAX));
-	assert (file != NULL);
-
-	LOCK (mutex);
-	debug ("Removing requests for client %d up to file %s", client_id, file);
-	auto &q = queues[client_id];
-	while (!q.empty()) {
-		if (q.front() == file) break;
-		q.pop();
-	}
 	UNLOCK (mutex);
 }
 

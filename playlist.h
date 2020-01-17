@@ -4,7 +4,6 @@
 struct file_tags
 {
 	file_tags() : track(-1), time(-1), rating(-1) {}
-	void read_file_tags (const char *file);
 
 	int time; // in seconds or -1 for streams
 	str title, artist, album;
@@ -38,7 +37,6 @@ public:
 		, tags(i.tags ? new file_tags(*i.tags) : NULL)
 	{}
 
-	bool read_file_tags();
 	bool can_tag() const; // can we write tags for this?
 
 	const str path; // absolute path or URL

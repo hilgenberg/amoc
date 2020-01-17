@@ -7,7 +7,6 @@
 #include "playlist.h"
 #include "client/client.h" // user_wants_interrupt()
 #include "server/input/decoder.h"
-#include "server/ratings.h"
 
 file_type plist_item::ftype (const str &file)
 {
@@ -22,32 +21,12 @@ file_type plist_item::ftype (const str &file)
 	return F_OTHER;
 }
 
-/* Read selected tags for a file into tags structure (or create it if NULL).
- * If some tags are already present, don't read them.
- * If present_tags is NULL, allocate new tags. */
-void file_tags::read_file_tags (const char *file)
-{
-	auto *df = get_decoder (file);
-	if (df && df->info) df->info (file, this);
-	rating = ratings_read_file (file);
-}
-
-bool plist_item::read_file_tags ()
-{
-	if (type != F_SOUND) return false;
-
-	if (!tags) tags.reset(new file_tags);
-	tags->read_file_tags(path.c_str());
-	return true;
-}
-
 bool plist_item::can_tag() const
 {
 	if (type != F_SOUND) return false;
 	auto *df = get_decoder (path.c_str());
 	return df && df->info && df->write_info;
 }
-
 
 plist & plist::operator+= (const plist &other)
 {
