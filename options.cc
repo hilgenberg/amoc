@@ -227,10 +227,7 @@ void load(Component who)
 	OPT(RunDir);
 	OPT(UseMMap);
 	OPT(UseMimeMagic);
-	OPT(ID3v1TagsEncoding);
-	OPT(UseRCC);
 	OPT(UseRCCForFilesystem);
-	OPT(EnforceTagsEncoding);
 	OPT(FileNamesIconv);
 	OPT(TiMidity_Config);
 	OPT(TERM);
@@ -336,10 +333,7 @@ bool HideFileExtension = false;
 
 bool UseMMap = false;
 bool UseMimeMagic = false;
-str  ID3v1TagsEncoding = "WINDOWS-1250";
-bool UseRCC = true;
 bool UseRCCForFilesystem = false;
-bool EnforceTagsEncoding = false;
 bool FileNamesIconv = false;
 str  TiMidity_Config = "no";
 str  TERM = "";

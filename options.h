@@ -55,10 +55,7 @@ namespace options
 
 	extern bool UseMMap;
 	extern bool UseMimeMagic;
-	extern str  ID3v1TagsEncoding;
-	extern bool UseRCC;
 	extern bool UseRCCForFilesystem;
-	extern bool EnforceTagsEncoding;
 	extern bool FileNamesIconv;
 	extern str  TERM;
 

@@ -45,34 +45,41 @@ Dialog::Dialog(Interface &iface, Function f)
 					break;
 				}
 			}
+			if (!response.empty()) break;
 
 			// otherwise use longest common path prefix
-			if (response.empty())
+			str mhome = options::MusicDir; if (!mhome.empty()) mhome += '/'; if (mhome.length() < 2) mhome.clear();
+			str uhome = options::Home;     if (!uhome.empty()) uhome += '/'; if (uhome.length() < 2) uhome.clear();
+
+			for (int i = sel.first; i <= sel.second; ++i)
 			{
-				str mhome = options::MusicDir; if (!mhome.empty()) mhome += '/'; if (mhome.length() < 2) mhome.clear();
-				str uhome = options::Home;     if (!uhome.empty()) uhome += '/'; if (uhome.length() < 2) uhome.clear();
-
-				for (int i = sel.first; i <= sel.second; ++i)
+				str t = PATH(i);
+				if (response.empty())
+					response = t;
+				else
 				{
-					str t = PATH(i);
-					if (response.empty())
-						response = t;
-					else
-					{
-						intersect(response, t);
-						if (response.empty()) break;
-					}
+					intersect(response, t);
+					if (response.empty()) break;
 				}
+			}
 
-				if (!mhome.empty() && has_prefix(response, mhome, false))
-					response = response.substr(mhome.length());
-				else if (!uhome.empty() && has_prefix(response, uhome, false))
-					response = response.substr(uhome.length());
-				if (!response.empty() && response.back() == '/')
-					response.pop_back();
-	
-				const char *s0 = response.c_str(), *s = ext_pos(s0);
-				if (s) response = response.substr(0, s-1-s0);
+			if (!mhome.empty() && has_prefix(response, mhome, false))
+				response = response.substr(mhome.length());
+			else if (!uhome.empty() && has_prefix(response, uhome, false))
+				response = response.substr(uhome.length());
+			if (!response.empty() && response.back() == '/')
+				response.pop_back();
+
+			const char *s0 = response.c_str(), *s = ext_pos(s0);
+			if (s) response = response.substr(0, s-1-s0);
+
+			if (function == EDIT_TITLE)
+			{
+				auto i = response.rfind('/');
+				if (i != str::npos)
+				{
+					response = response.substr(i+1);
+				}
 			}
 			break;
 		}
@@ -133,7 +140,7 @@ bool Dialog::ok(bool confirmed)
 				   &Client::change_title);
 
 			for (int i = sel.first; i <= sel.second; ++i)
-				(iface.client.*mf)(PATH(i), response);
+				(iface.client.*mf)(pl[i], response);
 
 			iface.redraw(2);
 

@@ -27,11 +27,20 @@ public:
 	void seek_to_percent (int percent) { srv.send(CMD_JUMP_TO); srv.send(-percent); }
 	void add_url(const str &url, bool at_end);
 
-	#define CHK if (tag.empty() && tag_changes[path].empty()) tag_changes.erase(path)
-	void change_artist(const str &path, const str &tag) { tag_changes[path].artist = tag; CHK; }
-	void change_album (const str &path, const str &tag) { tag_changes[path].album  = tag; CHK; }
-	void change_title (const str &path, const str &tag) { tag_changes[path].title  = tag; CHK; }
-	#undef CHK
+	#define SETTER(X) void change_ ## X (const plist_item &it, const str &val) {\
+		auto i = tag_changes.find(it.path);\
+		if (val.empty() || (it.tags && it.tags->X == val))\
+		{\
+			if (i == tag_changes.end()) return;\
+			i->second.X.clear();\
+			if (i->second.empty()) tag_changes.erase(i);\
+		} else {\
+			tag_changes[it.path].X = val;\
+		}}
+	SETTER(artist);
+	SETTER(album);
+	SETTER(title);
+	#undef SETTER
 
 	std::map<str, file_tags> tag_changes;
 
