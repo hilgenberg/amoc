@@ -78,14 +78,9 @@ public:
 	void confirm_quit(int i);
 
 	// update and get info set by client:
-	bool update_curr_file(const str &f, int idx)
-	{
-		if (curr_file==f && curr_idx==idx) return false;
-		curr_file = f; curr_idx = idx;
-		curr_tags.reset(nullptr);
-		redraw(2);
-		return true;
-	}
+	bool update_curr_file(const str &f, int idx);
+	void drop_sync() { update_curr_file(curr_file, curr_idx); }
+
 	str get_curr_file()  const { return curr_file; }
 	int get_curr_index() const { return curr_idx; }
 

@@ -40,16 +40,20 @@ struct TagChanges
 		}
 		changes[it.path].title = val;
 	}
+	
 	void set_track(const plist_item &it, int val)
 	{
-		if (val <= 0 || (it.tags && it.tags->track == val))
+		// Note: track -1 keeps it as is, track 0 clears it
+		#define N(t) ((t) <= 0 ? 0 : (t))
+		if (val <= 0 || (it.tags && N(it.tags->track) == N(val)))
 		{
 			auto i = changes.find(it.path); if (i == changes.end()) return;
-			i->second.title.clear();
+			i->second.track = -1;
 			if (empty(i->second)) changes.erase(i);
 			return;
 		}
-		changes[it.path].track = val;
+		changes[it.path].track = N(val);
+		#undef N
 	}
 
 	str get_title(const plist_item &it) const
@@ -79,6 +83,6 @@ struct TagChanges
 
 	static bool empty(const file_tags &it)
 	{
-		return it.track <= 0 && it.title.empty() && it.artist.empty() && it.album.empty();
+		return it.track < 0 && it.title.empty() && it.artist.empty() && it.album.empty();
 	}
 };

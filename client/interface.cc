@@ -33,6 +33,16 @@ void Interface::cycle_layouts()
 	redraw(2);
 }
 
+bool Interface::update_curr_file(const str &f, int idx)
+{
+	if (!client.synced) idx = -1;
+	if (curr_file==f && curr_idx==idx) return false;
+	curr_file = f; curr_idx = idx;
+	curr_tags.reset(nullptr);
+	redraw(2);
+	return true;
+}
+
 bool Interface::can_tag() const
 {
 	auto sel = selection();
@@ -80,6 +90,21 @@ bool Interface::handle_command(key_cmd cmd)
 		case KEY_CMD_TAG_ARTIST: if (can_tag()) dlg.reset(new Dialog(*this, Dialog::EDIT_ARTIST)); break;
 		case KEY_CMD_TAG_ALBUM:  if (can_tag()) dlg.reset(new Dialog(*this, Dialog::EDIT_ALBUM)); break;
 		case KEY_CMD_TAG_TITLE:  if (can_tag()) dlg.reset(new Dialog(*this, Dialog::EDIT_TITLE)); break;
+
+		case KEY_CMD_TAG_ADD_NUMBERS:
+		case KEY_CMD_TAG_DEL_NUMBERS:
+		{
+			if (!can_tag()) break;
+			auto sel = selection(); assert(sel.first >= 0);
+			auto &pl = active->items;
+			for (int i = sel.first; i <= sel.second; ++i)
+			{
+				auto &it = pl[i]; assert(it.can_tag());
+				int k = (cmd == KEY_CMD_TAG_DEL_NUMBERS ? 0 : i-sel.first+1);
+				client.change_track(it, k);
+			}
+			break;
+		}
 
 		/*case KEY_CMD_MENU_SEARCH:
 			prompt("SEARCH", NULL, ...);

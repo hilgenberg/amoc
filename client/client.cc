@@ -331,7 +331,7 @@ void Client::add_to_plist(bool at_end)
 	else
 	{
 		playlist.insert(std::move(pl), pos);
-		iface->select_song(pos < 0 ? playlist.size()-1 : pos);
+		iface->select_song(pos < 0 ? playlist.size()-pl.size()-1 : pos);
 		iface->redraw(2);
 	}
 
@@ -658,6 +658,7 @@ bool Client::handle_command(key_cmd cmd)
 			{
 				playlist.clear();
 				synced = false;
+				iface->drop_sync();
 			}
 			else if (!playlist.empty())
 			{
@@ -670,6 +671,7 @@ bool Client::handle_command(key_cmd cmd)
 				srv.get(playlist);
 				ask_for_tags(playlist);
 				synced = true;
+				want_state_update = true;
 			}
 			iface->redraw(2);
 			break;

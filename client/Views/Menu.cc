@@ -85,8 +85,12 @@ MENU("Seek");
 
 MENU("Tags");
 	ITEM("Change artist",  KEY_CMD_TAG_ARTIST); GREY(!iface.can_tag());
-	ITEM("Change album",  KEY_CMD_TAG_ALBUM); GREY(!iface.can_tag());
-	ITEM("Change title",  KEY_CMD_TAG_TITLE); GREY(!iface.can_tag());
+	ITEM("Change album",   KEY_CMD_TAG_ALBUM); GREY(!iface.can_tag());
+	ITEM("Change title",   KEY_CMD_TAG_TITLE); GREY(!iface.can_tag());
+	SEPARATOR;
+	ITEM("Number sequentially",  KEY_CMD_TAG_ADD_NUMBERS); GREY(!iface.can_tag());
+	ITEM("Remove track numbers", KEY_CMD_TAG_DEL_NUMBERS); GREY(!iface.can_tag());
+	SEPARATOR;
 	ITEM("Write changes to disk",  KEY_CMD_WRITE_TAGS); GREY(iface.client.tag_changes.empty());
 	SEPARATOR;
 	ITEM("No Rating",  KEY_CMD_RATE_0);

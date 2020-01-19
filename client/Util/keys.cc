@@ -185,6 +185,8 @@ void keys_init ()
 	CMD(KEY_CMD_TAG_ALBUM,		"tag_album",	KEY_F(2));
 	CMD(KEY_CMD_TAG_TITLE,		"tag_title",	KEY_F(3));
 	CMD(KEY_CMD_WRITE_TAGS,		"tag_flush",	CTRL('s'));
+	CMD(KEY_CMD_TAG_ADD_NUMBERS,	"tag_add_track_numbers", 0);
+	CMD(KEY_CMD_TAG_DEL_NUMBERS,	"tag_del_track_numbers", 0);
 
 	CMD(KEY_CMD_TOGGLE_SHUFFLE,	"toggle_shuffle",	'S'); // Toggle Shuffle
 	CMD(KEY_CMD_TOGGLE_REPEAT,	"toggle_repeat",	'R'); // Toggle Repeat
