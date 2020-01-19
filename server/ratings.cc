@@ -178,7 +178,7 @@ static FILE *open_ratings_file (const char *fn, const char *mode)
 	}
 }
 
-/* read rating for a file into file_tags */
+/* read rating for a file */
 int ratings_read_file (const char *fn)
 {
 	assert(fn);
@@ -201,7 +201,6 @@ int ratings_read_file (const char *fn)
 		fclose (rf);
 	}
 
-	/* store the rating */
 	return rating;
 }
 
@@ -213,7 +212,7 @@ bool ratings_write_file (const char *fn, int rating)
 	const char *failmsg = "Rating could not be written (check permissions).";
 	#define FAIL do { \
 		server_error (__FILE__, __LINE__, "ratings_write_file", failmsg); \
-		return 0; } while (0)
+		return false; } while (0)
 
 
 	/* keep full path for open_ratings_file */
@@ -226,7 +225,7 @@ bool ratings_write_file (const char *fn, int rating)
 	FILE *rf = open_ratings_file (path, "rb+");
 	if (!rf)
 	{
-		if (rating <= 0) return 1; /* 0 rating needs no writing */
+		if (rating <= 0) return true; /* 0 rating needs no writing */
 
 		/* ratings file did not exist or could not be opened
 		 * for reading. Try creating it */
@@ -237,7 +236,7 @@ bool ratings_write_file (const char *fn, int rating)
 		int ok = fprintf (rf, "%d %s\n", rating, fn);
 		fclose (rf);
 		if (!ok) FAIL;
-		return 1;
+		return true;
 	}
 
 	/* ratings file exists, locate our file */
@@ -267,6 +266,6 @@ bool ratings_write_file (const char *fn, int rating)
 
 	#undef FAIL
 
-	return 1;
+	return true;
 }
 
