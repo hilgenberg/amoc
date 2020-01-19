@@ -87,51 +87,6 @@ static void set_default_colors ()
 	make_color (CLR_MENU_GREY_SELECTED, COLOR_RED, COLOR_BLACK, A_BOLD);
 }
 
-/* Set default colors for black and white terminal. */
-static void set_bw_colors ()
-{
-	colors[CLR_BACKGROUND] = A_NORMAL;
-	colors[CLR_FRAME] = A_NORMAL;
-	colors[CLR_WIN_TITLE] = A_NORMAL;
-	colors[CLR_PANEL_DIR] = A_NORMAL;
-	colors[CLR_PANEL_DIR_SELECTED] = A_REVERSE;
-	colors[CLR_PANEL_PLAYLIST] = A_NORMAL;
-	colors[CLR_PANEL_PLAYLIST_SELECTED] = A_REVERSE;
-	colors[CLR_PANEL_FILE] = A_NORMAL;
-	colors[CLR_PANEL_FILE_SELECTED] = A_REVERSE;
-	colors[CLR_PANEL_FILE_MARKED] = A_BOLD;
-	colors[CLR_PANEL_FILE_MARKED_SELECTED] = A_BOLD | A_REVERSE;
-	colors[CLR_PANEL_INFO] = A_NORMAL;
-	colors[CLR_PANEL_INFO_SELECTED] = A_REVERSE;
-	colors[CLR_PANEL_INFO_MARKED] = A_BOLD;
-	colors[CLR_PANEL_INFO_MARKED_SELECTED] = A_BOLD | A_REVERSE;
-	colors[CLR_STATUS] = A_NORMAL;
-	colors[CLR_TITLE] = A_BOLD;
-	colors[CLR_STATE] = A_BOLD;
-	colors[CLR_TIME_CURRENT] = A_BOLD;
-	colors[CLR_TIME_LEFT] = A_BOLD;
-	colors[CLR_TIME_TOTAL_FRAMES] = A_NORMAL;
-	colors[CLR_TIME_TOTAL] = A_BOLD;
-	colors[CLR_SOUND_PARAMS] = A_BOLD;
-	colors[CLR_LEGEND] = A_NORMAL;
-	colors[CLR_INFO_DISABLED] = A_BOLD;
-	colors[CLR_INFO_ENABLED] = A_BOLD;
-	colors[CLR_MIXER_BAR_EMPTY] = A_NORMAL;
-	colors[CLR_MIXER_BAR_FILL] = A_REVERSE;
-	colors[CLR_TIME_BAR_EMPTY] = A_NORMAL;
-	colors[CLR_TIME_BAR_FILL] = A_REVERSE;
-	colors[CLR_ENTRY] = A_NORMAL;
-	colors[CLR_ENTRY_TITLE] = A_BOLD;
-	colors[CLR_ERROR] = A_BOLD;
-	colors[CLR_MESSAGE] = A_BOLD;
-	colors[CLR_PLIST_TIME] = A_NORMAL;
-
-	colors[CLR_MENU_ITEM] = A_BOLD;
-	colors[CLR_MENU_SELECTED] = A_REVERSE;
-	colors[CLR_MENU_GREY] = A_NORMAL;
-	colors[CLR_MENU_GREY_SELECTED] = A_REVERSE;
-}
-
 /* Find the index of a color element by name. Return CLR_LAST if not found. */
 static enum color_index find_color_element_name (const char *name)
 {
@@ -297,24 +252,17 @@ void theme_init ()
 {
 	for (int i = 0; i < CLR_LAST; i++) colors[i] = -1;
 
-	if (has_colors ())
+	auto path = options::config_file_path("colors");
+	if (file_exists(path))
 	{
-		auto path = options::config_file_path("colors");
-		if (file_exists(path))
-		{
-			ifstream f(path);
-			if (!f.is_open()) interface_fatal("Can't open theme file: %s", xstrerror(errno));
+		ifstream f(path);
+		if (!f.is_open()) interface_fatal("Can't open theme file: %s", xstrerror(errno));
 
-			string line; int line_num = 0;
-			while (getline(f, line)) if (!parse_theme_line(++line_num, line)) break;
+		string line; int line_num = 0;
+		while (getline(f, line)) if (!parse_theme_line(++line_num, line)) break;
 
-			if (f.bad()) interface_fatal("Error reading theme file: %s", xstrerror(errno));
-		}
-
-		set_default_colors ();
+		if (f.bad()) interface_fatal("Error reading theme file: %s", xstrerror(errno));
 	}
-	else
-	{
-		set_bw_colors ();
-	}
+
+	set_default_colors ();
 }
