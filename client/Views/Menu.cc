@@ -257,7 +257,6 @@ void Menu::handle_hover(int x, int y)
 {
 	if (!active) return;
 
-
 	if (y == 0)
 	{
 		const int N = (int)items.size();
@@ -290,9 +289,15 @@ void Menu::handle_hover(int x, int y)
 }
 bool Menu::handle_click(int x, int y, bool dbl)
 {
-	if (y == 0) active = true;
+	if (y == 0)
+	{
+		active = !active;
+		iface.redraw(2);
+		if (active) handle_hover(x, y);
+		return true;
+	}
 	if (!active) return false;
-	if (y == 0 || sel < 0) return true;
+	if (sel < 0) return true;
 	auto &m = items[sel];
 	const int n = (int)m.items.size();
 
