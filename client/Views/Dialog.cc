@@ -2,11 +2,120 @@
 #include "../interface.h"
 #include "../client.h"
 
-#define TAG(i) (\
-	function==EDIT_ARTIST ? iface.client.get_artist(pl[i]) : \
-	function==EDIT_ALBUM  ? iface.client.get_album (pl[i]) : \
-	                        iface.client.get_title (pl[i]))
-#define PATH(i) (pl[i].path)
+static void trim(str &s, bool remove_track_number=false)
+{
+	int i0 = 0, i1 = (int)s.length() - 1;
+	while (i0 <= i1 && (isspace(s[i0]) || s[i0] == '-' || s[i0] == '/')) ++i0;
+	while (i0 <= i1 && (isspace(s[i1]) || s[i1] == '-' || s[i1] == '/')) --i1;
+	if (i0 > i1) s.clear(); else s = s.substr(i0, i1-i0+1);
+	i0 = 0; i1 = (int)s.length() - 1;
+	if (!remove_track_number) return;
+
+	while (i0 <= i1 && isdigit(s[i0])) ++i0;
+	if (i0 <= i1 && (s[i0] == ' ' || s[i0] == '-'))
+	{
+		++i0;
+		s = s.substr(i0+1);
+		trim(s, false);
+	}
+}
+static file_tags default_tags(Client &client, const plist &pl, const int i0, const int i1)
+{
+	if (i0 < 0 || i1 < i0) throw std::logic_error("Trying to edit tags for empty selection");
+
+	bool numbered = true;
+	for (int i = i0; i <= i1; ++i)
+	{
+		if (client.get_track(pl[i]) == i-i0+1) continue;
+		numbered = false; break;
+	}
+
+	file_tags tags;
+
+	// if they share common tags, start with that
+	for (int i = i0; i <= i1; ++i)
+	{
+		str t = client.get_artist(pl[i]);
+		if (tags.artist.empty()) tags.artist = t;
+		else if (tags.artist != t) { tags.artist.clear(); break; }
+	}
+	for (int i = i0; i <= i1; ++i)
+	{
+		str t = client.get_album(pl[i]);
+		if (tags.album.empty()) tags.album = t;
+		else if (tags.album != t) { tags.album.clear(); break; }
+	}
+	if (i0 == i1)
+	{
+		tags.title = client.get_title(pl[i0]);
+		tags.track = client.get_track(pl[i0]);
+	}
+	if (!tags.artist.empty() && !tags.album.empty() && !tags.title.empty()) return tags;
+
+	// otherwise use longest common path prefix
+	str path = pl[i0].path;
+	for (int i = i0+1; i <= i1; ++i)
+	{
+		intersect(path, pl[i].path);
+		if (path.length() <= 1) break;
+	}
+	if (path.length() <= 1) return tags;
+
+	str mhome = options::MusicDir; if (!mhome.empty()) mhome += '/'; if (mhome.length() < 2) mhome.clear();
+	str uhome = options::Home;     if (!uhome.empty()) uhome += '/'; if (uhome.length() < 2) uhome.clear();
+	if      (!mhome.empty() && has_prefix(path, mhome, false)) path = path.substr(mhome.length());
+	else if (!uhome.empty() && has_prefix(path, uhome, false)) path = path.substr(uhome.length());
+	
+	// remove final / (when i0 != i1)
+	if (!path.empty() && path.back() == '/') path.pop_back();
+
+	// remove extension (when i0 == i1)
+	const char *s0 = path.c_str(), *s = ext_pos(s0);
+	if (s) path = path.substr(0, s-1-s0);
+
+	// remove set tags from path
+	if (!tags.artist.empty()) while (true)
+	{
+		size_t k = path.find(tags.artist); if (k == str::npos) break;
+		path.erase(k, tags.artist.length());
+	}
+	if (!tags.album.empty()) while (true)
+	{
+		size_t k = path.find(tags.album); if (k == str::npos) break;
+		path.erase(k, tags.album.length());
+	}
+	if (!tags.title.empty()) while (true)
+	{
+		size_t k = path.find(tags.title); if (k == str::npos) break;
+		path.erase(k, tags.title.length());
+	}
+	while (true)
+	{
+		size_t k = path.find("//"); if (k == str::npos) break;
+		path.erase(k, 1);
+	}
+	if (!path.empty() && path[0] == '/') path.erase(0, 1);
+
+	// only keep two directory levels
+	size_t k = path.rfind('/');
+	if (k != str::npos) k = k > 0 ? path.rfind('/', k-1) : str::npos;
+	if (k != str::npos) k = k > 0 ? path.rfind('/', k-1) : str::npos;
+	if (k != str::npos) path.erase(0, k+1);
+
+	if (tags.artist.empty()) { tags.artist = path; trim(tags.artist); }
+	if (tags.album.empty()) { tags.album = path; trim(tags.album); }
+
+	if (tags.title.empty())
+	{
+		k = path.rfind('/');
+		if (k != str::npos) path.erase(0, k+1);
+
+		tags.title = path;
+		trim(tags.title, true);
+	}
+
+	return tags;
+}
 
 Dialog::Dialog(Interface &iface, Function f)
 : iface(iface), function(f), cursor(-1), yes(false)
@@ -29,66 +138,18 @@ Dialog::Dialog(Interface &iface, Function f)
 		case EDIT_TITLE:
 		{
 			auto sel = iface.selection();
-			const int n = (sel.second+1-sel.first);
-			if (sel.first < 0 || n <= 0) throw std::logic_error("Trying to edit tags for empty selection");
-			auto &pl = iface.active->items;
+			auto tag = default_tags(iface.client, iface.active->items, sel.first, sel.second);
 
-			// if they share a common tag, start with that
-			for (int i = sel.first; i <= sel.second; ++i)
-			{
-				str t = TAG(i);
-				if (response.empty())
-					response = t;
-				else if (response != t)
-				{
-					response.clear();
-					break;
-				}
-			}
-			if (!response.empty()) break;
-
-			// otherwise use longest common path prefix
-			str mhome = options::MusicDir; if (!mhome.empty()) mhome += '/'; if (mhome.length() < 2) mhome.clear();
-			str uhome = options::Home;     if (!uhome.empty()) uhome += '/'; if (uhome.length() < 2) uhome.clear();
-
-			for (int i = sel.first; i <= sel.second; ++i)
-			{
-				str t = PATH(i);
-				if (response.empty())
-					response = t;
-				else
-				{
-					intersect(response, t);
-					if (response.empty()) break;
-				}
-			}
-
-			if (!mhome.empty() && has_prefix(response, mhome, false))
-				response = response.substr(mhome.length());
-			else if (!uhome.empty() && has_prefix(response, uhome, false))
-				response = response.substr(uhome.length());
-			if (!response.empty() && response.back() == '/')
-				response.pop_back();
-
-			const char *s0 = response.c_str(), *s = ext_pos(s0);
-			if (s) response = response.substr(0, s-1-s0);
-
-			if (function == EDIT_TITLE)
-			{
-				auto i = response.rfind('/');
-				if (i != str::npos)
-				{
-					response = response.substr(i+1);
-				}
-			}
+			response = (function==EDIT_ARTIST ? tag.artist :
+				function==EDIT_ALBUM ? tag.album : tag.title);
 			break;
 		}
 
 		case CONFIRM_QUIT:
 		case CONFIRM_QUIT_CLIENT:
 			confirming = format(" Discard %d tag%s? ", 
-				(int)iface.client.tag_changes.size(),
-				iface.client.tag_changes.size()==1 ? "" : "s");
+				(int)iface.client.tag_changes.changes.size(),
+				iface.client.tag_changes.changes.size()==1 ? "" : "s");
 			break;
 	}
 	if (cursor < 0) cursor = strwidth(response);

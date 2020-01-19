@@ -8,11 +8,6 @@ struct file_tags
 	int time; // in seconds or -1 for streams
 	str title, artist, album;
 	int track, rating;
-
-	bool empty() const
-	{
-		return track < 0 && title.empty() && artist.empty() && album.empty();
-	}
 };
 
 enum file_type

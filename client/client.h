@@ -1,5 +1,6 @@
 #pragma once
 #include "interface.h"
+#include "Util/TagChanges.h"
 #include "../playlist.h"
 #include "Util/keys.h"
 #include "../server/protocol.h"
@@ -27,27 +28,15 @@ public:
 	void seek_to_percent (int percent) { srv.send(CMD_JUMP_TO); srv.send(-percent); }
 	void add_url(const str &url, bool at_end);
 
-	#define SETTER(X) void change_ ## X (const plist_item &it, const str &val) {\
-		auto i = tag_changes.find(it.path);\
-		if (val.empty() || (it.tags && it.tags->X == val))\
-		{\
-			if (i == tag_changes.end()) return;\
-			i->second.X.clear();\
-			if (i->second.empty()) tag_changes.erase(i);\
-		} else {\
-			tag_changes[it.path].X = val;\
-		}}
-	SETTER(artist);
-	SETTER(album);
-	SETTER(title);
-	#undef SETTER
-
-	std::map<str, file_tags> tag_changes;
-
-	str get_title(const plist_item &it) const;
-	str get_artist(const plist_item &it) const;
-	str get_album(const plist_item &it) const;
-	int get_track(const plist_item &it) const;
+	TagChanges tag_changes;
+	void change_artist(const plist_item &it, const str &val) { tag_changes.set_artist(it, val); }
+	void change_album(const plist_item &it, const str &val) { tag_changes.set_album(it, val); }
+	void change_title(const plist_item &it, const str &val) { tag_changes.set_title(it, val); }
+	void change_track(const plist_item &it, int val) { tag_changes.set_track(it, val); }
+	str get_title(const plist_item &it) const { return tag_changes.get_title(it); }
+	str get_artist(const plist_item &it) const { return tag_changes.get_artist(it); }
+	str get_album(const plist_item &it) const { return tag_changes.get_album(it); }
+	int get_track(const plist_item &it) const { return tag_changes.get_track(it); }
 
 private:
 	Socket srv;
