@@ -347,21 +347,6 @@ char *read_line (FILE *file)
 	return line;
 }
 
-/* Return malloc()ed string in form "base/name". */
-static char *add_dir_file (const char *base, const char *name)
-{
-	char *path;
-	int base_is_root;
-
-	base_is_root = !strcmp (base, "/") ? 1 : 0;
-	path = (char *)xmalloc (sizeof(char) *
-			(strlen(base) + strlen(name) + 2));
-
-	sprintf (path, "%s/%s", base_is_root ? "" : base, name);
-
-	return path;
-}
-
 /* Return != 0 if the file exists. */
 bool file_exists (const str &file)
 {

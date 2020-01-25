@@ -328,16 +328,6 @@ void player_init ()
 	precache.ok = 0;
 }
 
-static void show_tags (const file_tags *tags)
-{
-	assert(tags);
-	debug ("TAG[title]: %s", tags->title.empty() ? "N/A" :tags->title.c_str());
-	debug ("TAG[album]: %s", tags->album.empty() ? "N/A" :tags->album.c_str());
-	debug ("TAG[artist]: %s", tags->artist.empty() ? "N/A" :tags->artist.c_str());
-	debug ("TAG[track]: %d", tags->track);
-	debug ("TAG[track]: %d", tags->rating);
-}
-
 /* Called when some free space in the output buffer appears. */
 static void buf_free_cb ()
 {

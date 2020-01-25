@@ -112,7 +112,7 @@ void xsleep (size_t ticks, size_t ticks_per_sec)
 
 	if (ticks > 0) {
 		int rc;
-		struct timespec delay = {.tv_sec = (__time_t)ticks};
+		struct timespec delay = {.tv_sec = (__time_t)ticks, .tv_nsec = 0};
 
 		if (ticks_per_sec > 1) {
 			uint64_t nsecs;

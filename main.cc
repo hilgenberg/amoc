@@ -303,8 +303,6 @@ static void show_usage (poptContext ctx)
 /* Show program help. */
 static void show_help (poptContext ctx)
 {
-	size_t ix;
-
 	show_banner ();
 	poptSetOtherOptionHelp (ctx, mocp_summary);
 	poptPrintHelp (ctx, stdout, 0);
@@ -403,9 +401,7 @@ static void process_options (poptContext ctx)
 	int rc;
 
 	while ((rc = poptGetNextOpt (ctx)) >= 0) {
-		const char *jump_type, *arg;
-
-		arg = poptGetOptArg (ctx);
+		const char *arg = poptGetOptArg (ctx);
 
 		switch (rc) {
 		case CL_NOIFACE:

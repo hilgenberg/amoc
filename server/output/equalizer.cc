@@ -504,7 +504,6 @@ void equalizer_shutdown()
 void equalizer_refresh()
 {
 	t_eq_setup *eqs = NULL;
-	char buf[1024];
 
 	char *current_set_name = NULL;
 

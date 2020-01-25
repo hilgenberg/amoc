@@ -342,11 +342,6 @@ static bool send_data_int (client *cli, int data)
 	Lock lock(*cli);
 	return cli->socket->send((int)EV_DATA) && cli->socket->send(data);
 }
-static bool send_data_bool (client *cli, bool data)
-{
-	Lock lock(*cli);
-	return cli->socket->send((int)EV_DATA) && cli->socket->send(data);
-}
 static bool send_data_str (client *cli, const char *str)
 {
 	Lock lock(*cli);

@@ -297,6 +297,8 @@ void Client::add_to_plist(bool at_end)
 				if (tmp.load_m3u(item.path)) pl += std::move(tmp);
 				break;
 			}
+			case F_URL:
+			case F_OTHER: break;
 		}
 	}
 	if (pl.empty()) return;

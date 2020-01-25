@@ -24,7 +24,7 @@
 #include "../audio.h"
 
 /* These merely silence compiler warnings about unused definitions in
- * the Vorbis library header files. */
+ * the Vorbis library header files. * /
 #if !defined(HAVE_TREMOR)
 static ov_callbacks *vorbis_unused[] = {
 	&OV_CALLBACKS_DEFAULT,
@@ -32,7 +32,7 @@ static ov_callbacks *vorbis_unused[] = {
 	&OV_CALLBACKS_STREAMONLY,
 	&OV_CALLBACKS_STREAMONLY_NOCLOSE
 };
-#endif
+#endif*/
 
 /* Tremor defines time as 64-bit integer milliseconds. */
 #ifndef HAVE_TREMOR
@@ -359,7 +359,7 @@ static int vorbis_current_tags (void *prv_data, struct file_tags *tags)
 {
 	struct vorbis_data *data = (struct vorbis_data *)prv_data;
 
-	tags = data->tags ? new file_tags(*data->tags) : NULL;
+	if (data->tags) *tags = *data->tags;
 
 	if (data->tags_change) {
 		data->tags_change = 0;

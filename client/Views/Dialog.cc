@@ -23,13 +23,6 @@ static file_tags default_tags(Client &client, const plist &pl, const int i0, con
 {
 	if (i0 < 0 || i1 < i0) throw std::logic_error("Trying to edit tags for empty selection");
 
-	bool numbered = true;
-	for (int i = i0; i <= i1; ++i)
-	{
-		if (client.get_track(pl[i]) == i-i0+1) continue;
-		numbered = false; break;
-	}
-
 	file_tags tags;
 
 	// if they share common tags, start with that
@@ -262,6 +255,8 @@ bool Dialog::handle_key(wchar_t c, int f)
 
 		case KEY_BACKSPACE: if (cursor) strdel(response, --cursor);  return true;
 		case KEY_DC: strdel(response, cursor); return true;
+
+		default: break;
 	}
 
 	switch (get_key_cmd(CON_ENTRY, c, f))
@@ -271,6 +266,7 @@ bool Dialog::handle_key(wchar_t c, int f)
 		case KEY_CMD_HISTORY_DOWN: /*TODO*/ return true;
 		case KEY_CMD_DELETE_START: strdel(response, 0, cursor); cursor = 0; return true;
 		case KEY_CMD_DELETE_END: strdel(response, cursor, strwidth(response)); return true;
+		default: break;
 	}
 	return true;
 }
@@ -299,9 +295,6 @@ void Dialog::draw() const
 	{
 		r.w = confirming.length()+4; r.h = 5;
 		r.center(W, H);
-
-		const int W = COLS, H = LINES;
-		Window &win = iface.win;
 
 		win.moveto(r.y, r.x); win.color(CLR_MENU_ITEM); win.clear(r.w);
 		win.moveto(r.y+1, r.x); win.field(confirming, r.w, 'C');

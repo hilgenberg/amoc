@@ -14,6 +14,8 @@
 /* Use 64bit IO */
 #define _FILE_OFFSET_BITS 64
 
+#define STRERROR_R_CHAR_P
+
 #include <vector>
 #include <queue>
 #include <set>

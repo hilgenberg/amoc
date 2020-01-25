@@ -37,6 +37,17 @@ struct file_tags
 		// leave usage as is
 		return *this;
 	}
+	file_tags& operator= (const file_tags &t)
+	{
+		artist = t.artist;
+		album = t.album;
+		title = t.title;
+		track = t.track;
+		rating = t.rating;
+		time = t.time;
+		// leave usage as is
+		return *this;
+	}
 };
 
 enum file_type

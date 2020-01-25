@@ -87,7 +87,7 @@ bool InfoView::handle_click(int x, int y, bool dbl)
 
 bool InfoView::start_drag(int x, int y)
 {
-	const int W = COLS, H = LINES;
+	const int H = LINES;
 
 	if (y < H-3) return false;
 

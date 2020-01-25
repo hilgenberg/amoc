@@ -134,7 +134,6 @@ static void wav_get_error (void *prv_data, struct decoder_error *error)
 static void wav_info (const char *file_name, struct file_tags *info)
 {
 	char wv_error[100];
-	char *tag;
 	int tag_len;
 
 	WavpackContext *wpc;

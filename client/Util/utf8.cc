@@ -110,11 +110,11 @@ static wstr safe_convert(const str &src)
 
 	return ws;
 }
-static wstr convert(const str &s) // utf8 to wstr, throws on invalid sequences
+/*static wstr convert(const str &s) // utf8 to wstr, throws on invalid sequences
 {
     std::wstring_convert<std::codecvt_utf8<wchar_t>> c;
     return c.from_bytes(s);
-}
+}*/
 
 static str convert(const wstr &s) // back to utf8
 {

@@ -279,7 +279,7 @@ bool plist::add_directory (const str &directory, bool recursive)
 
 bool plist::load_m3u (const str &fname)
 {
-	struct flock read_lock = {.l_type = F_RDLCK, .l_whence = SEEK_SET};
+	struct flock read_lock = {.l_type = F_RDLCK, .l_whence = SEEK_SET, .l_start=0, .l_len=0, .l_pid=-1};
 
 	FILE *file = fopen (fname.c_str(), "r");
 	if (!file) {
@@ -325,7 +325,7 @@ bool plist::load_m3u (const str &fname)
 /* Save the playlist into the file in m3u format. */
 bool plist::save (const str &fname) const
 {
-	struct flock write_lock = {.l_type = F_WRLCK, .l_whence = SEEK_SET};
+	struct flock write_lock = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start=0, .l_len=0, .l_pid=-1};
 
 	debug ("Saving playlist to '%s'", fname.c_str());
 
