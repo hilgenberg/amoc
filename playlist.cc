@@ -5,6 +5,7 @@
 #include <sys/file.h>
 
 #include "playlist.h"
+#include "client/Util/Tags.h"
 #include "client/client.h" // user_wants_interrupt()
 #include "server/input/decoder.h"
 
@@ -26,6 +27,49 @@ bool plist_item::can_tag() const
 	if (type != F_SOUND) return false;
 	auto *df = get_decoder (path.c_str());
 	return df && df->info && df->write_info;
+}
+
+plist::~plist()
+{
+	if (tags) for (auto &it : items) tags->release(*it);
+}
+void plist::swap(plist &other)
+{
+	if (tags && !other.tags)
+	{
+		for (auto &it : items) tags->release(*it);
+		for (auto &it : other.items) { delete it->tags; it->tags = NULL; }
+	}
+	else if (!tags && other.tags)
+	{
+		for (auto &it : other.items) other.tags->release(*it);
+		for (auto &it : items) { delete it->tags; it->tags = NULL; }
+	}
+	else
+	{
+		assert(tags == other.tags); // we only ever use one Tags instance
+	}
+	std::swap(items, other.items);
+	std::swap(is_dir, other.is_dir);
+}
+
+void plist::clear()
+{
+	if (tags) for (auto &it : items) tags->release(*it);
+	items.clear();
+}
+void plist::remove(int i, int n)
+{
+	if (i < 0 || n <= 0 || (size_t)(i+n) > items.size()) return;
+	if (tags) for (int j = i, k = i+n; j < k; ++j) tags->release(*items[j]);
+	items.erase(items.begin() + i, items.begin() + i + n);
+}
+void plist::move(int i, int j)
+{
+	int n = (int)items.size();
+	if (i == j || i < 0 || j < 0 || i >= n || j >= n) return;
+	while (i < j) { std::swap(items[i], items[i+1]); ++i; }
+	while (i > j) { std::swap(items[i], items[i-1]); --i; }
 }
 
 plist & plist::operator+= (const plist &other)

@@ -148,8 +148,8 @@ Dialog::Dialog(Interface &iface, Function f)
 		case CONFIRM_QUIT:
 		case CONFIRM_QUIT_CLIENT:
 			confirming = format(" Discard %d tag%s? ", 
-				(int)iface.client.tag_changes.changes.size(),
-				iface.client.tag_changes.changes.size()==1 ? "" : "s");
+				(int)iface.client.tags.changes.size(),
+				iface.client.tags.changes.size()==1 ? "" : "s");
 			break;
 	}
 	if (cursor < 0) cursor = strwidth(response);

@@ -91,7 +91,7 @@ MENU("Tags");
 	ITEM("Number sequentially",  KEY_CMD_TAG_ADD_NUMBERS); GREY(!iface.can_tag());
 	ITEM("Remove track numbers", KEY_CMD_TAG_DEL_NUMBERS); GREY(!iface.can_tag());
 	SEPARATOR;
-	ITEM("Write changes to disk",  KEY_CMD_WRITE_TAGS); GREY(iface.client.tag_changes.empty());
+	ITEM("Write changes to disk",  KEY_CMD_WRITE_TAGS); GREY(iface.client.tags.changes.empty());
 	SEPARATOR;
 	ITEM("No Rating",  KEY_CMD_RATE_0);
 	ITEM("Rate 1/5", KEY_CMD_RATE_1);

@@ -504,10 +504,10 @@ static bool req_jump_to (client &cli)
 		if (path.empty())
 			return false;
 	
-		struct file_tags tags = tc->get_immediate (path.c_str());
+		auto T = tc->get_immediate(path.c_str()).time;
 
-		if (tags.time <= 0) return false;
-		sec = (tags.time * sec)/100;
+		if (T <= 0) return false;
+		sec = (T * sec)/100;
 	}
 
 	logit ("Jumping to %ds", sec);

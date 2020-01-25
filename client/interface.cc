@@ -20,6 +20,11 @@ Interface::Interface(Client &client, plist &pl1, plist &pl2)
 	          BUTTON1_PRESSED | BUTTON1_RELEASED | BUTTON4_PRESSED|BUTTON5_PRESSED, NULL);
 }
 
+int Interface::get_total_time() const
+{
+	return client.tags.get_time(curr_file);
+}
+
 void Interface::resize ()
 {
 	win.resize();
@@ -38,7 +43,6 @@ bool Interface::update_curr_file(const str &f, int idx)
 	if (!client.synced) idx = -1;
 	if (curr_file==f && curr_idx==idx) return false;
 	curr_file = f; curr_idx = idx;
-	curr_tags.reset(nullptr);
 	redraw(2);
 	return true;
 }
@@ -125,7 +129,7 @@ bool Interface::handle_command(key_cmd cmd)
 
 void Interface::confirm_quit(int i)
 {
-	if (client.tag_changes.empty())
+	if (client.tags.changes.empty())
 	{
 		client.want_quit = i;
 		return;
@@ -295,7 +299,7 @@ void Interface::draw()
 	if (info.get_state() == STATE_STOP)
 	{
 		curr_file.clear();
-		curr_tags.reset(nullptr);
+		curr_idx = -1;
 	}
 	
 	// make sure there is always a selection

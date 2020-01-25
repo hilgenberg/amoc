@@ -27,6 +27,7 @@ Client::Client(int sock, stringlist &args)
 : srv(sock, false), synced(false)
 , want_plist_update(false), want_state_update(false)
 , silent_seek_key_last(0.0), silent_seek_pos(-1)
+, playlist(&tags), dir_plist(&tags)
 {
 	logit ("Starting MOC Interface");
 
@@ -132,7 +133,7 @@ Client::Client(int sock, stringlist &args)
 		if (idx >= 0) iface->select_song(idx);
 	}
 
-	ask_for_tags(playlist);
+	if (options::ReadTags) tags.request(playlist, srv);
 }
 
 Client::~Client ()
@@ -142,6 +143,7 @@ Client::~Client ()
 	srv.send(want_quit > 1 ? CMD_QUIT : CMD_DISCONNECT);
 
 	iface = nullptr; // deletes the interface
+
 	logit ("Interface exited");
 }
 
@@ -166,29 +168,11 @@ void Client::wait_for_data ()
 	SOCKET_DEBUG("found EV_DATA");
 }
 
-void Client::send_tags_request (const str &file)
-{
-	srv.send(CMD_GET_FILE_TAGS);
-	srv.send(file);
-	debug ("Asking for tags for %s", file.c_str());
-}
-
 /* Make new cwd path from CWD and this path. */
 void Client::set_cwd(const str &path)
 {
 	cwd = absolute_path(add_path(cwd, path));
 	normalize_path(cwd);
-}
-
-/* For each file in the playlist, send a request for all the given tags if
- * the file is missing any of those tags.  Return the number of requests. */
-void Client::ask_for_tags (const plist &plist)
-{
-	for (auto &i : plist.items)
-	{
-		if (i->tags || i->type != F_SOUND) continue;
-		send_tags_request(i->path);
-	}
 }
 
 /* Get and show the server state. */
@@ -210,7 +194,7 @@ void Client::update_state ()
 	{
 		silent_seek_pos = -1;
 		if (options::ReadTags && !file.empty())
-			send_tags_request(file); // TODO: see if we already have them first
+			tags.request(file, srv);
 	}
 
 	iface->info.update_channels(get_channels());
@@ -242,7 +226,7 @@ bool Client::go_to_dir (const char *dir)
 	/* TODO: use CMD_ABORT_TAGS_REQUESTS (what if we requested tags for the playlist?) */
 
 	if (dir) cwd = dir;
-	if (options::ReadTags) ask_for_tags (dir_plist);
+	if (options::ReadTags) tags.request(dir_plist, srv);
 	if (same)
 	{
 		left.top = top0;
@@ -256,6 +240,9 @@ bool Client::go_to_dir (const char *dir)
 
 	iface->redraw(2);
 	iface->status ("");
+
+	tags.remove_unused();
+
 	return true;
 }
 
@@ -272,7 +259,7 @@ bool Client::go_to_playlist (const str &file)
 
 	iface->message ("Playlist loaded.");
 	synced = false;
-	if (options::ReadTags) ask_for_tags (playlist);
+	if (options::ReadTags) tags.request(playlist, srv);
 	iface->redraw(2);
 	return true;
 }
@@ -540,7 +527,7 @@ void Client::run()
 			wait_for_data();
 			want_plist_update = false;
 			srv.get(playlist);
-			ask_for_tags(playlist);
+			if (options::ReadTags) tags.request(playlist, srv);
 		}
 		else want_plist_update = false;
 		
@@ -566,13 +553,13 @@ bool Client::handle_command(key_cmd cmd)
 		case KEY_CMD_QUIT:        iface->confirm_quit(2); return true;
 
 		case KEY_CMD_WRITE_TAGS:
-			for (auto &it : tag_changes.changes)
+			for (auto &it : tags.changes)
 			{
 				srv.send(CMD_SET_FILE_TAGS);
 				srv.send(it.first);
 				srv.send(&it.second);
 			}
-			tag_changes.changes.clear();
+			tags.changes.clear();
 			return true;
 
 		case KEY_CMD_GO:
@@ -630,8 +617,8 @@ bool Client::handle_command(key_cmd cmd)
 			options::ReadTags ^= 1;
 			iface->status(options::ReadTags ? "ReadTags: yes" : "ReadTags: no");
 			if (options::ReadTags) {
-				ask_for_tags(dir_plist);
-				ask_for_tags(playlist);
+				tags.request(dir_plist, srv);
+				tags.request(playlist, srv);
 			}
 			iface->redraw(2);
 			break;
@@ -669,7 +656,7 @@ bool Client::handle_command(key_cmd cmd)
 				srv.send(CMD_PLIST_GET);
 				wait_for_data();
 				srv.get(playlist);
-				ask_for_tags(playlist);
+				if (options::ReadTags) tags.request(playlist, srv);
 				synced = true;
 				want_state_update = true;
 			}
@@ -801,7 +788,7 @@ void Client::handle_server_event (int type)
 			int idx; srv.get(idx);
 			if (!synced || want_plist_update) break;
 			playlist.insert(pl, idx);
-			ask_for_tags(pl);
+			if (options::ReadTags) tags.request(pl, srv);
 			iface->redraw(2);
 			break;
 		}
@@ -831,15 +818,9 @@ void Client::handle_server_event (int type)
 		case EV_FILE_TAGS:
 		{
 			str file = srv.get_str();
-			file_tags *tags = srv.get_tags();
+			file_tags *tag = srv.get_tags();
 			logit ("Received tags for %s", file.c_str());
-			playlist.set_tags(file, tags);
-			dir_plist.set_tags(file, tags);
-			if (iface->get_curr_file() == file) {
-				debug ("Tags apply to the currently played file.");
-				iface->update_curr_tags(tags);
-			}
-			else delete tags;
+			tags.update(file, std::unique_ptr<file_tags>(tag));
 			iface->redraw(2);
 			break;
 		}
@@ -848,8 +829,7 @@ void Client::handle_server_event (int type)
 			str file = srv.get_str();
 			int rating = srv.get_int();
 			debug ("Received rating for %s", file.c_str());
-			playlist.set_rating(file, rating);
-			dir_plist.set_rating(file, rating);
+			tags.set_rating(file, rating);
 			iface->redraw(2);
 			break;
 		}

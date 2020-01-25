@@ -219,7 +219,7 @@ file_tags tags_cache::read_add (const char *file, int client_id)
 		if (rec.mod_time == current_mtime)
 		{
 			debug ("Cache hit.");
-			return rec.tags;
+			return std::move(rec.tags);
 		}
 		else 
 		{
@@ -236,7 +236,7 @@ file_tags tags_cache::read_add (const char *file, int client_id)
 
 	if (client_id != -1) tags_response (client_id, file, &rec.tags);
 
-	return rec.tags;
+	return std::move(rec.tags);
 }
 
 

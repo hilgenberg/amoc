@@ -83,9 +83,7 @@ public:
 
 	str get_curr_file()  const { return curr_file; }
 	int get_curr_index() const { return curr_idx; }
-
-	int  get_total_time() const { return curr_tags ? curr_tags->time : 0; }
-	void update_curr_tags(file_tags *t) { curr_tags.reset(t); redraw(1); }
+	int get_total_time() const;
 	
 	Window    win;
 	Panel     left, right, *active;
@@ -101,7 +99,6 @@ private:
 	friend class Dialog;
 	friend class Menu;
 	str curr_file; int curr_idx;
-	std::unique_ptr<file_tags> curr_tags;
 	int left_total, right_total;
 
 	void cycle_layouts();
