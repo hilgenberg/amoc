@@ -33,6 +33,7 @@ public:
 		active->sel += dy;
 		redraw(2);
 	}
+	void deselect() { active->move_selection(REQ_COLLAPSE); redraw(2); }
 
 	int selected_song() { assert(!in_dir_plist()); return right.xsel ? -1 : right.sel; }
 	plist_item *sel_item() const
@@ -109,6 +110,8 @@ private:
 		dlg.reset(nullptr);
 	}
 	bool can_tag() const;
+	bool can_mv()  const;
+	bool can_rm()  const;
 
 	View *dragging;
 

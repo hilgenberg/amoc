@@ -889,6 +889,25 @@ void audio_plist_delete (int i, int n)
 	UNLOCK (plist_mtx);
 }
 
+void audio_files_rm(const std::set<str> &files)
+{
+	LOCK (plist_mtx);
+	playlist.remove(files);
+	UNLOCK (plist_mtx);
+}
+void audio_files_mv(const std::set<str> &files, const str &dst)
+{
+	LOCK (plist_mtx);
+	playlist.move(files, dst);
+	UNLOCK (plist_mtx);
+}
+void audio_files_mv(const str &file, const str &new_path)
+{
+	LOCK (plist_mtx);
+	playlist.rename(file, new_path);
+	UNLOCK (plist_mtx);
+}
+
 void audio_send_plist(Socket &socket)
 {
 	LOCK (plist_mtx);

@@ -218,6 +218,13 @@ str containing_directory(const str &path)
 	if (i == str::npos) return "";
 	return path.substr(0, i==0 ? (size_t)1 : i);
 }
+str file_name(const str &path)
+{
+	assert(!path.empty() && path.back() != '/');
+	auto i = path.rfind('/', path.length()<2 ? str::npos : path.length()-2);
+	return i == str::npos ? path : path.substr(i+1);
+}
+
 
 /* Is the string a URL? */
 bool is_url (const str &str)
@@ -242,6 +249,27 @@ bool is_dir (const str &file)
 	return S_ISDIR(file_stat.st_mode);
 }
 
+bool file_exists (const str &file)
+{
+	struct stat file_stat;
+
+	if (!stat(file.c_str(), &file_stat))
+		return 1;
+
+	/* Log any error other than non-existence. */
+	if (errno != ENOENT)
+		log_errno ("Error", errno);
+
+	return 0;
+}
+
+bool is_regular_file(const str &file)
+{
+	struct stat file_stat;
+	if (stat(file.c_str(), &file_stat) != 0) return false;
+	return S_ISREG(file_stat.st_mode);
+}
+
 bool is_plist_file (const str &name)
 {
 	const char *ext = ext_pos (name.c_str());
@@ -249,9 +277,9 @@ bool is_plist_file (const str &name)
 }
 
 /* Return 1 if the file can be read by this user, 0 if not */
-bool can_read_file (const char *file)
+bool can_read_file (const str &file)
 {
-	return access(file, R_OK) == 0;
+	return access(file.c_str(), R_OK) == 0;
 }
 
 /* Given a file name, return the mime type or NULL. */
@@ -347,27 +375,12 @@ char *read_line (FILE *file)
 	return line;
 }
 
-/* Return != 0 if the file exists. */
-bool file_exists (const str &file)
-{
-	struct stat file_stat;
-
-	if (!stat(file.c_str(), &file_stat))
-		return 1;
-
-	/* Log any error other than non-existence. */
-	if (errno != ENOENT)
-		log_errno ("Error", errno);
-
-	return 0;
-}
-
 /* Get the modification time of a file. Return (time_t)-1 on error */
-time_t get_mtime (const char *file)
+time_t get_mtime (const str &file)
 {
 	struct stat stat_buf;
 
-	if (stat(file, &stat_buf) != -1)
+	if (stat(file.c_str(), &stat_buf) != -1)
 		return stat_buf.st_mtime;
 
 	return (time_t)-1;

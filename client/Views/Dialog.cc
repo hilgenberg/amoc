@@ -109,6 +109,30 @@ static file_tags default_tags(Client &client, const plist &pl, const int i0, con
 
 	return tags;
 }
+static str default_dst(const plist &pl, const int i0, const int i1)
+{
+	if (i0 < 0 || i1 < i0) throw std::logic_error("Trying to move empty set of files");
+
+	// if they share common tags, start with that
+	str ret;
+	bool first = true;
+	for (int i = i0; i <= i1; ++i)
+	{
+		auto &it = pl[i];
+		if (it.type ==  F_URL) continue;
+		if (first) ret = it.path; else intersect(ret, it.path);
+		first = false;
+	}
+	auto i = ret.rfind('/');
+	if (i != str::npos)
+	{
+		if (i0 == i1)
+			ret = ret.substr(i+1);
+		else
+			if (i != 0) ret = ret.substr(0, i+1);
+	}
+	return ret;
+}
 
 Dialog::Dialog(Interface &iface, Function f)
 : iface(iface), function(f), cursor(-1), yes(false)
@@ -144,6 +168,20 @@ Dialog::Dialog(Interface &iface, Function f)
 				(int)iface.client.tags.changes.size(),
 				iface.client.tags.changes.size()==1 ? "" : "s");
 			break;
+
+		case FILES_MV:
+		{
+			auto sel = iface.selection();
+			response = default_dst(iface.active->items, sel.first, sel.second);
+			break;
+		}
+
+		case FILES_RM:
+		{
+			auto sel = iface.selection();
+			confirming = format("Really delete %d items?", sel.second-sel.first+1);
+			break;
+		}
 	}
 	if (cursor < 0) cursor = strwidth(response);
 	hscroll = cursor; // if needed, cut off the front rather than the end
@@ -208,6 +246,9 @@ bool Dialog::ok(bool confirmed)
 			assert(confirmed);
 			iface.client.want_quit = 1;
 			break;
+
+		case FILES_MV: iface.client.files_mv(response); break;
+		case FILES_RM: assert(confirmed); iface.client.files_rm(); break;
 	}
 	return cancel();
 }
@@ -220,7 +261,8 @@ bool Dialog::handle_key(wchar_t c, int f)
 		if (c == 'n' || c == 'N' || (c == '\n' && !yes) ||
 		    get_key_cmd(CON_ENTRY, c, f) == KEY_CMD_CANCEL)
 		{
-			if (function == CONFIRM_QUIT || function == CONFIRM_QUIT_CLIENT)
+			if (function == CONFIRM_QUIT || function == CONFIRM_QUIT_CLIENT ||
+			    function == FILES_RM)
 				return cancel();
 			
 			confirming.clear();
@@ -280,6 +322,7 @@ static str prompt(Dialog::Function f)
 		case Dialog::EDIT_ARTIST: return "ARTIST";
 		case Dialog::EDIT_ALBUM:  return "ALBUM";
 		case Dialog::EDIT_TITLE:  return "TITLE";
+		case Dialog::FILES_MV:    return "DESTINATION";
 		default: assert(false); return "???";
 	}
 }

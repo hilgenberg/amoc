@@ -24,7 +24,11 @@ public:
 	void load (const str &cache_dir);
 	void add_request (const char *file, int client_id, file_tags *tags=NULL);
 	file_tags get_immediate (const char *file);
-	void ratings_changed(const char *file, int rating);
+	void ratings_changed(const str &file, int rating);
+
+	void files_rm(std::set<str> &src); // unlinks all files in src, removing those that fail
+	void files_mv(std::set<str> &src, const str &dst); // move file to new directory
+	bool files_mv(const str &src, str &dst); // rename/move single file
 
 private:
 	DB_ENV *db_env;

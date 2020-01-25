@@ -29,6 +29,9 @@ MENU("Files");
 	ITEM("Add to playlist", KEY_CMD_PLIST_ADD);
 	ITEM("Insert into playlist", KEY_CMD_PLIST_INS);
 	SEPARATOR;
+	ITEM("Move/Rename...", KEY_CMD_FILES_MV); GREY(!iface.can_mv());
+	ITEM("Delete...",      KEY_CMD_FILES_RM); GREY(!iface.can_rm());
+	SEPARATOR;
 	ITEM("Quit client", KEY_CMD_QUIT_CLIENT);
 	ITEM("Quit server", KEY_CMD_QUIT);
 	#ifdef DEBUG

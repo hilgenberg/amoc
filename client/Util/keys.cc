@@ -188,6 +188,9 @@ void keys_init ()
 	CMD(KEY_CMD_TAG_ADD_NUMBERS,	"tag_add_track_numbers", 0);
 	CMD(KEY_CMD_TAG_DEL_NUMBERS,	"tag_del_track_numbers", 0);
 
+	CMD(KEY_CMD_FILES_MV,		"file_mv",	KEY_F(6));
+	CMD(KEY_CMD_FILES_RM,		"file_rm",	KEY_F(8));
+
 	CMD(KEY_CMD_TOGGLE_SHUFFLE,	"toggle_shuffle",	'S'); // Toggle Shuffle
 	CMD(KEY_CMD_TOGGLE_REPEAT,	"toggle_repeat",	'R'); // Toggle Repeat
 	CMD(KEY_CMD_TOGGLE_AUTO_NEXT,	"toggle_auto_next",	'X'); // Toggle AutoNext

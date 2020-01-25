@@ -12,6 +12,9 @@ public:
 	void add(const plist &pl, int idx);
 	void remove(int i, int n);
 	void move(int i, int j);
+	void remove(const std::set<str> &files);
+	void move(const std::set<str> &files, const str &dir);
+	void rename(const str &file, const str &new_path);
 
 	const plist &list() const { return playlist; }
 

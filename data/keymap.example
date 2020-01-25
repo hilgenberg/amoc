@@ -149,6 +149,10 @@ go_to_music_directory = m
 go_to_playing_file    = G
 go_up                 = U
 
+# Organizer keys:
+file_mv  = F6
+file_rm  = F8
+
 # Playlist specific keys:
 add_file              = a
 add_directory         = A

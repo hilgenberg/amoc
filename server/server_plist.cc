@@ -252,3 +252,30 @@ void ServerPlaylist::move(int i, int j)
 	playlist.move(i, j); if (!dir && i == i1 && i != -1) i1 = j; 
 	// TODO: shuffle...
 }
+
+void ServerPlaylist::remove(const std::set<str> &files)
+{
+	playlist.remove(files);
+	// TODO: shuffle, current song, dir_plist...
+}
+
+void ServerPlaylist::rename(const str &file, const str &dst)
+{
+	assert(!dst.empty());
+	for (int i = (int)playlist.size()-1; i >= 0; --i)
+	{
+		if (file != playlist[i].path) continue;
+		playlist[i].path = dst;
+	}
+}
+
+void ServerPlaylist::move(const std::set<str> &files, const str &dst)
+{
+	assert(!dst.empty());
+	for (int i = (int)playlist.size()-1; i >= 0; --i)
+	{
+		if (!files.count(playlist[i].path)) continue;
+		str p = add_path(dst, file_name(playlist[i].path));
+		playlist[i].path = p;
+	}
+}

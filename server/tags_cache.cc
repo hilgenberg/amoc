@@ -139,18 +139,15 @@ tags_cache::Lock::~Lock()
 
 void tags_cache::remove_rec (const char *fname)
 {
-	DBT key;
-	int ret;
-
 	assert (fname != NULL);
-
 	debug ("Removing %s from the cache...", fname);
 
+	DBT key;
 	memset (&key, 0, sizeof(key));
 	key.data = (void *)fname;
 	key.size = strlen (fname);
 
-	ret = db->del (db, NULL, &key, 0);
+	int ret = db->del (db, NULL, &key, 0);
 	if (ret)
 		logit ("Can't remove item for %s from the cache: %s",
 				fname, db_strerror (ret));
@@ -229,7 +226,7 @@ file_tags tags_cache::read_add (const char *file, int client_id)
 
 	auto *df = get_decoder (file);
 	if (df && df->info) df->info (file, &rec.tags);
-	rec.tags.rating = ratings_read_file (file);
+	rec.tags.rating = ratings_read(file);
 
 	rec.mod_time = current_mtime;
 	add (key, rec);
@@ -268,17 +265,17 @@ void tags_cache::write_add (const char *file, file_tags *tags, int client_id)
 	read_add(file, client_id);
 }
 
-void tags_cache::ratings_changed(const char *file, int rating)
+void tags_cache::ratings_changed(const str &file, int rating)
 {
-	assert (file != NULL);
-	debug ("Updating tags for %s", file);
+	assert (!file.empty());
+	debug ("Updating tags for %s", file.c_str());
 
 	cache_record rec;
 	DBT key, record;
 	memset (&key, 0, sizeof (key));
 	memset (&record, 0, sizeof (record));
-	key.data = (void *) file;
-	key.size = strlen (file);
+	key.data = (void *) file.c_str();
+	key.size = file.length();
 	record.flags = DB_DBT_MALLOC;
 
 	Lock lock(*this, key);
@@ -665,4 +662,77 @@ file_tags tags_cache::get_immediate (const char *file)
 		return read_add (file, -1);
 
 	return file_tags();
+}
+
+void tags_cache::files_rm(std::set<str> &src)
+{
+	std::set<str> fails;
+	for (auto &f : src)
+	{
+		if (unlink(f.c_str()) != 0)
+			fails.insert(f);
+		else
+		{
+			remove_rec(f.c_str());
+			ratings_remove(f);
+		}
+	}
+	src.erase(fails.begin(), fails.end());
+}
+
+void tags_cache::files_mv(std::set<str> &src, const str &dst)
+{
+	if (dst.empty() || dst[0] != '/') { src.clear(); return; }
+	std::set<str> fails;
+	for (auto &f : src)
+	{
+		if (f.empty() || f[0] != '/' || !is_regular_file(f))
+		{
+			logit ("rename(%s,%s) failed: error in first argument", f.c_str(), dst.c_str());
+			fails.insert(f);
+			continue;
+		}
+		str p = add_path(dst, file_name(f));
+		if (file_exists(p))
+		{
+			logit ("rename(%s,%s) failed: file exists", f.c_str(), p.c_str());
+			fails.insert(f);
+			continue;
+		}
+		if (rename(f.c_str(), p.c_str()) != 0)
+		{
+			char *err = xstrerror (errno);
+			logit ("rename(%s,%s) failed: %s", f.c_str(), p.c_str(), err);
+			free(err);
+
+			fails.insert(f);
+			continue;
+		}
+		remove_rec(f.c_str());
+		ratings_move(f, p);
+	}
+	src.erase(fails.begin(), fails.end());
+}
+
+bool tags_cache::files_mv(const str &src, str &dst)
+{
+	if (src.empty() || src[0] != '/') return false;
+	if (!is_regular_file(src)) return false;
+
+	// dst must either be a filename only or an absolute
+	// directory or filepath
+	if (dst.empty()) return false;
+	if (dst[0] != '/')
+	{
+		if (dst.find('/') != str::npos) return false;
+		dst = add_path(containing_directory(src), dst);
+	}
+	else if (is_dir(dst))
+	{
+		dst = add_path(dst, file_name(src));
+	}
+	if (file_exists(dst)) return false;
+	if (rename(src.c_str(), dst.c_str()) != 0) return false;
+	ratings_move(src, dst);
+	return true;
 }

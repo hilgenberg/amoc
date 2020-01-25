@@ -87,25 +87,19 @@ bool Socket::get_int_noblock (int &i)
 
 	char *err = xstrerror (errno);
 	logit ("recv() failed when getting int (res %zd): %s", res, err);
+	str msg = format("recv() failed when getting int (res %zd): %s", res, err ? err : "");
 	free (err);
-	throw std::runtime_error("Nonblocking Socket recv() failed!");
+	throw std::runtime_error(msg);
 }
 
 void Socket::send(const file_tags *tags)
 {
 	if (!tags) { send(false); return; }
-	buffer(); size_t n0 = buf.size();
-	try {
-		send(true); send(tags->title); send(tags->artist);
-		send(tags->album); send(tags->track);
-		send(tags->time); send(tags->rating);
-	}
-	catch (...)
-	{
-		buf.resize(n0); --buffering;
-		throw;
-	}
-	flush();
+	BufferGuard G(*this);
+	send(true); send(tags->title); send(tags->artist);
+	send(tags->album); send(tags->track);
+	send(tags->time); send(tags->rating);
+	G.done();
 }
 
 file_tags *Socket::get_tags()
@@ -125,6 +119,76 @@ file_tags *Socket::get_tags()
 	}
 	return tags;
 }
+
+void Socket::send(const std::set<int> &idx)
+{
+	BufferGuard G(*this);
+	for (int i : idx) { assert(i != -1); send(i); }
+	send(-1);
+	G.done();
+}
+std::set<int> Socket::get_idx_set()
+{
+	std::set<int> idx;
+	while (true)
+	{
+		int i = get_int(); if (i == -1) break;
+		idx.insert(i);
+	}
+	return idx;
+}
+void Socket::send(const std::map<int,str> &ch)
+{
+	BufferGuard G(*this);
+	for (auto &it : ch) { send(it.first); send(it.second); }
+	send(-1);
+	G.done();
+}
+std::map<int,str> Socket::get_int_map()
+{
+	std::map<int,str> ret;
+	while (true)
+	{
+		int i = get_int(); if (i == -1) break;
+		ret[i] = get_str();
+	}
+	return ret;
+}
+void Socket::send(const std::map<str,str> &ch)
+{
+	BufferGuard G(*this);
+	for (auto &it : ch) { send(it.first); send(it.second); }
+	send("");
+	G.done();
+}
+std::map<str,str> Socket::get_str_map()
+{
+	std::map<str,str> ret;
+	while (true)
+	{
+		str k = get_str(); if (k.empty()) break;
+		ret[k] = get_str();
+	}
+	return ret;
+}
+void Socket::send(const std::set<str> &ch)
+{
+	BufferGuard G(*this);
+	for (auto &s : ch) send(s);
+	send("");
+	G.done();
+}
+std::set<str> Socket::get_str_set()
+{
+	std::set<str> ret;
+	while (true)
+	{
+		str s = get_str(); if (s.empty()) break;
+		ret.insert(std::move(s));
+	}
+	return ret;
+}
+
 
 /* Send the first event from the queue and remove it on success.  If the
  * operation would block return NB_IO_BLOCK.  Return NB_IO_ERR on error

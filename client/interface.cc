@@ -60,6 +60,38 @@ bool Interface::can_tag() const
 	}
 	return true;
 }
+bool Interface::can_mv() const
+{
+	auto sel = selection();
+	const int n = (sel.second+1-sel.first);
+	if (sel.first < 0 || n <= 0) return false;
+	if (in_dir_plist() && sel.first == 0 && client.cwd != "/") return false;
+	auto &pl = active->items;
+	std::set<str> dirs;
+	for (int i = sel.first; i <= sel.second; ++i)
+	{
+		auto &it = pl[i];
+		if (it.type == F_URL) return false;
+		for (auto &d : dirs)
+			if (has_prefix(it.path, d, false)) return false;
+		if (it.type == F_DIR) dirs.insert(it.path + "/");
+	}
+	return true;
+}
+bool Interface::can_rm() const
+{
+	// only handle files for now
+	auto sel = selection();
+	const int n = (sel.second+1-sel.first);
+	if (sel.first < 0 || n <= 0) return false;
+	auto &pl = active->items;
+	for (int i = sel.first; i <= sel.second; ++i)
+	{
+		auto &it = pl[i];
+		if (it.type == F_URL || it.type == F_DIR) return false;
+	}
+	return true;
+}
 
 bool Interface::handle_command(key_cmd cmd)
 {
@@ -109,6 +141,9 @@ bool Interface::handle_command(key_cmd cmd)
 			}
 			break;
 		}
+
+		case KEY_CMD_FILES_RM: if (can_rm()) dlg.reset(new Dialog(*this, Dialog::FILES_RM)); break;
+		case KEY_CMD_FILES_MV: if (can_mv()) dlg.reset(new Dialog(*this, Dialog::FILES_MV)); break;
 
 		/*case KEY_CMD_MENU_SEARCH:
 			prompt("SEARCH", NULL, ...);

@@ -111,6 +111,9 @@ void Panel::move_selection(menu_request req)
 	if (sel < 0 && mark >= 0 && mark < N) sel = mark;
 	switch (req)
 	{
+		case REQ_COLLAPSE:
+			xsel = 0;
+			break;
 		case REQ_UP:
 			sel = std::min(sel, sel+xsel); xsel = 0;
 			sel = (sel < 0 ? N-1 : sel - 1);

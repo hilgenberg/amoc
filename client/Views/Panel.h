@@ -16,7 +16,8 @@ enum menu_request
 	REQ_PGUP,
 	REQ_PGDOWN,
 	REQ_TOP,
-	REQ_BOTTOM
+	REQ_BOTTOM,
+	REQ_COLLAPSE // collapse multi-selection to a single selection
 };
 
 class Interface;

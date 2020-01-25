@@ -72,6 +72,11 @@ public:
 	void send(const file_tags *tags);
 	void send(ServerCommands c) { send((int)c); }
 	void send(ServerEvents   c) { send((int)c); }
+	
+	void send(const std::set<int>    &idx); std::set<int>     get_idx_set();
+	void send(const std::map<int,str> &ch); std::map<int,str> get_int_map();
+	void send(const std::set<str>    &idx); std::set<str>     get_str_set();
+	void send(const std::map<str,str> &ch); std::map<str,str> get_str_map();
 
 	template<typename T> void get(T &x) {
 		static_assert(std::is_integral<T>::value, "Integral required.");
@@ -112,4 +117,19 @@ private:
 	std::vector<char> buf;
 	
 	std::queue<std::vector<char>> packets;
+
+	struct BufferGuard
+	{
+		Socket &s; size_t n0; bool ok;
+		BufferGuard(Socket &s) : s(s), n0(s.buf.size()), ok(false)
+		{
+			s.buffer();
+		}
+		void done() { ok = true; }
+		~BufferGuard()
+		{
+			if (ok) s.flush(); else { s.buf.resize(n0); --s.buffering; }
+		}
+	};
+	friend struct BufferGuard;
 };

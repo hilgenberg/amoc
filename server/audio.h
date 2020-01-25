@@ -261,4 +261,8 @@ char *audio_get_mixer_channel_name ();
 void audio_toggle_mixer_channel ();
 void audio_plist_move (int i, int j);
 
+void audio_files_rm(const std::set<str> &files);
+void audio_files_mv(const std::set<str> &files, const str &dst_dir);
+void audio_files_mv(const str &file, const str &new_path);
+
 #endif

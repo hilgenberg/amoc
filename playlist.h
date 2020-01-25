@@ -71,8 +71,8 @@ public:
 
 	bool can_tag() const; // can we write tags for this?
 
-	const str  path; // absolute path or URL
-	file_type  type;
+	str       path; // absolute path or URL
+	file_type type;
 	mutable file_tags *tags; // not owned, not deleted!
 };
 bool operator< (const plist_item &a, const plist_item &b);
@@ -96,6 +96,9 @@ public:
 	void clear();
 	void swap(plist &other);
 	void remove(int i, int n = 1);
+	void remove(const std::set<int> &idx);
+	void remove(const std::set<str> &files);
+	void replace(const std::map<str, str> &mod);
 	void move(int i, int j);
 
 	bool load_directory(const str &directory, bool include_updir=true);

@@ -64,6 +64,36 @@ void plist::remove(int i, int n)
 	if (tags) for (int j = i, k = i+n; j < k; ++j) tags->release(*items[j]);
 	items.erase(items.begin() + i, items.begin() + i + n);
 }
+void plist::remove(const std::set<int> &idx)
+{
+	int j = 0;
+	for (int i = 0, n = (int)items.size(); i < n; ++i)
+	{
+		if (idx.count(i)) continue;
+		std::swap(items[i], items[j++]);
+	}
+	items.resize(j);
+}
+void plist::remove(const std::set<str> &files)
+{
+	int j = 0;
+	for (int i = 0, n = (int)items.size(); i < n; ++i)
+	{
+		if (files.count(items[i]->path)) continue;
+		std::swap(items[i], items[j++]);
+	}
+	items.resize(j);
+}
+void plist::replace(const std::map<str, str> &mod)
+{
+	for (int i = 0, n = (int)items.size(); i < n; ++i)
+	{
+		auto it = mod.find(items[i]->path);
+		if (it == mod.end()) continue;
+		items[i]->path = it->second;
+	}
+}
+
 void plist::move(int i, int j)
 {
 	int n = (int)items.size();

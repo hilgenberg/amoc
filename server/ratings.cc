@@ -9,10 +9,7 @@
  *
  */
 
-#include <stdio.h>
-#include <string.h>
-#include <assert.h>
-
+#include "ratings.h"
 #include "server.h" /* for server_error in write method */
 
 /* Ratings files should contain lines in this format:
@@ -28,22 +25,22 @@
  * like "<something>\n3 <some other filename>", but whatever). */
 
 /* We read files in chunks of BUF_SIZE bytes */
-#define BUF_SIZE (8*1024)
+static constexpr size_t BUF_SIZE = (8*1024);
 
 
 /* find rating for a file and returns that rating or
  * -1 if not found. If found, filepos is the position
  * of the rating character in rf.
  * rf is assumed to be freshly opened (i.e. ftell()==0). */
-static int find_rating (const char *fn, FILE *rf, long *filepos)
+static int find_rating (const str &fn, FILE *rf, long *filepos)
 {
-	assert(fn && rf && ftell(rf) == 0);
+	assert(!fn.empty() && rf && ftell(rf) == 0);
 
 	char buf[BUF_SIZE]; /* storage for one chunk */
 	char   *s = NULL;   /* current position in chunk */
 	int     n = 0;      /* characters left in chunk */
 	long fpos = 0;      /* ftell() of end of chunk */
-	const int fnlen = strlen(fn);
+	const int fnlen = (int)fn.length();
 
 	/* get next char, refill buffer if needed */
 	#define GETC(c) do{ \
@@ -77,7 +74,7 @@ static int find_rating (const char *fn, FILE *rf, long *filepos)
 			if (c == ' ') /* still good */
 			{
 				/* find fn */
-				const char *t = fn; /* remaining string to match */
+				const char *t = fn.c_str(); /* remaining string to match */
 				int nleft = fnlen; /* invariant: nleft == strlen(t) */
 				while (true)
 				{
@@ -141,99 +138,111 @@ static int find_rating (const char *fn, FILE *rf, long *filepos)
 	#undef GETC
 }
 
-/* open ratings file in the same folder as fn */
-static FILE *open_ratings_file (const char *fn, const char *mode)
+static str ratings_file(const str &fn)
 {
-	assert(fn && mode && *mode);
-
-	char buf[512]; /* buffer for file path */
-	size_t  N = sizeof(buf);
-	const char *rfn = options::RatingFile.c_str();
-
-	const char *sep = strrchr (fn, '/');
-	if (!sep)
-	{
-		/* current directory */
-		return fopen (rfn, mode);
-	}
-	else if ((sep-fn) + 1 + strlen (rfn) + 1 <= N)
-	{
-		/* buf can hold the file name */
-		memcpy (buf, fn, (sep-fn) + 1);
-		strcpy (buf + (sep-fn) + 1, rfn);
-		return fopen (buf, mode);
-	}
-	else
-	{
-		/* path is too long, allocate buffer on heap */
-		int N = (sep-fn) + 1 + strlen (rfn) + 1;
-		char *gbuf = (char*) xmalloc (N);
-		if (!gbuf) return NULL;
-
-		memcpy (gbuf, fn, (sep-fn) + 1);
-		strcpy (gbuf + (sep-fn) + 1, rfn);
-		FILE *rf = fopen (gbuf, "rb");
-		free (gbuf);
-		return rf;
-	}
+	assert(!fn.empty());
+	return add_path(containing_directory(fn), options::RatingFile);
 }
 
 /* read rating for a file */
-int ratings_read_file (const char *fn)
+int ratings_read (const str &fn)
 {
-	assert(fn);
+	assert(!fn.empty());
 
-	int rating = 0;
+	str  rfp = ratings_file(fn);
+	FILE *rf = fopen (rfp.c_str(), "rb");
+	if (!rf) return 0;
 
-	FILE *rf = open_ratings_file (fn, "rb");
-	if (rf)
+	int rating = find_rating (file_name(fn), rf, NULL);
+	fclose (rf);
+
+	/* if fn has no rating, treat as 0-rating */
+	return rating < 0 ? 0 : rating;
+}
+
+int ratings_remove (const str &fn)
+{
+	assert(!fn.empty());
+
+	str  rfp = ratings_file(fn);
+	FILE *rf = fopen (rfp.c_str(), "rb+");
+	if (!rf) return -1;
+
+	str fnn = file_name(fn);
+	long filepos; int r = find_rating (fnn, rf, &filepos);
+	if (r < 0) { fclose(rf); return -1; }
+
+	size_t len = 3+file_name(fnn).length(); // rating, space, filename, newline
+	fseek(rf, 0L, SEEK_END); size_t filesize = ftell(rf);
+	if (filesize <= len)
 	{
-		/* get filename */
-		const char *sep = strrchr (fn, '/');
-		if (sep) fn = sep + 1;
-
-		/* read rating from ratings file */
-		rating = find_rating (fn, rf, NULL);
-
-		/* if fn has no rating, treat as 0-rating */
-		if (rating < 0) rating = 0;
-
-		fclose (rf);
+		fclose(rf);
+		unlink(rfp.c_str());
+		return r;
 	}
 
-	return rating;
+	if (filepos + len < filesize)
+	{
+		char buf[BUF_SIZE]; /* storage for one chunk */
+		size_t i = filepos+len, o = filepos, n = filesize-filepos-len;
+		while (n)
+		{
+			fseek(rf, i, SEEK_SET);
+			size_t k = std::min(BUF_SIZE, n);
+			k = fread(buf, 1, k, rf);
+			if (!k)
+			{
+				// bad... file is half-done and broken now
+				logit("ratings update failed (cannot read)");
+				fclose(rf);
+				return r;
+			}
+
+			fseek(rf, o, SEEK_SET);
+			size_t kk = fwrite(buf, 1, k, rf);
+			if (kk != k)
+			{
+				// bad... file is half-done and broken now
+				logit("ratings update failed (cannot write)");
+				fclose(rf);
+				return r;
+			}
+			o += k;
+			i += k;
+			n -= k;
+		}
+	}
+	fclose(rf);
+	truncate(rfp.c_str(), std::max((size_t)filepos, filesize-len)); // handles missing newline
+
+	return r;
 }
 
 /* update ratings file for given file path and rating */
-bool ratings_write_file (const char *fn, int rating)
+bool ratings_write (const str &path, int rating)
 {
-	assert(fn && rating >= 0 && rating <= 5);
+	assert(!path.empty() && rating >= 0 && rating <= 5);
 
 	const char *failmsg = "Rating could not be written (check permissions).";
 	#define FAIL do { \
 		server_error (__FILE__, __LINE__, "ratings_write_file", failmsg); \
 		return false; } while (0)
 
+	str fn = file_name(path);
 
-	/* keep full path for open_ratings_file */
-	const char *path = fn;
-
-	/* get filename */
-	const char *sep = strrchr (fn, '/');
-	if (sep) fn = sep + 1;
-
-	FILE *rf = open_ratings_file (path, "rb+");
+	str  rfp = ratings_file(path);
+	FILE *rf = fopen (rfp.c_str(), "rb+");
 	if (!rf)
 	{
 		if (rating <= 0) return true; /* 0 rating needs no writing */
 
 		/* ratings file did not exist or could not be opened
 		 * for reading. Try creating it */
-		FILE *rf = open_ratings_file (path, "ab");
+		rf = fopen (rfp.c_str(), "ab");
 		if (!rf) FAIL; /* can't create it either */
 
 		/* append new rating */
-		int ok = fprintf (rf, "%d %s\n", rating, fn);
+		int ok = fprintf (rf, "%d %s\n", rating, fn.c_str());
 		fclose (rf);
 		if (!ok) FAIL;
 		return true;
@@ -248,7 +257,7 @@ bool ratings_write_file (const char *fn, int rating)
 		/* not found - append */
 		if (rating > 0 && 0 == fseek (rf, 0, SEEK_END))
 		{
-			ok = fprintf (rf, "%d %s\n", rating, fn);
+			ok = fprintf (rf, "%d %s\n", rating, fn.c_str());
 		}
 	}
 	else if (r0 != rating)
@@ -269,3 +278,9 @@ bool ratings_write_file (const char *fn, int rating)
 	return true;
 }
 
+bool ratings_move(const str &src, const str &dst)
+{
+	if (src == dst) return true;
+	int r = ratings_remove(src);
+	return r <= 0 || ratings_write(dst, r);
+}

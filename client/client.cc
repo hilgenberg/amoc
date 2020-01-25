@@ -141,7 +141,10 @@ Client::~Client ()
 {
 	options::LastDir = cwd;
 
-	srv.send(want_quit > 1 ? CMD_QUIT : CMD_DISCONNECT);
+	try{
+		srv.send(want_quit > 1 ? CMD_QUIT : CMD_DISCONNECT);
+	}
+	catch (...) {}
 
 	iface = nullptr; // deletes the interface
 
@@ -204,10 +207,6 @@ void Client::update_state ()
 	if (silent_seek_pos == -1) iface->info.update_curr_time(get_curr_time ());
 }
 
-/* Load the directory content into dir_plist and switch the menu to it.
- * If dir is NULL, go to the cwd.  If reload is not zero, we are reloading
- * the current directory, so use iface_update_dir_content().
- * Return 1 on success, 0 on error. */
 bool Client::go_to_dir (const char *dir)
 {
 	bool same = !dir || cwd==dir;
@@ -394,6 +393,116 @@ void Client::delete_item ()
 	iface->select_song(i); // clear multi-selection
 }
 
+void Client::files_mv(const str &dst)
+{
+	auto sel = iface->selection();
+	const int n = (sel.second+1-sel.first);
+	if (sel.first < 0 || n <= 0) return;
+	auto &pl = iface->active->items;
+	if (dst.empty()) return;
+
+	std::set<str> src;
+	for (int i = sel.first; i <= sel.second; ++i)
+	{
+		auto &it = pl[i];
+		if (it.type == F_URL)
+		{
+			iface->error_message("URLs have no files to move");
+			return;
+		}
+		if (it.type == F_DIR)
+		{
+			iface->error_message("moving directories not implemented yet");
+			return;
+		}
+
+		src.insert(it.path);
+	}
+
+	if (src.size() == 1 && *src.begin() == dst) return;
+
+	// is dst a directory?
+	str p = add_path(cwd, normalized_path(dst));
+	if (!is_dir(p)) // TODO: does this work for symlinks?
+	{
+		if (src.size() != 1)
+		{
+			iface->error_message("destination is not a directory");
+			return;
+		}
+		str s = *src.begin();
+		
+		if (s == dst) return;
+		
+		if (dst != "." && dst != ".." && dst.find('/') == str::npos)
+		{
+			p = add_path(containing_directory(s), dst);
+		}
+		
+		if (s == p) return;
+
+		if (file_exists(p))
+		{
+			iface->error_message("file already exists");
+			return;
+		}
+
+		srv.send(CMD_FILES_RENAME);
+		srv.send(s);
+		srv.send(p);
+		return;
+	}
+	
+	std::set<str> fails;
+	for (const str &s0 : src)
+	{
+		str s = add_path(p, file_name(s0));
+		if (s == s0) { fails.insert(s0); continue; }
+		if (file_exists(s))
+		{
+			iface->error_message(format("file \"%s\" already exists", s.c_str()));
+			return;
+		}
+	}
+	src.erase(fails.begin(), fails.end());
+	if (src.empty()) return;
+
+	iface->message(format("moving %d files to %s", (int)src.size(), dst.c_str()));
+
+	srv.send(CMD_FILES_MV);
+	srv.send(src);
+	srv.send(p);
+	iface->deselect();
+}
+
+void Client::files_rm()
+{
+	auto sel = iface->selection();
+	const int n = (sel.second+1-sel.first);
+	if (sel.first < 0 || n <= 0) return;
+	auto &pl = iface->active->items;
+
+	std::set<str> src;
+	for (int i = sel.first; i <= sel.second; ++i)
+	{
+		auto &it = pl[i];
+		if (it.type == F_URL)
+		{
+			iface->error_message("URLs have no files to delete");
+			return;
+		}
+		if (it.type == F_DIR)
+		{
+			iface->error_message("deleting directories not implemented yet");
+			return;
+		}
+		src.insert(it.path);
+	}
+	srv.send(CMD_FILES_RM);
+	srv.send(src);
+	iface->deselect();
+}
+
 /* Select the file that is currently played. */
 void Client::go_to_playing_file ()
 {
@@ -481,17 +590,20 @@ void Client::run()
 
 		if (n > 0 && FD_ISSET(srv_sock, &fds))
 		{
-			int type;
-			if (srv.get_int_noblock(type))
-			{
-				handle_server_event(type);
-				coalesce = true;
-				continue; // handle all events before redrawing
+			try {
+				int type;
+				if (srv.get_int_noblock(type))
+				{
+					handle_server_event(type);
+					coalesce = true;
+					continue; // handle all events before redrawing
+				}
+				else
+					debug ("Getting event would block.");
+			} catch(std::exception &e) {
+				interface_fatal("Error handling server event: %s", e.what());
 			}
-			else
-				debug ("Getting event would block.");
 		}
-
 		if (n > 0 && FD_ISSET(STDIN_FILENO, &fds)) {
 			iface->handle_input();
 			Client::want_interrupt = false;
@@ -532,7 +644,6 @@ void Client::run()
 
 		if (options::ShowMixer)
 			iface->info.update_mixer_value(get_mixer_value());
-
 
 		iface->draw();
 	}
@@ -752,6 +863,8 @@ void Client::handle_server_event (int type)
 	// this can not send any commands that return EV_DATA because it
 	// gets called by wait_for_data!
 	SOCKET_DEBUG("EVENT: %d", type);
+	#pragma GCC diagnostic push
+	#pragma GCC diagnostic warning "-Wswitch-enum"
 	switch (type)
 	{
 		case EV_EXIT: interface_fatal ("The server exited!"); break;
@@ -795,6 +908,11 @@ void Client::handle_server_event (int type)
 			iface->redraw(2);
 			break;
 		}
+		case EV_PLIST_RM:
+			playlist.remove(srv.get_str_set());
+			go_to_dir(NULL);
+			iface->redraw(2);
+			break;
 		case EV_PLIST_MOVE:
 		{
 			int i = srv.get_int(), j = srv.get_int();
@@ -803,6 +921,11 @@ void Client::handle_server_event (int type)
 			iface->redraw(2);
 			break;
 		}
+		case EV_PLIST_MOD:
+			playlist.replace(srv.get_str_map());
+			go_to_dir(NULL);
+			iface->redraw(2);
+			break;
 
 		case EV_STATUS_MSG: iface->message(srv.get_str()); break;
 		case EV_MIXER_CHANGE:
@@ -831,4 +954,5 @@ void Client::handle_server_event (int type)
 			interface_fatal ("Unknown event: 0x%02x!", type);
 			break;
 	}
+	#pragma GCC diagnostic pop
 }

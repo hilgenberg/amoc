@@ -16,11 +16,13 @@ bool is_dir (const str &file);
 bool is_sound_file (const str &name); // in decoder.cc
 bool is_url (const str &str);
 bool is_plist_file (const str &name);
+bool is_regular_file(const str &file);
 
 str containing_directory(const str &path);
+str file_name(const str &path);
 
-time_t get_mtime (const char *file);
-bool can_read_file (const char *file);
+time_t get_mtime (const str &file);
+bool can_read_file (const str &file);
 bool is_secure (const char *file);
 char *file_mime_type (const char *file);
 

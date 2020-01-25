@@ -37,7 +37,6 @@ struct client
 {
 	Socket *socket; 	/* NULL if inactive */
 	pthread_mutex_t events_mtx;
-	double last_life_sign;
 };
 static client clients[CLIENTS_MAX];
 
@@ -134,7 +133,6 @@ static void clients_init ()
 {
 	for (int i = 0; i < CLIENTS_MAX; i++) {
 		clients[i].socket = NULL;
-		clients[i].last_life_sign = -1.0;
 		pthread_mutex_init (&clients[i].events_mtx, NULL);
 	}
 }
@@ -155,7 +153,6 @@ static bool add_client (int sock)
 	{
 		if (clients[i].socket) continue;
 		clients[i].socket = new Socket(sock);
-		clients[i].last_life_sign = -1.0;
 		tc->clear_queue(i);
 
 		/*struct timeval timeout;      
@@ -411,16 +408,7 @@ static void send_events (fd_set *fds)
 		Socket &sock = *cli.socket;
 		if (!sock.pending()) continue;
 		SOCKET_DEBUG("Sending events for client %d", i);
-		if (!FD_ISSET(sock.fd(), fds))
-		{
-			if (cli.last_life_sign == -1.0) cli.last_life_sign = now();
-			else if (now() - cli.last_life_sign > 10.0)
-			{
-				debug ("Client %d timeout", i);
-				del_client(i);
-			}
-			continue;
-		}
+		if (!FD_ISSET(sock.fd(), fds)) continue;
 
 		SOCKET_DEBUG("Flushing events for client %d", i);
 		Lock lock(cli);
@@ -428,7 +416,6 @@ static void send_events (fd_set *fds)
 			while (sock.pending())
 			{
 				if (sock.send_next_packet_noblock() != 1) break;
-				cli.last_life_sign = now();
 			}
 		}
 		catch (...)
@@ -543,6 +530,8 @@ static void handle_command (const int client_id)
 	client &cli = clients[client_id];
 	try {
 		int cmd = cli.socket->get_int();
+		#pragma GCC diagnostic push
+		#pragma GCC diagnostic warning "-Wswitch-enum"
 		switch (cmd) {
 			case CMD_DISCONNECT:
 				logit ("Client disconnected");
@@ -625,6 +614,41 @@ static void handle_command (const int client_id)
 				break;
 			}
 
+			case CMD_FILES_RM:
+			{
+				std::set<str> src = cli.socket->get_str_set();
+				tc->files_rm(src); if (src.empty()) break;
+				audio_files_rm(src);
+				add_event_all(EV_PLIST_RM, src);
+				break;
+			}
+			case CMD_FILES_MV:
+			{
+				std::set<str> src = cli.socket->get_str_set();
+				str dst = cli.socket->get_str();
+
+				tc->files_mv(src, dst); if (src.empty()) break;
+				audio_files_mv(src, dst);
+
+				std::map<str,str> change;
+				for (auto &f : src) change[f] = add_path(dst, file_name(f));
+				add_event_all(EV_PLIST_MOD, change);
+				break;
+			}
+			case CMD_FILES_RENAME:
+			{
+				str src = cli.socket->get_str();
+				str dst = cli.socket->get_str();
+
+				if (!tc->files_mv(src, dst)) break;
+				audio_files_mv(src, dst);
+
+				std::map<str,str> change;
+				change[src] = dst;
+				add_event_all(EV_PLIST_MOD, change);
+				break;
+			}
+
 			case CMD_GET_CTIME: send_data_int(&cli, MAX(0, audio_get_time())); break;
 			case CMD_GET_CURRENT:
 			{
@@ -666,6 +690,7 @@ static void handle_command (const int client_id)
 				tc->add_request(file.c_str(), client_id);
 				break;
 			}
+
 			case CMD_SET_FILE_TAGS:
 			{
 				str file = cli.socket->get_str();
@@ -691,9 +716,9 @@ static void handle_command (const int client_id)
 
 				logit ("Rating %s %d/5", file.c_str(), rating);
 				
-				if (ratings_write_file (file.c_str(), rating))
+				if (ratings_write(file, rating))
 				{
-					tc->ratings_changed(file.c_str(), rating);
+					tc->ratings_changed(file, rating);
 					add_event_all (EV_FILE_RATING, file, rating);
 				}
 				break;
@@ -703,6 +728,7 @@ static void handle_command (const int client_id)
 				del_client (client_id);
 				return;
 		}
+		#pragma GCC diagnostic pop
 	}
 	catch (...)
 	{
@@ -751,7 +777,9 @@ static void close_clients ()
 
 	for (i = 0; i < CLIENTS_MAX; i++)
 		if (clients[i].socket) {
-			clients[i].socket->send(EV_EXIT);
+			try {
+				clients[i].socket->send(EV_EXIT);
+			} catch (...) {}
 			del_client (i);
 		}
 }
@@ -775,10 +803,7 @@ void server_loop ()
 		FD_SET (wake_up_pipe[0], &fds_read);
 		add_clients_fds (&fds_read, &fds_write);
 
-		//int res = select (max_fd(server_sock)+1, &fds_read, &fds_write, NULL, NULL);
-
-		timespec timeout = {10, 0}; // = {sec,nanosec}
-		int res = pselect (max_fd(server_sock)+1, &fds_read, &fds_write, NULL, &timeout, NULL);
+		int res = select (max_fd(server_sock)+1, &fds_read, &fds_write, NULL, NULL);
 
 		if (server_quit) break;
 
@@ -831,24 +856,28 @@ void server_loop ()
 
 void set_info_bitrate (const int bitrate)
 {
+	if (sound_info.bitrate == bitrate) return;
 	sound_info.bitrate = bitrate;
 	add_event_all (EV_BITRATE, sound_info.bitrate);
 }
 
 void set_info_channels (const int channels)
 {
+	if (sound_info.channels == channels) return;
 	sound_info.channels = channels;
 	add_event_all (EV_CHANNELS, sound_info.channels);
 }
 
 void set_info_rate (const int rate)
 {
+	if (sound_info.rate == rate) return;
 	sound_info.rate = rate;
 	add_event_all (EV_RATE, sound_info.rate);
 }
 
 void set_info_avg_bitrate (const int avg_bitrate)
 {
+	if (sound_info.avg_bitrate == avg_bitrate) return;
 	sound_info.avg_bitrate = avg_bitrate;
 	add_event_all (EV_AVG_BITRATE, sound_info.avg_bitrate);
 }
