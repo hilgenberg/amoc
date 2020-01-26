@@ -79,6 +79,7 @@ char *trim (const char *src, size_t len);
 char *format_msg (const char *format, ...);
 char *format_msg_va (const char *format, va_list va);
 int get_realtime (struct timespec *ts);
+double now();
 
 #ifndef SUN_LEN
 #define SUN_LEN(p) \

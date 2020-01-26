@@ -259,3 +259,10 @@ int random_int(int a, int b)
 	// TODO...
 
 }
+
+double now()
+{
+	struct timespec t;
+	if (get_realtime (&t) == -1) return std::numeric_limits<double>::quiet_NaN();
+	return (double)t.tv_sec + 1.e-9 * t.tv_nsec;
+}

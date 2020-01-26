@@ -889,12 +889,18 @@ void audio_plist_delete (int i, int n)
 	UNLOCK (plist_mtx);
 }
 
-bool audio_send_plist(Socket &socket)
+void audio_send_plist(Socket &socket)
 {
 	LOCK (plist_mtx);
-	bool ok = socket.send(playlist.list());
+	try{
+		socket.send(playlist.list());
+	}
+	catch (...)
+	{
+		UNLOCK (plist_mtx);
+		throw;
+	}
 	UNLOCK (plist_mtx);
-	return ok;
 }
 
 void audio_plist_set_and_play (plist &&pl, int idx)

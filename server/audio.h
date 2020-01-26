@@ -254,7 +254,7 @@ void audio_get_current(str &path, int &idx);
 void audio_set_mixer (const int val);
 int audio_get_mixer ();
 void audio_plist_delete (int idx, int n);
-bool audio_send_plist(Socket &socket);
+void audio_send_plist(Socket &socket);
 void audio_plist_set_time (const char *file, const int time);
 void audio_state_started_playing ();
 char *audio_get_mixer_channel_name ();

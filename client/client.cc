@@ -20,11 +20,12 @@ void interface_fatal (const char *format, ...)
 	msg = format_msg_va (format, va);
 	va_end (va);
 
+	endwin();
 	fatal ("%s", msg);
 }
 
 Client::Client(int sock, stringlist &args)
-: srv(sock, false), synced(false)
+: srv(sock), synced(false)
 , want_plist_update(false), want_state_update(false)
 , silent_seek_key_last(0.0), silent_seek_pos(-1)
 , playlist(&tags), dir_plist(&tags)
@@ -414,15 +415,6 @@ void Client::go_to_playing_file ()
 	}
 	iface->select_path(path);
 	iface->go_to_dir_plist();
-}
-
-/* Return the time like the standard time() function, but rounded i.e. if we
- * have 11.8 seconds, return 12 seconds. */
-static double now()
-{
-	struct timespec t;
-	if (get_realtime (&t) == -1) return std::numeric_limits<double>::quiet_NaN();
-	return (double)t.tv_sec + 1.e-9 * t.tv_nsec;
 }
 
 /* Handle silent seek key. */

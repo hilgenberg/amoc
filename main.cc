@@ -42,26 +42,23 @@ struct parameters
 	int rate;
 	int toggle_pause;
 	int playit;
-	int new_rating;
+	int rating;
 };
 
 /* Connect to the server, return fd of the socket or -1 on error. */
 static int server_connect ()
 {
-	struct sockaddr_un sock_name;
-	int sock;
-
 	/* Create a socket.
 	 * For reasons why AF_UNIX is the correct constant to use in both
 	 * cases, see the commentary the SVN log for commit r2833. */
-	if ((sock = socket (AF_UNIX, SOCK_STREAM, 0)) == -1)
-		 return -1;
+	struct sockaddr_un sock_name;
+	int sock = socket (AF_UNIX, SOCK_STREAM, 0);
+	if (sock == -1) return -1;
 
 	sock_name.sun_family = AF_UNIX;
 	strcpy (sock_name.sun_path, options::SocketPath.c_str());
 
-	if (connect(sock, (struct sockaddr *)&sock_name,
-				SUN_LEN(&sock_name)) == -1) {
+	if (connect(sock, (sockaddr *)&sock_name, SUN_LEN(&sock_name)) == -1) {
 		close (sock);
 		return -1;
 	}
@@ -71,16 +68,10 @@ static int server_connect ()
 
 /* Ping the server.
  * Return 1 if the server responds with EV_PONG, otherwise 0. */
-static int ping_server (Socket &srv)
+static bool ping_server (Socket &srv)
 {
-	int event;
-
-	srv.send(CMD_PING); /* ignore errors - the server could have
-				     already closed the connection and sent
-				     EV_BUSY */
-	if (!srv.get(event))
-		fatal ("Error when receiving pong response!");
-	return event == EV_PONG ? 1 : 0;
+	srv.send(CMD_PING);
+	return srv.get_int() == EV_PONG;
 }
 
 /* Check if a directory ./.moc exists and create if needed. */
@@ -164,7 +155,7 @@ static void start_moc (const struct parameters *params, stringlist &args)
 		}
 	}
 
-	Socket srv(server_sock, false);
+	Socket srv(server_sock);
 	if (params->only_server)
 		srv.send(CMD_DISCONNECT);
 	else {
@@ -225,12 +216,12 @@ static void server_command (struct parameters *params, stringlist &args)
 	if (srv_sock == -1) fatal ("The server is not running!");
 
 	xsignal (SIGPIPE, SIG_IGN);
-	Socket srv(srv_sock, true);
+	Socket srv(srv_sock);
 	if (!ping_server (srv)) fatal ("Can't connect to the server!");
 
 	if (params->playit) interface_cmdline_playit (srv, args);
 	else if (params->play) interface_cmdline_play_first (srv);
-	else if (params->rate) interface_cmdline_set_rating (srv, params->new_rating);
+	else if (params->rate) interface_cmdline_set_rating (srv, params->rating);
 	else if (params->exit) srv.send(CMD_QUIT);
 	else if (params->stop) srv.send(CMD_STOP);
 	else if (params->pause) srv.send(CMD_PAUSE);
@@ -240,8 +231,8 @@ static void server_command (struct parameters *params, stringlist &args)
 	else if (params->toggle_pause) {
 		srv.send(CMD_GET_STATE);
 		// this should be wait_for_data()...
-		int state, ev;
-		if (!srv.get(ev) || ev != EV_DATA || !srv.get(state)) fatal("Can't get state");
+		int ev = srv.get_int(), state = srv.get_int();
+		if (ev != EV_DATA) fatal("Can't get state");
 
 		if (state == STATE_PAUSE)
 			srv.send(CMD_UNPAUSE);
@@ -249,7 +240,7 @@ static void server_command (struct parameters *params, stringlist &args)
 			srv.send(CMD_PAUSE);
 	}
 
-	if (!srv.send(CMD_DISCONNECT)) error ("Can't send disconnect command!");
+	srv.send(CMD_DISCONNECT);
 	close (srv_sock);
 }
 
@@ -364,7 +355,7 @@ static struct poptOption server_opts[] = {
 			"Play the next song", NULL},
 	{"previous", 'r', POPT_ARG_NONE, &params.previous, CL_NOIFACE,
 			"Play the previous song", NULL},
-	{"rate", 'R', POPT_ARG_INT, &params.new_rating, CL_RATE,
+	{"rate", 'R', POPT_ARG_INT, &params.rating, CL_RATE,
 			"Rate current song N stars (N=0..5)", "N"},
 	{"exit", 'x', POPT_ARG_NONE, &params.exit, CL_NOIFACE,
 			"Shutdown the server", NULL},

@@ -31,6 +31,11 @@ MENU("Files");
 	SEPARATOR;
 	ITEM("Quit client", KEY_CMD_QUIT_CLIENT);
 	ITEM("Quit server", KEY_CMD_QUIT);
+	#ifdef DEBUG
+	SEPARATOR;
+	ITEM("Crash", KEY_CMD_WRONG); 
+		mi->execute_fn = [&iface](){ interface_fatal("simulating crash..."); };
+	#endif
 
 MENU("View");
 	ITEM("Read tags", KEY_CMD_TOGGLE_READ_TAGS); CHK(options::ReadTags);

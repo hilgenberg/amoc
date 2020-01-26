@@ -20,9 +20,9 @@
 			        xstrerror (errno)); \
 	} while (0)
 
-bool Socket::send(const void *data, size_t n)
+void Socket::send(const void *data, size_t n)
 {
-	//SOCKET_DEBUG("Socketsend: %d %s", (int)n, buffering ? "-> buffer" : "");
+	SOCKET_DEBUG("Socketsend: %d %s", (int)n, buffering ? "-> buffer" : "");
 	if (buffering)
 	{
 		buf.insert(buf.end(), (char*)data, (char*)data+n);
@@ -32,49 +32,49 @@ bool Socket::send(const void *data, size_t n)
 		ssize_t res = ::send(s, data, n, 0);
 		if (res <= 0) 
 		{
-			if (f) fatal ("Socket send() failed!");
 			log_errno ("Socket send() failed", errno);
-			return false;
+			throw std::runtime_error("Socket send() failed!");
 		}
 		n -= res;
 		(char*&)data += res;
 	}
-	return true;
 }
 
-bool Socket::read(void *data, size_t n)
+void Socket::read(void *data, size_t n)
 {
-	//SOCKET_DEBUG("Socketread: %d", n);
-	if (!n) return true;
+	SOCKET_DEBUG("Socketread: %d", n);
 	while (n)
 	{
 		ssize_t res = recv (s, data, n, 0);
-		if (res == -1)
+		SOCKET_DEBUG("Socketread: %d -- %d", n, (int)res);
+		if (res < 0)
 		{
-			if (f) fatal ("Socket recv() failed!");
 			log_errno ("Socket recv() failed", errno);
-			return false;
+			throw std::runtime_error("Socket recv() failed!");
 		}
-		if (n == 0)
+		if (res == 0)
 		{
-			if (f) fatal ("Unexpected EOF from socket recv()!");
 			log_errno ("Unexpected EOF from socket recv()!", errno);
-			return false;
+			throw std::runtime_error("Unexpected EOF from socket recv()!");
 		}
 		n -= res;
 		(char*&)data += res;
 	}
-	return true;
 }
 
-bool Socket::flush()
+void Socket::flush()
 {
-	if (!buffering) { assert(false); return true; }
-	if (--buffering) return true;
-	if (buf.empty()) return true;
-	bool ok = send (buf.data(), buf.size());
-	buf.clear(); // even on errors
-	return ok;
+	if (!buffering) { assert(false); return; }
+	if (--buffering || buf.empty()) return;
+	try {
+		send (buf.data(), buf.size());
+	}
+	catch (...)
+	{
+		buf.clear(); // even on errors
+		throw;
+	}
+	buf.clear();
 }
 
 bool Socket::get_int_noblock (int &i)
@@ -88,63 +88,72 @@ bool Socket::get_int_noblock (int &i)
 	char *err = xstrerror (errno);
 	logit ("recv() failed when getting int (res %zd): %s", res, err);
 	free (err);
-
-	if (f) fatal ("Socket recv() failed!");
-	return false;
+	throw std::runtime_error("Nonblocking Socket recv() failed!");
 }
 
-bool Socket::send(const file_tags *tags)
+void Socket::send(const file_tags *tags)
 {
-	if (!tags) return send(false);
+	if (!tags) { send(false); return; }
 	buffer(); size_t n0 = buf.size();
-	bool ok = send(true) && send(tags->title) && send(tags->artist) &&
-		send(tags->album) && send(tags->track) &&
-		send(tags->time) && send(tags->rating);
-	if (!ok){ buf.resize(n0); --buffering; return false; }
-	return flush();
+	try {
+		send(true); send(tags->title); send(tags->artist);
+		send(tags->album); send(tags->track);
+		send(tags->time); send(tags->rating);
+	}
+	catch (...)
+	{
+		buf.resize(n0); --buffering;
+		throw;
+	}
+	flush();
 }
 
 file_tags *Socket::get_tags()
 {
-	bool b; if (!get(b)) return NULL;
-	if (!b) return NULL;
+	bool b; get(b); if (!b) return NULL;
 
 	file_tags *tags = new file_tags;
-	bool ok  = get(tags->title) && get(tags->artist) &&
-		get(tags->album) && get(tags->track) &&
-		get(tags->time) && get(tags->rating);
-	if (!ok) { delete tags; return NULL; }
+	try {
+		get(tags->title); get(tags->artist);
+		get(tags->album); get(tags->track);
+		get(tags->time);  get(tags->rating);
+	}
+	catch (...)
+	{
+		delete tags;
+		throw;
+	}
 	return tags;
 }
 
 /* Send the first event from the queue and remove it on success.  If the
  * operation would block return NB_IO_BLOCK.  Return NB_IO_ERR on error
  * or NB_IO_OK on success. */
-int Socket::send_next_packet_noblock()
+bool Socket::send_next_packet_noblock()
 {
-	if (packets.empty()) return 1;
+	if (packets.empty()) return false;
 	const std::vector<char> &d = packets.front();
 
 	SOCKET_DEBUG("sending packet %X (%d)", *(int*)d.data(), (int)d.size());
 
 	/* We must do it in one send() call to be able to handle blocking. */
 	ssize_t res;
-	nonblocking (send, res, s, d.data(), d.size());
+	nonblocking(send, res, s, d.data(), d.size());
 
 	if (res == (ssize_t)d.size())
 	{
 		packets.pop();
-		return 1;
+		return true;
 	}
 
 	if (res < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
 	{
 		logit ("Sending event would block");
-		return -1;
+		return false;
 	}
 
 	char *err = xstrerror (errno);
 	logit ("send()ing event failed (%zd): %s", res, err);
 	free (err);
-	return 0;
+	throw std::runtime_error("send_next_packet_noblock failed");
 }

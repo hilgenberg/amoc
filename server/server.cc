@@ -37,6 +37,7 @@ struct client
 {
 	Socket *socket; 	/* NULL if inactive */
 	pthread_mutex_t events_mtx;
+	double last_life_sign;
 };
 static client clients[CLIENTS_MAX];
 
@@ -74,7 +75,7 @@ static struct {
 	-1
 };
 
-static tags_cache *tc;
+static tags_cache *tc = NULL;
 
 extern char **environ;
 
@@ -108,12 +109,10 @@ static pid_t check_pid_file ()
 
 static void sig_chld (int sig)
 {
-	int saved_errno;
-	pid_t rc;
-
 	log_signal (sig);
 
-	saved_errno = errno;
+	int saved_errno = errno;
+	pid_t rc;
 	do {
 		rc = waitpid (-1, NULL, WNOHANG);
 	} while (rc > 0);
@@ -135,6 +134,7 @@ static void clients_init ()
 {
 	for (int i = 0; i < CLIENTS_MAX; i++) {
 		clients[i].socket = NULL;
+		clients[i].last_life_sign = -1.0;
 		pthread_mutex_init (&clients[i].events_mtx, NULL);
 	}
 }
@@ -154,29 +154,27 @@ static bool add_client (int sock)
 	for (int i = 0; i < CLIENTS_MAX; i++)
 	{
 		if (clients[i].socket) continue;
-		clients[i].socket = new Socket(sock, false);
+		clients[i].socket = new Socket(sock);
+		clients[i].last_life_sign = -1.0;
 		tc->clear_queue(i);
+
+		/*struct timeval timeout;      
+		timeout.tv_sec = 10;
+		timeout.tv_usec = 0;
+		if (setsockopt (sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
+			fatal("setsockopt failed\n");
+		if (setsockopt (sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
+			fatal("setsockopt failed\n");*/
+
 		return true;
 	}
 
 	return false;
 }
 
-/* Return the client index from the clients table. */
-static int client_index (const client &cli)
+static void del_client(int i)
 {
-	for (int i = 0; i < CLIENTS_MAX; i++)
-	{
-		const client &c = clients[i];
-		if (&c == &cli) return i;
-		if (c.socket->fd() == cli.socket->fd()) return i;
-	}
-	return -1;
-}
-
-static void del_client (client &cli)
-{
-	int i = client_index(cli);
+	client &cli = clients[i];
 	LOCK (cli.events_mtx);
 	close (cli.socket->fd());
 	delete cli.socket; cli.socket = NULL;
@@ -194,7 +192,7 @@ static void wake_up_server ()
 {
 	int w = 1;
 
-	debug ("Waking up the server");
+	SOCKET_DEBUG("Waking up the server");
 
 	if (write(wake_up_pipe[1], &w, sizeof(w)) < 0)
 		log_errno ("Can't wake up the server: (write() failed)", errno);
@@ -202,24 +200,15 @@ static void wake_up_server ()
 
 static void redirect_output (FILE *stream)
 {
-	FILE *rc;
-
-	if (stream == stdin)
-		rc = freopen ("/dev/null", "r", stream);
-	else
-		rc = freopen ("/dev/null", "w", stream);
-
-	if (!rc)
-		fatal ("Can't open /dev/null: %s", xstrerror (errno));
+	FILE *rc = freopen ("/dev/null", stream == stdin ? "r" : "w", stream);
+	if (!rc) fatal ("Can't open /dev/null: %s", xstrerror (errno));
 }
 
 static void log_process_stack_size ()
 {
 #if !defined(NDEBUG)
-	int rc;
 	struct rlimit limits;
-
-	rc = getrlimit (RLIMIT_STACK, &limits);
+	int rc = getrlimit (RLIMIT_STACK, &limits);
 	if (rc == 0)
 		logit ("Process's stack size: %u", (unsigned int)limits.rlim_cur);
 #endif
@@ -228,13 +217,11 @@ static void log_process_stack_size ()
 static void log_pthread_stack_size ()
 {
 #if !defined(NDEBUG)
-	int rc;
 	size_t stack_size;
 	pthread_attr_t attr;
 
-	rc = pthread_attr_init (&attr);
-	if (rc)
-		return;
+	int rc = pthread_attr_init (&attr);
+	if (rc) return;
 
 	rc = pthread_attr_getstacksize (&attr, &stack_size);
 	if (rc == 0)
@@ -267,9 +254,7 @@ void server_init (int debugging, int foreground)
 	if (foreground)
 		log_init_stream (stdout, "stdout");
 	else {
-		FILE *logfp;
-
-		logfp = NULL;
+		FILE *logfp = NULL;
 		if (debugging) {
 			logfp = fopen (SERVER_LOG, "a");
 			if (!logfp)
@@ -337,15 +322,17 @@ void server_init (int debugging, int foreground)
 	return;
 }
 
-static bool send_data_int (client *cli, int data)
+static void send_data_int (client *cli, int data)
 {
 	Lock lock(*cli);
-	return cli->socket->send((int)EV_DATA) && cli->socket->send(data);
+	cli->socket->send((int)EV_DATA);
+	cli->socket->send(data);
 }
-static bool send_data_str (client *cli, const char *str)
+static void send_data_str (client *cli, const str &s)
 {
 	Lock lock(*cli);
-	return cli->socket->send((int)EV_DATA) && cli->socket->send(str);
+	cli->socket->send((int)EV_DATA);
+	cli->socket->send(s);
 }
 
 /* Add event to the client's queue */
@@ -414,24 +401,41 @@ void add_event_all(int type)
 	if (added) wake_up_server ();
 }
 
-/* Send events from the queue. Return 0 on error. */
-static bool flush_events (client &cli)
-{
-	if (!cli.socket) return false;
-	Lock lock(cli);
-	auto &sock = *cli.socket;
-	while (!sock.packets.empty() && sock.send_next_packet_noblock() == 1) ;
-	return true;
-}
-
 /* Send events to clients whose sockets are ready to write. */
 static void send_events (fd_set *fds)
 {
 	for (int i = 0; i < CLIENTS_MAX; i++)
-		if (clients[i].socket && FD_ISSET(clients[i].socket->fd(), fds)) {
-			debug ("Flushing events for client %d", i);
-			if (!flush_events (clients[i])) del_client (clients[i]);
+	{
+		client &cli = clients[i];
+		if (!cli.socket) continue;
+		Socket &sock = *cli.socket;
+		if (!sock.pending()) continue;
+		SOCKET_DEBUG("Sending events for client %d", i);
+		if (!FD_ISSET(sock.fd(), fds))
+		{
+			if (cli.last_life_sign == -1.0) cli.last_life_sign = now();
+			else if (now() - cli.last_life_sign > 10.0)
+			{
+				debug ("Client %d timeout", i);
+				del_client(i);
+			}
+			continue;
 		}
+
+		SOCKET_DEBUG("Flushing events for client %d", i);
+		Lock lock(cli);
+		try {
+			while (sock.pending())
+			{
+				if (sock.send_next_packet_noblock() != 1) break;
+				cli.last_life_sign = now();
+			}
+		}
+		catch (...)
+		{
+			del_client(i);
+		}
+	}
 }
 
 /* End playing and cleanup. */
@@ -460,35 +464,10 @@ void server_error (const char *file, int line, const char *function, const char 
 	add_event_all(EV_SRV_ERROR, msg);
 }
 
-/* Handle CMD_SET_RATING, return 1 if ok or 0 on error. */
-static bool req_set_rating (client &cli)
-{
-	str file;
-	int rating;
-
-	if (!cli.socket->get(file) || !cli.socket->get(rating)) return false;
-	if (file.empty())
-	{
-		int idx; audio_get_current(file, idx);
-		if (file.empty()) return false;
-	}
-
-	logit ("Rating %s %d/5", file.c_str(), rating);
-	
-	if (ratings_write_file (file.c_str(), rating))
-	{
-		tc->ratings_changed(file.c_str(), rating);
-		add_event_all (EV_FILE_RATING, file, rating);
-	}
-
-	return true;
-}
-
 /* Handle CMD_JUMP_TO, return 1 if ok or 0 on error */
-static bool req_jump_to (client &cli)
+static void req_jump_to (client &cli)
 {
-	int sec;
-	if (!cli.socket->get(sec)) return false;
+	int sec = cli.socket->get_int();
 
 	if (sec < 0)
 	{
@@ -496,21 +475,19 @@ static bool req_jump_to (client &cli)
 		assert(sec >= 0 && sec <= 100);
 
 		str path; int idx; audio_get_current(path, idx);
-		if (path.empty())
-			return false;
+		if (path.empty()) return;
 	
 		auto T = tc->get_immediate(path.c_str()).time;
 
-		if (T <= 0) return false;
+		if (T <= 0) return;
 		sec = (T * sec)/100;
 	}
 
 	logit ("Jumping to %ds", sec);
 	audio_jump_to (sec);
-	return true;
 }
 
-void update_eq_name()
+static void update_eq_name()
 {
 	char *n = equalizer_current_eqname();
 	str msg = format("EQ set to %s", n);
@@ -518,22 +495,22 @@ void update_eq_name()
 	status_msg(msg.c_str());
 }
 
-void req_toggle_equalizer ()
+static void req_toggle_equalizer ()
 {
 	equalizer_set_active(!equalizer_is_active());
 	update_eq_name();
 }
 
-void req_equalizer_refresh()
+static void req_equalizer_refresh()
 {
 	equalizer_refresh();
 	status_msg("Equalizer refreshed");
 }
 
-void req_equalizer_prev() { equalizer_prev(); update_eq_name(); }
-void req_equalizer_next() { equalizer_next(); update_eq_name(); }
+static void req_equalizer_prev() { equalizer_prev(); update_eq_name(); }
+static void req_equalizer_next() { equalizer_next(); update_eq_name(); }
 
-void req_toggle_make_mono()
+static void req_toggle_make_mono()
 {
 	softmixer_set_mono(!softmixer_is_mono());
 	status_msg(format("Mono-Mixing set to: %s", softmixer_is_mono()?"on":"off").c_str());
@@ -563,243 +540,174 @@ static void send_ev_mixer(int where = -1)
 /* Receive a command from the client and execute it. */
 static void handle_command (const int client_id)
 {
-	int cmd;
-	int err = 0;
 	client &cli = clients[client_id];
+	try {
+		int cmd = cli.socket->get_int();
+		switch (cmd) {
+			case CMD_DISCONNECT:
+				logit ("Client disconnected");
+				del_client (client_id);
+				break;
+			case CMD_QUIT:
+				logit ("Exit request from the client");
+				del_client (client_id);
+				server_quit = 1;
+				break;
+			case CMD_PING: cli.socket->send(EV_PONG); break;
 
-	if (!cli.socket->get(cmd)) {
-		logit ("Failed to get command from the client");
-		del_client (cli);
-		return;
-	}
-
-	switch (cmd) {
-		case CMD_QUIT:
-			logit ("Exit request from the client");
-			del_client (cli);
-			server_quit = 1;
-			break;
-		case CMD_PLIST_ADD:
-		{
-			plist pl; int idx;
-			if ((err = !cli.socket->get(pl))) break;
-			if ((err = !cli.socket->get(idx))) break;
-			logit ("Adding %d files to the list", (int)pl.size());
-			audio_plist_add (pl, idx);
-			debug ("Sending EV_PLIST_ADD");
-			add_event_all(EV_PLIST_ADD, pl, idx);
-			break;
-		}
-		case CMD_PLAY:
-		{
-			int idx;
-			str file;
-			if ((err = !cli.socket->get(idx))) break;
-			if ((err = !cli.socket->get(file))) break;
-			if (idx == -1)
+			case CMD_PLAY:
 			{
-				logit ("Playing %s", file.empty() ? "first element on the list" : file.c_str());
-				audio_play (file.c_str());
-			}
-			else if (file.empty())
-			{
-				audio_play (idx);
-			}
-			else
-			{
-				plist pl, tmp; pl += std::move(file);
-				if ((err = !cli.socket->get(tmp))) break;
-				pl += std::move(tmp);
-				if (idx >= pl.size())
+				int idx = cli.socket->get_int();
+				str file = cli.socket->get_str();
+				if (idx == -1)
 				{
-					logit("Invalid play index %d for given playlist of size %d", idx, (int)pl.size());
-					err = 1;
-					break;
+					logit ("Playing %s", file.empty() ? "first element on the list" : file.c_str());
+					audio_play (file.c_str());
 				}
-				audio_plist_set_and_play(std::move(pl), idx);
-				add_event_all(EV_PLIST_NEW);
+				else if (file.empty())
+				{
+					audio_play (idx);
+				}
+				else
+				{
+					plist pl, tmp; pl += std::move(file);
+					cli.socket->get(tmp); pl += std::move(tmp);
+					if (idx >= pl.size())
+					{
+						logit("Invalid play index %d for given playlist of size %d", idx, (int)pl.size());
+						break;
+					}
+					audio_plist_set_and_play(std::move(pl), idx);
+					add_event_all(EV_PLIST_NEW);
+				}
+				break;
 			}
-			break;
-		}
-		case CMD_PLIST_DEL:
-		{
-			int i, n;
-			if ((err = !cli.socket->get(i))) break;
-			if ((err = !cli.socket->get(n))) break;
-			debug ("Request for deleting %d..%d", i, i+n-1);
-			audio_plist_delete (i, n);
-			debug ("Sending EV_PLIST_DEL");
-			add_event_all (EV_PLIST_DEL, i, n);
-			break;
-		}
-		case CMD_PLIST_GET:
-		{
-			Lock lock(cli);
-			err = !cli.socket->send(EV_DATA) || 
-				!audio_send_plist(*cli.socket);
-			break;
-		}
-		case CMD_PLIST_MOVE:
-		{
-			int i, j;
-			if ((err = !cli.socket->get(i) || !cli.socket->get(j))) break;
-			audio_plist_move (i, j);
-			debug ("Sending EV_PLIST_MOVE");
-			add_event_all (EV_PLIST_MOVE, i, j);
-			break;
-		}
-		case CMD_DISCONNECT:
-			logit ("Client disconnected");
-			del_client (cli);
-			break;
-		case CMD_PAUSE: audio_pause(); break;
-		case CMD_UNPAUSE: audio_unpause(); break;
-		case CMD_STOP: audio_stop(); break;
-		case CMD_GET_CTIME:
-			err = !send_data_int(&cli, MAX(0, audio_get_time()));
-			break;
-		case CMD_SEEK:
-		{
-			int sec;
-			err = !cli.socket->get(sec);
-			if (!err)
-			{
-				logit ("Seeking %ds", sec);
-				audio_seek (sec);
-			}
-			break;
-		}
-		case CMD_JUMP_TO:
-			if (!req_jump_to(cli))
-				err = 1;
-			break;
-		case CMD_GET_CURRENT:
-		{
-			Lock lock(cli);
-			str path; int idx; audio_get_current(path, idx);
-			err = !cli.socket->send(EV_DATA) || 
-				!cli.socket->send(idx) || !cli.socket->send(path);
-			break;
-		}
-		case CMD_GET_STATE:
-			err = !send_data_int(&cli, audio_get_state());
-			break;
-		case CMD_GET_BITRATE:
-			err = !send_data_int(&cli, sound_info.bitrate);
-			break;
-		case CMD_GET_AVG_BITRATE:
-			err = !send_data_int(&cli, sound_info.avg_bitrate);
-			break;
-		case CMD_GET_RATE:
-			err = !send_data_int(&cli, sound_info.rate);
-			break;
-		case CMD_GET_CHANNELS:
-			err = !send_data_int(&cli, sound_info.channels);
-			break;
-		case CMD_NEXT:
-			audio_next ();
-			break;
-		case CMD_PREV:
-			audio_prev ();
-			break;
-		case CMD_PING:
-			err = !cli.socket->send(EV_PONG);
-			break;
-		case CMD_GET_OPTIONS:
-			send_ev_options(client_id);
-			break;
-		case CMD_SET_OPTION_AUTONEXT:
-		{
-			bool val = 0;
-			if ((err = !cli.socket->get(val))) break;
-			options::AutoNext = val;
-			send_ev_options();
-			break;
-		}
-		case CMD_SET_OPTION_SHUFFLE:
-		{
-			bool val = 0;
-			if ((err = !cli.socket->get(val))) break;
-			options::Shuffle = val;
-			send_ev_options();
-			break;
-		}
-		case CMD_SET_OPTION_REPEAT:
-		{
-			bool val = 0;
-			if ((err = !cli.socket->get(val))) break;
-			options::Repeat = val;
-			send_ev_options();
-			break;
-		}
-		case CMD_GET_MIXER:
-			err = !send_data_int(&cli, audio_get_mixer());
-			break;
-		case CMD_SET_MIXER:
-		{
-			int val;
-			err = !cli.socket->get(val);
-			if (!err) audio_set_mixer (val);
-			break;
-		}
-		case CMD_TOGGLE_MIXER_CHANNEL:
-			audio_toggle_mixer_channel ();
-			send_ev_mixer();
-			break;
-		case CMD_TOGGLE_SOFTMIXER:
-			softmixer_set_active(!softmixer_is_active());
-			send_ev_mixer();
-			break;
-		case CMD_GET_MIXER_CHANNEL_NAME:
-		{
-			char *name = audio_get_mixer_channel_name ();
-			err = !send_data_str(&cli, name);
-			free (name);
-			break;
-		}
-		case CMD_GET_FILE_TAGS:
-		{
-			str file;
-			if (!clients[client_id].socket->get(file)) { err = 1; break; }
-			tc->add_request (file.c_str(), client_id);
-			break;
-		}
-		case CMD_SET_FILE_TAGS:
-		{
-			str file;
-			if (!clients[client_id].socket->get(file)) { err = 1; break; }
-			auto *tags = clients[client_id].socket->get_tags();
-			if (!tags) { err = 1; break; }
-			tc->add_request (file.c_str(), client_id, tags);
-			break;
-		}
-		case CMD_TOGGLE_EQUALIZER:
-			req_toggle_equalizer();
-			break;
-		case CMD_EQUALIZER_REFRESH:
-			req_equalizer_refresh();
-			break;
-		case CMD_EQUALIZER_PREV:
-			req_equalizer_prev();
-			break;
-		case CMD_EQUALIZER_NEXT:
-			req_equalizer_next();
-			break;
-		case CMD_TOGGLE_MAKE_MONO:
-			req_toggle_make_mono();
-			break;
-		case CMD_SET_RATING:
-			if (!req_set_rating(cli))
-				err = 1;
-			break;
-		default:
-			logit ("Bad command (0x%x) from the client", cmd);
-			err = 1;
-	}
+			case CMD_PAUSE:   audio_pause(); break;
+			case CMD_UNPAUSE: audio_unpause(); break;
+			case CMD_STOP:    audio_stop(); break;
+			case CMD_NEXT:    audio_next (); break;
+			case CMD_PREV:    audio_prev (); break;
+			case CMD_SEEK:    audio_seek (cli.socket->get_int()); break;
+			case CMD_JUMP_TO: req_jump_to(cli); break;
 
-	if (err) {
-		logit ("Closing client connection due to error");
-		del_client (cli);
+			case CMD_PLIST_ADD:
+			{
+				plist pl; cli.socket->get(pl);
+				int idx = cli.socket->get_int();
+				logit ("Adding %d files to the list", (int)pl.size());
+				audio_plist_add (pl, idx);
+				debug ("Sending EV_PLIST_ADD");
+				add_event_all(EV_PLIST_ADD, pl, idx);
+				break;
+			}
+			case CMD_PLIST_DEL:
+			{
+				int i = cli.socket->get_int(), n = cli.socket->get_int();
+				debug ("Request for deleting %d..%d", i, i+n-1);
+				audio_plist_delete (i, n);
+				debug ("Sending EV_PLIST_DEL");
+				add_event_all (EV_PLIST_DEL, i, n);
+				break;
+			}
+			case CMD_PLIST_GET:
+			{
+				Lock lock(cli);
+				cli.socket->send(EV_DATA); 
+				audio_send_plist(*cli.socket);
+				break;
+			}
+			case CMD_PLIST_MOVE:
+			{
+				int i = cli.socket->get_int(), j = cli.socket->get_int();
+				audio_plist_move (i, j);
+				debug ("Sending EV_PLIST_MOVE");
+				add_event_all (EV_PLIST_MOVE, i, j);
+				break;
+			}
+
+			case CMD_GET_CTIME: send_data_int(&cli, MAX(0, audio_get_time())); break;
+			case CMD_GET_CURRENT:
+			{
+				Lock lock(cli);
+				str path; int idx; audio_get_current(path, idx);
+				cli.socket->send(EV_DATA);
+				cli.socket->send(idx); cli.socket->send(path);
+				break;
+			}
+			case CMD_GET_STATE: send_data_int(&cli, audio_get_state()); break;
+			case CMD_GET_BITRATE: send_data_int(&cli, sound_info.bitrate); break;
+			case CMD_GET_AVG_BITRATE: send_data_int(&cli, sound_info.avg_bitrate); break;
+			case CMD_GET_RATE: send_data_int(&cli, sound_info.rate); break;
+			case CMD_GET_CHANNELS: send_data_int(&cli, sound_info.channels); break;
+			case CMD_GET_OPTIONS: send_ev_options(client_id); break;
+			case CMD_SET_OPTION_AUTONEXT: options::AutoNext = cli.socket->get_bool(); send_ev_options(); break;
+			case CMD_SET_OPTION_SHUFFLE:  options::Shuffle  = cli.socket->get_bool(); send_ev_options(); break;
+			case CMD_SET_OPTION_REPEAT:   options::Repeat   = cli.socket->get_bool(); send_ev_options(); break;
+			case CMD_GET_MIXER: send_data_int(&cli, audio_get_mixer()); break;
+			case CMD_SET_MIXER: audio_set_mixer(cli.socket->get_int()); break;
+			case CMD_TOGGLE_MIXER_CHANNEL:
+				audio_toggle_mixer_channel ();
+				send_ev_mixer();
+				break;
+			case CMD_TOGGLE_SOFTMIXER:
+				softmixer_set_active(!softmixer_is_active());
+				send_ev_mixer();
+				break;
+			case CMD_GET_MIXER_CHANNEL_NAME:
+			{
+				char *name = audio_get_mixer_channel_name();
+				str nm; if (name) nm = name; free (name);
+				send_data_str(&cli, nm);
+				break;
+			}
+			case CMD_GET_FILE_TAGS:
+			{
+				str file = cli.socket->get_str();
+				tc->add_request(file.c_str(), client_id);
+				break;
+			}
+			case CMD_SET_FILE_TAGS:
+			{
+				str file = cli.socket->get_str();
+				auto *tags = cli.socket->get_tags();
+				if (tags) tc->add_request(file.c_str(), client_id, tags);
+				break;
+			}
+			case CMD_TOGGLE_EQUALIZER:  req_toggle_equalizer(); break;
+			case CMD_EQUALIZER_REFRESH: req_equalizer_refresh(); break;
+			case CMD_EQUALIZER_PREV:    req_equalizer_prev(); break;
+			case CMD_EQUALIZER_NEXT:    req_equalizer_next(); break;
+			case CMD_TOGGLE_MAKE_MONO:  req_toggle_make_mono(); break;
+			case CMD_SET_RATING:
+			{
+				str file = cli.socket->get_str();
+				int rating = cli.socket->get_int();
+
+				if (file.empty())
+				{
+					int idx; audio_get_current(file, idx);
+					if (file.empty()) break;
+				}
+
+				logit ("Rating %s %d/5", file.c_str(), rating);
+				
+				if (ratings_write_file (file.c_str(), rating))
+				{
+					tc->ratings_changed(file.c_str(), rating);
+					add_event_all (EV_FILE_RATING, file, rating);
+				}
+				break;
+			}
+			default:
+				logit ("Bad command (0x%x) from the client", cmd);
+				del_client (client_id);
+				return;
+		}
+	}
+	catch (...)
+	{
+		logit ("Closing client connection due to I/O error");
+		del_client (client_id);
 	}
 }
 
@@ -810,7 +718,7 @@ static void add_clients_fds (fd_set *read, fd_set *write)
 		if (clients[i].socket) {
 			FD_SET (clients[i].socket->fd(), read);
 			LOCK (clients[i].events_mtx);
-			if (!clients[i].socket->packets.empty())
+			if (clients[i].socket->pending())
 				FD_SET (clients[i].socket->fd(), write);
 			UNLOCK (clients[i].events_mtx);
 		}
@@ -819,12 +727,10 @@ static void add_clients_fds (fd_set *read, fd_set *write)
 /* Return the maximum fd from clients and the argument. */
 static int max_fd (int max)
 {
-	int i;
-
 	if (wake_up_pipe[0] > max)
 		max = wake_up_pipe[0];
 
-	for (i = 0; i < CLIENTS_MAX; i++)
+	for (int i = 0; i < CLIENTS_MAX; i++)
 		if (clients[i].socket && clients[i].socket->fd() > max)
 			max = clients[i].socket->fd();
 	return max;
@@ -846,7 +752,7 @@ static void close_clients ()
 	for (i = 0; i < CLIENTS_MAX; i++)
 		if (clients[i].socket) {
 			clients[i].socket->send(EV_EXIT);
-			del_client (clients[i]);
+			del_client (i);
 		}
 }
 
@@ -860,25 +766,26 @@ void server_loop ()
 
 	assert (server_sock != -1);
 
-	do {
-		int res;
+	while (true)
+	{
 		fd_set fds_write, fds_read;
-
 		FD_ZERO (&fds_read);
 		FD_ZERO (&fds_write);
 		FD_SET (server_sock, &fds_read);
 		FD_SET (wake_up_pipe[0], &fds_read);
 		add_clients_fds (&fds_read, &fds_write);
 
-		res = 0;
-		if (!server_quit)
-			res = select (max_fd(server_sock)+1, &fds_read,
-					&fds_write, NULL, NULL);
+		//int res = select (max_fd(server_sock)+1, &fds_read, &fds_write, NULL, NULL);
 
-		if (res == -1 && errno != EINTR && !server_quit)
-			fatal ("select() failed: %s", xstrerror (errno));
+		timespec timeout = {10, 0}; // = {sec,nanosec}
+		int res = pselect (max_fd(server_sock)+1, &fds_read, &fds_write, NULL, &timeout, NULL);
 
-		if (!server_quit && res >= 0) {
+		if (server_quit) break;
+
+		if (res == -1 && errno != EINTR)
+			fatal ("pselect() failed: %s", xstrerror (errno));
+
+		if (res >= 0) {
 			if (FD_ISSET(server_sock, &fds_read)) {
 				int client_sock;
 
@@ -900,10 +807,9 @@ void server_loop ()
 			}
 
 			if (FD_ISSET(wake_up_pipe[0], &fds_read)) {
+				SOCKET_DEBUG("Got 'wake up'");
+
 				int w;
-
-				logit ("Got 'wake up'");
-
 				if (read(wake_up_pipe[0], &w, sizeof(w)) < 0)
 					fatal ("Can't read wake up signal: %s", xstrerror (errno));
 			}
@@ -912,11 +818,10 @@ void server_loop ()
 			handle_clients (&fds_read);
 		}
 
-		if (server_quit)
-			logit ("Exiting...");
+		if (server_quit) break;
+	}
 
-	} while (!server_quit);
-
+	logit ("Exiting...");
 	close_clients ();
 	clients_cleanup ();
 	close (server_sock);
@@ -967,7 +872,7 @@ void status_msg (const str &msg)
 
 void tags_response (const int client_id, const char *file, const file_tags *tags)
 {
-	logit("sending tag response");
+	SOCKET_DEBUG("sending tag response");
 	assert (file != NULL);
 	assert (tags != NULL);
 	assert (LIMIT(client_id, CLIENTS_MAX));

@@ -158,7 +158,7 @@ static int bitrate_list_get (struct bitrate_list *b, const int time)
 			struct bitrate_list_node *o = b->head;
 
 			b->head = o->next;
-			debug ("Removing old bitrate %d for time %d", o->bitrate, o->time);
+			//debug ("Removing old bitrate %d for time %d", o->bitrate, o->time);
 			free (o);
 		}
 
