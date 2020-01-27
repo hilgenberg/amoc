@@ -103,15 +103,16 @@ public:
 	void set_track(const plist_item &it, int val)
 	{
 		connect(it);
-		// Note: track -1 keeps it as is, track 0 clears it
 		#define N(t) ((t) <= 0 ? 0 : (t))
-		if (val <= 0 || (it.tags && N(it.tags->track) == N(val)))
+		if ((it.tags && N(it.tags->track) == N(val)) || (!it.tags && val <= 0))
 		{
-			auto i = changes.find(it.path); if (i == changes.end()) return;
-			i->second.track = -1;
+			auto i = changes.find(it.path);
+			if (i == changes.end()) return;
+			i->second.track = -1; // erase the change
 			if (empty(i->second)) changes.erase(i);
 			return;
 		}
+
 		changes[it.path].track = N(val);
 		#undef N
 	}
@@ -148,7 +149,7 @@ public:
 	{
 		connect(it);
 		auto ch = changes.find(it.path);
-		if (ch != changes.end() && ch->second.track > 0) return ch->second.track;
+		if (ch != changes.end() && ch->second.track >= 0) return ch->second.track;
 		return it.tags ? it.tags->track : -1;
 	}
 

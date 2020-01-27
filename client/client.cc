@@ -322,6 +322,7 @@ void Client::add_to_plist(bool at_end)
 		playlist.insert(std::move(pl), pos);
 		iface->select_song(pos < 0 ? playlist.size()-pl.size()-1 : pos);
 		iface->redraw(2);
+		if (options::ReadTags) tags.request(playlist, srv);
 	}
 
 	iface->left.move_selection(REQ_DOWN);

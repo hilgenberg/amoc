@@ -411,8 +411,8 @@ static void send_events (fd_set *fds)
 		if (!FD_ISSET(sock.fd(), fds)) continue;
 
 		SOCKET_DEBUG("Flushing events for client %d", i);
-		Lock lock(cli);
 		try {
+			Lock lock(cli);
 			while (sock.pending())
 			{
 				if (sock.send_next_packet_noblock() != 1) break;
