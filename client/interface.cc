@@ -33,9 +33,9 @@ void Interface::resize ()
 
 void Interface::cycle_layouts()
 {
-	++(int&)options::layout;
-	(int&)options::layout %= 3;
-	redraw(2);
+	int tmp = options::layout; ++tmp %= 3;
+	options::layout = (Layout)tmp;
+	redraw(3);
 }
 
 bool Interface::update_curr_file(const str &f, int idx)

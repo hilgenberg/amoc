@@ -159,9 +159,6 @@ static long sfmt_best_matching (const long formats_with_endian,
 	long req = req_with_endian & SFMT_MASK_FORMAT;
 	long best = 0;
 
-	char fmt_name1[SFMT_STR_MAX];
-	char fmt_name2[SFMT_STR_MAX];
-
 	if (formats & req)
 		best = req;
 	else if (req == SFMT_S8 || req == SFMT_U8) {
@@ -223,6 +220,10 @@ static long sfmt_best_matching (const long formats_with_endian,
 			best |= formats_with_endian & SFMT_MASK_ENDIANNESS;
 	}
 
+	#ifdef DEBUG
+	char fmt_name1[SFMT_STR_MAX];
+	char fmt_name2[SFMT_STR_MAX];
+	#endif
 	debug ("Chose %s as the best matching %s",
 			sfmt_str(best, fmt_name1, sizeof(fmt_name1)),
 			sfmt_str(req_with_endian, fmt_name2, sizeof(fmt_name2)));
@@ -530,7 +531,6 @@ int audio_open (struct sound_params *sound_params)
 	res = hw.open (&driver_sound_params);
 
 	if (res) {
-		char fmt_name[SFMT_STR_MAX];
 
 		driver_sound_params.rate = hw.get_rate ();
 		if (driver_sound_params.fmt != req_sound_params.fmt
@@ -550,6 +550,9 @@ int audio_open (struct sound_params *sound_params)
 		}
 		audio_opened = 1;
 
+		#ifndef NDEBUG
+		char fmt_name[SFMT_STR_MAX];
+		#endif
 		logit ("Requested sound parameters: %s, %d channels, %dHz",
 				sfmt_str(req_sound_params.fmt, fmt_name, sizeof(fmt_name)),
 				req_sound_params.channels,
@@ -733,16 +736,6 @@ static void find_working_driver (struct hw_funcs *funcs)
 	fatal ("No valid sound driver!");
 }
 
-static void print_output_capabilities
-            (const struct output_driver_caps *caps)
-{
-	char fmt_name[SFMT_STR_MAX];
-
-	logit ("Sound driver capabilities: channels %d - %d, formats: %s",
-			caps->min_channels, caps->max_channels,
-			sfmt_str(caps->formats, fmt_name, sizeof(fmt_name)));
-}
-
 void audio_initialize ()
 {
 	find_working_driver (&hw);
@@ -754,7 +747,13 @@ void audio_initialize ()
 		fatal ("Error initializing audio device: "
 		       "device reports no usable formats.");
 
-	print_output_capabilities (&hw_caps);
+	#ifndef NDEBUG
+	char fmt_name[SFMT_STR_MAX];
+	logit ("Sound driver capabilities: channels %d - %d, formats: %s",
+			hw_caps.min_channels, hw_caps.max_channels,
+			sfmt_str(hw_caps.formats, fmt_name, sizeof(fmt_name)));
+	#endif
+
 	if (!options::Allow24bitOutput
 			&& hw_caps.formats & (SFMT_S32 | SFMT_U32)) {
 		logit ("Disabling 24bit modes because Allow24bitOutput is set to no.");

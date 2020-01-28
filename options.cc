@@ -186,7 +186,7 @@ void load(Component who)
 	int hsplit_plist = 1, hsplit_dirlist = 1, vsplit_plist = 1, vsplit_dirlist = 1;
 
 	#define OPT(x) if (items.count(#x)) ::parse(x, items[#x].c_str())
-	#define EOPT(x,...) if (items.count(#x)) ::eparse((int&)x, items[#x].c_str(), __VA_ARGS__, NULL)
+	#define EOPT(x,...) if (items.count(#x)) { int tmp; ::eparse(tmp, items[#x].c_str(), __VA_ARGS__, NULL); x = (decltype(x))tmp; }
 
 	EOPT(layout, "hsplit", "vsplit", "single");
 	OPT(hsplit_plist); OPT(hsplit_dirlist);

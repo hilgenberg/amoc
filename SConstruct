@@ -30,7 +30,7 @@ env.Append(CXXFLAGS='-std=c++11 -DUSE_PTHREADS'.split())
 env.Append(CXXFLAGS=('-Wall -Wextra -Wno-sign-compare -Wno-deprecated-declarations ' +
 	'-Wno-parentheses -Wno-misleading-indentation -Wno-reorder -fstrict-enums ' +
 	'-Wno-variadic-macros -Wno-unused-parameter -Wno-unknown-pragmas ' +
-	'-Wno-implicit-fallthrough').split())
+	'-Wno-implicit-fallthrough -Wno-missing-field-initializers').split())
 
 # precompiled header
 env.Append(CXXFLAGS='-Winvalid-pch -include config.h'.split())
