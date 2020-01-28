@@ -28,7 +28,7 @@ int Interface::get_total_time() const
 void Interface::resize ()
 {
 	win.resize();
-	redraw(2);
+	redraw(3);
 }
 
 void Interface::cycle_layouts()
@@ -106,7 +106,7 @@ bool Interface::handle_command(key_cmd cmd)
 		case KEY_CMD_MENU_EXTEND_DOWN: active->move_selection(REQ_XDOWN); redraw(2); break;
 		case KEY_CMD_MENU_EXTEND_UP:   active->move_selection(REQ_XUP);   redraw(2); break;
 		case KEY_CMD_TOGGLE_MENU: active = (active==&left ? &right : &left); redraw(2); break;
-		case KEY_CMD_REFRESH: redraw(2); break;
+		case KEY_CMD_REFRESH: redraw(3); break;
 		case KEY_CMD_TOGGLE_LAYOUT: cycle_layouts(); break;
 
 		case KEY_CMD_MENU: menu.active = !menu.active; redraw(2); break;
@@ -347,7 +347,7 @@ void Interface::draw()
 	if (am.sel == -1 && am.mark == -1 && !am.items.empty())
 		am.sel = 0;
 
-	if (need_redraw > 1) // tags or sizes changed?
+	if (need_redraw > 1) // more than just info changed?
 	{
 		win.clear();
 		Rect r1, r2; // for left+right = dir+plist

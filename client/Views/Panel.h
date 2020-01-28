@@ -30,10 +30,15 @@ class Interface;
 struct Panel : public View
 {
 	// c'tor gets  called before the interface is running!
-	Panel(Interface &iface, plist &items) : iface(iface), items(items), top(0), sel(-1), xsel(0), mark(-1) {}
+	Panel(Interface &iface, plist &items)
+	: iface(iface), items(items)
+	, top(0), sel(-1), xsel(0), mark(-1)
+	, layout{.c0 = -1 }
+	{}
 
 	void set_active(bool a) { active = a; }
 	void draw() const override; // no frame, draws just the inside
+	void update_layout() { layout.c0 = -1; }
 
 	void move_selection(menu_request req);
 	bool handle_click(int x, int y, bool dbl) override;
@@ -51,4 +56,15 @@ struct Panel : public View
 	mutable int top; // first visible item
 	mutable int sel, mark; // selected and marked items, -1 if none
 	mutable int xsel; // if != 0: multi-sel from sel to sel+xsel (both inclusive)
+
+	mutable struct{
+		int c0,c1,c2,cn;
+		bool hide_artist, hide_album;
+		bool too_small;
+		bool readtags;
+		int  prefix_len;
+		#ifndef NDEBUG
+		int rows;
+		#endif
+	} layout;
 };

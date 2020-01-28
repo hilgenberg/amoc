@@ -176,6 +176,11 @@ void Panel::draw() const
 	const int N = items.size();
 	const int lookahead = std::min(5, bounds.h/4);
 	
+	#ifndef NDEBUG
+	assert(layout.c0 < 0 || layout.rows == N);
+	layout.rows = N;
+	#endif
+	
 	if (sel < 0) xsel = 0;
 	if (sel < -1) sel = -1; if (mark < -1) mark = -1;
 	if (sel >= N) sel = std::max(0, N-1);
@@ -193,104 +198,151 @@ void Panel::draw() const
 	str mhome = options::MusicDir; if (!mhome.empty()) mhome += '/'; if (mhome.length() < 2) mhome.clear();
 	str uhome = options::Home;     if (!uhome.empty()) uhome += '/'; if (uhome.length() < 2) uhome.clear();
 
-	// gather layout data: widths for three columns (artist, album, title)
-	// and maximum track number
-	int extra = 5 /*rating*/ + 5 /*time*/ + 3 /*[|]*/ + 3*2 /*spacing*/;
-	int c0 = 0, c1 = 0, c2 = 0, M = 0;
-	bool readtags = options::ReadTags;
-	int avail = bounds.w - extra;
-	if (avail-2 < 3*4) readtags = false;
-	bool all_same_artist = false, all_same_album = false;
-	int n_tagged = 0;
-	if (readtags)
+	if (layout.c0 < 0)
 	{
-		bool first = true, first_tagged = true;
-		str common_artist, common_album; // of all sound files (empty if any have no tags)
-
-		for (const auto &ip : items.items)
+		// gather layout data: widths for three columns (artist, album, title)
+		// and maximum track number
+		int extra = 5 /*rating*/ + 5 /*time*/ + 3 /*[|]*/ + 3*2 /*spacing*/;
+		int c0 = 0, c1 = 0, c2 = 0, M = 0;
+		layout.readtags = options::ReadTags;
+		int avail = bounds.w - extra;
+		if (avail-2 < 3*4) layout.readtags = false;
+		bool all_same_artist = false, all_same_album = false;
+		int n_tagged = 0;
+		if (layout.readtags)
 		{
-			const auto &it = *ip;
-			if (first) { first = false; if (have_up) continue; } // should not have tags anyway...
+			bool first = true, first_tagged = true;
+			str common_artist, common_album; // of all sound files (empty if any have no tags)
 
-			if (it.type != F_SOUND) continue;
-			
-			str title = sanitized(iface.client.get_title(it));
-			if (title.empty())
+			for (const auto &ip : items.items)
 			{
-				first_tagged = false;
-				common_artist.clear();
-				common_album.clear();
-				continue;
-			}
+				const auto &it = *ip;
+				if (first) { first = false; if (have_up) continue; } // should not have tags anyway...
 
-			++n_tagged;
-			str v0 = sanitized(iface.client.get_artist(it));
-			str v1 = sanitized(iface.client.get_album(it));
-			if (first_tagged)
-			{
-				common_artist = v0;
-				common_album  = v1;
-				first_tagged  = false;
+				if (it.type != F_SOUND) continue;
+				
+				str title = sanitized(iface.client.get_title(it));
+				if (title.empty())
+				{
+					first_tagged = false;
+					common_artist.clear();
+					common_album.clear();
+					continue;
+				}
+
+				++n_tagged;
+				str v0 = sanitized(iface.client.get_artist(it));
+				str v1 = sanitized(iface.client.get_album(it));
+				if (first_tagged)
+				{
+					common_artist = v0;
+					common_album  = v1;
+					first_tagged  = false;
+				}
+				else
+				{
+					if (v0 != common_artist) common_artist.clear();
+					if (v1 != common_album) common_album.clear();
+				}
+				M  = std::max(M,  iface.client.get_track(it));
+				c0 = std::max(c0, (int)strwidth(v0));
+				c1 = std::max(c1, (int)strwidth(v1));
+				c2 = std::max(c2, (int)strwidth(title));
 			}
-			else
-			{
-				if (v0 != common_artist) common_artist.clear();
-				if (v1 != common_album) common_album.clear();
-			}
-			M  = std::max(M,  iface.client.get_track(it));
-			c0 = std::max(c0, (int)strwidth(v0));
-			c1 = std::max(c1, (int)strwidth(v1));
-			c2 = std::max(c2, (int)strwidth(title));
+			all_same_artist = !common_artist.empty();
+			all_same_album  = !common_album.empty();
 		}
-		all_same_artist = !common_artist.empty();
-		all_same_album  = !common_album.empty();
-	}
 
-	int prefix_len = 0; // how much to cut off from file paths
-	if (!items.is_dir)
-	{
-		bool first = true;
-		str common_prefix; // of all paths (even those with tags!)
-		for (const auto &ip : items.items)
+		layout.prefix_len = 0; // how much to cut off from file paths
+		if (!items.is_dir)
 		{
-			const auto &it = *ip;
-			if (it.type == F_URL) continue;
-			if (first)
+			bool first = true;
+			str common_prefix; // of all paths (even those with tags!)
+			for (const auto &ip : items.items)
 			{
-				common_prefix = it.path;
-				first = false;
+				const auto &it = *ip;
+				if (it.type == F_URL) continue;
+				if (first)
+				{
+					common_prefix = it.path;
+					first = false;
+				}
+				else
+				{
+					intersect(common_prefix, it.path);
+				}
 			}
-			else
-			{
-				intersect(common_prefix, it.path);
-			}
+			layout.prefix_len = (int)common_prefix.length();
+			while (layout.prefix_len > 0 && common_prefix[layout.prefix_len-1] != '/') --layout.prefix_len;
+			if (layout.prefix_len == 1) layout.prefix_len = 0;
 		}
-		prefix_len = (int)common_prefix.length();
-		while (prefix_len > 0 && common_prefix[prefix_len-1] != '/') --prefix_len;
-		if (prefix_len == 1) prefix_len = 0;
+
+		int cn = 0; // how wide are the playlist or track numbers?
+		if (!items.is_dir)
+		{
+			M = N;
+			for (cn = 2, M /= 10; M > 0; M /= 10) ++cn;
+		}
+		else if (M > 0)
+		{
+			for (cn = 2, M /= 10; M > 0; M /= 10) ++cn;
+		}
+		avail -= cn;
+
+		if (avail < 3*4)
+		{
+			layout.readtags = false;
+			c0 = c1 = c2 = 0;
+			if (items.is_dir) cn = 0;
+			extra = 0;
+			avail = bounds.w - cn;
+		}
+
+		layout.too_small = (avail < 6);
+		if (!layout.too_small)
+		{
+			layout.hide_artist = layout.hide_album = false;
+			if (layout.readtags && c0+c1+c2 > avail)
+			{
+				if (all_same_artist && n_tagged > 1)
+				{
+					layout.hide_artist = true;
+					c0 = 0; extra -= 3; avail += 3;
+
+					if (c1+c2 > avail)
+					{
+						if (all_same_album)
+						{
+							layout.hide_album = true;
+							c1 = 0; extra -= 3; avail += 3;
+							c2 = avail;
+						}
+						else
+						{
+							distribute(avail, c1, c2);
+						}
+					}
+				}
+				else if (all_same_album) // compilation or split-CD
+				{
+					layout.hide_album = true;
+					c1 = 0; extra -= 3; avail += 3;
+					distribute(avail, c0, c2);
+				}
+				else
+				{
+					distribute(avail, c0, c1, c2);
+				}
+			}
+			assert(c0+c1+c2+cn+extra <= bounds.w);
+			layout.c0 = c0;
+			layout.c1 = c1;
+			layout.c2 = c2;
+			layout.cn = cn;
+		}
 	}
 
-	int cn = 0; // how wide are the playlist or track numbers?
-	if (!items.is_dir)
-	{
-		M = N;
-		for (cn = 2, M /= 10; M > 0; M /= 10) ++cn;
-	}
-	else if (M > 0)
-	{
-		for (cn = 2, M /= 10; M > 0; M /= 10) ++cn;
-	}
-	avail -= cn;
-
-	if (avail < 3*4)
-	{
-		readtags = false;
-		c0 = c1 = c2 = 0;
-		if (items.is_dir) cn = 0;
-		extra = 0;
-		avail = bounds.w - cn;
-	}
-	if (avail < 6)
+	if (layout.too_small)
 	{
 		win.color(CLR_PANEL_FILE);
 		str s(":::TOO SMALL:::");
@@ -303,41 +355,8 @@ void Panel::draw() const
 		return;
 	}
 
-	bool hide_artist = false, hide_album = false;
-	if (readtags && c0+c1+c2 > avail)
-	{
-		if (all_same_artist && n_tagged > 1)
-		{
-			hide_artist = true;
-			c0 = 0; extra -= 3; avail += 3;
+	int c0 = layout.c0, c1 = layout.c1, c2 = layout.c2, cn = layout.cn;
 
-			if (c1+c2 > avail)
-			{
-				if (all_same_album)
-				{
-					hide_album = true;
-					c1 = 0; extra -= 3; avail += 3;
-					c2 = avail;
-				}
-				else
-				{
-					distribute(avail, c1, c2);
-				}
-			}
-		}
-		else if (all_same_album) // compilation or split-CD
-		{
-			hide_album = true;
-			c1 = 0; extra -= 3; avail += 3;
-			distribute(avail, c0, c2);
-		}
-		else
-		{
-			distribute(avail, c0, c1, c2);
-		}
-	}
-	assert(c0+c1+c2+cn+extra <= bounds.w);
-	
 	// draw the visible items
 	for (int i = top, n = std::min(top + bounds.h, N); i < n; ++i)
 	{
@@ -373,7 +392,7 @@ void Panel::draw() const
 		}
 
 		// rating and time
-		if (readtags && it.type != F_DIR)
+		if (layout.readtags && it.type != F_DIR)
 		{
 			x1 -= 13;
 			win.put(y, x1+1, '[');
@@ -398,16 +417,16 @@ void Panel::draw() const
 		win.color(file_color);
 		win.moveto(y, x0);
 
-		str title = (!is_up_dir && readtags && it.type == F_SOUND) ? sanitized(iface.client.get_title(it)) : str();
+		str title = (!is_up_dir && layout.readtags && it.type == F_SOUND) ? sanitized(iface.client.get_title(it)) : str();
 
 		if (!title.empty())
 		{
-			if (!hide_artist)
+			if (!layout.hide_artist)
 			{
 				win.field(sanitized(iface.client.get_artist(it)), c0);
 				win.put_ascii("   ");
 			}
-			if (!hide_album)
+			if (!layout.hide_album)
 			{
 				win.field(sanitized(iface.client.get_album(it)), c1);
 				win.put_ascii("   ");
@@ -436,9 +455,9 @@ void Panel::draw() const
 				auto i = s.rfind('/', s.length()-2);
 				if (i != str::npos) s = s.substr(i+1);
 			}
-			else if (prefix_len > 0)
+			else if (layout.prefix_len > 0)
 			{
-				s = s.substr(prefix_len);
+				s = s.substr(layout.prefix_len);
 			}
 			else if (!mhome.empty() && has_prefix(s, mhome, false))
 			{

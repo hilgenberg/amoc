@@ -234,7 +234,7 @@ bool Dialog::ok(bool confirmed)
 			for (int i = sel.first; i <= sel.second; ++i)
 				(iface.client.*mf)(pl[i], response);
 
-			iface.redraw(2);
+			iface.redraw(3);
 
 			break;
 		}

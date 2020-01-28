@@ -18,7 +18,11 @@ public:
 	Interface(Client &client, plist &left, plist &right);
 
 	void draw();
-	void redraw(int k) { need_redraw = std::max(need_redraw, k); }
+	void redraw(int k)
+	{
+		need_redraw = std::max(need_redraw, k);
+		if (k > 2) { left.update_layout(); right.update_layout(); }
+	}
 	void resize(); // Handle terminal size change.
 	void handle_input(); // read the next key stroke
 	bool handle_command(key_cmd cmd);
@@ -115,7 +119,7 @@ private:
 
 	View *dragging;
 
-	int need_redraw; // 1: info only, 2: everything
+	int need_redraw; // 1: info only, 2: everything, 3: redo panel layouts
 
 	std::queue<str> messages;
 	time_t message_display_start; // for current message, if any

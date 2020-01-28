@@ -238,7 +238,7 @@ bool Client::go_to_dir (const char *dir)
 		iface->select_path(last_dir);
 	}
 
-	iface->redraw(2);
+	iface->redraw(3);
 	iface->status ("");
 
 	tags.remove_unused();
@@ -260,7 +260,7 @@ bool Client::go_to_playlist (const str &file)
 	iface->message ("Playlist loaded.");
 	synced = false;
 	if (options::ReadTags) tags.request(playlist, srv);
-	iface->redraw(2);
+	iface->redraw(3);
 	return true;
 }
 
@@ -321,7 +321,7 @@ void Client::add_to_plist(bool at_end)
 	{
 		playlist.insert(std::move(pl), pos);
 		iface->select_song(pos < 0 ? playlist.size()-pl.size()-1 : pos);
-		iface->redraw(2);
+		iface->redraw(3);
 		if (options::ReadTags) tags.request(playlist, srv);
 	}
 
@@ -352,7 +352,7 @@ void Client::add_url(const str &url, bool at_end)
 	{
 		playlist.insert(url, pos);
 		iface->select_song(pos < 0 ? playlist.size()-1 : pos);
-		iface->redraw(2);
+		iface->redraw(3);
 	}
 }
 
@@ -389,7 +389,7 @@ void Client::delete_item ()
 	else
 	{
 		playlist.remove(i, n);
-		iface->redraw(2);
+		iface->redraw(3);
 	}
 	iface->select_song(i); // clear multi-selection
 }
@@ -568,7 +568,7 @@ void Client::move_item (int direction)
 	else
 	{
 		playlist.move(i, j);
-		iface->redraw(2);
+		iface->redraw(2); // layout doe not depend on the order
 	}
 	iface->move_selection(direction);
 }
@@ -726,7 +726,7 @@ bool Client::handle_command(key_cmd cmd)
 				tags.request(dir_plist, srv);
 				tags.request(playlist, srv);
 			}
-			iface->redraw(2);
+			iface->redraw(3);
 			break;
 		case KEY_CMD_TOGGLE_SHUFFLE:
 			srv.send(CMD_SET_OPTION_SHUFFLE);
@@ -742,7 +742,7 @@ bool Client::handle_command(key_cmd cmd)
 			break;
 		case KEY_CMD_TOGGLE_PLAYLIST_FULL_PATHS:
 			options::PlaylistFullPaths ^= 1;
-			iface->redraw(2);
+			iface->redraw(3);
 			break;
 		case KEY_CMD_PLIST_ADD: add_to_plist(true); break;
 		case KEY_CMD_PLIST_INS: add_to_plist(false); break;
@@ -766,7 +766,7 @@ bool Client::handle_command(key_cmd cmd)
 				synced = true;
 				want_state_update = true;
 			}
-			iface->redraw(2);
+			iface->redraw(3);
 			break;
 		case KEY_CMD_MIXER_DEC_1: adjust_mixer (-1); break;
 		case KEY_CMD_MIXER_DEC_5: adjust_mixer (-5); break;
@@ -897,7 +897,7 @@ void Client::handle_server_event (int type)
 			if (!synced || want_plist_update) break;
 			playlist.insert(pl, idx);
 			if (options::ReadTags) tags.request(pl, srv);
-			iface->redraw(2);
+			iface->redraw(3);
 			break;
 		}
 		case EV_PLIST_DEL:
@@ -906,26 +906,26 @@ void Client::handle_server_event (int type)
 			int n = srv.get_int();
 			if (!synced || want_plist_update) break;
 			playlist.remove(i, n);
-			iface->redraw(2);
+			iface->redraw(3);
 			break;
 		}
 		case EV_PLIST_RM:
 			playlist.remove(srv.get_str_set());
 			go_to_dir(NULL);
-			iface->redraw(2);
+			iface->redraw(3);
 			break;
 		case EV_PLIST_MOVE:
 		{
 			int i = srv.get_int(), j = srv.get_int();
 			if (!synced || want_plist_update) break;
 			playlist.move(i, j);
-			iface->redraw(2);
+			iface->redraw(2); // layout does not depend on the order
 			break;
 		}
 		case EV_PLIST_MOD:
 			playlist.replace(srv.get_str_map());
 			go_to_dir(NULL);
-			iface->redraw(2);
+			iface->redraw(3);
 			break;
 
 		case EV_STATUS_MSG: iface->message(srv.get_str()); break;
@@ -939,7 +939,7 @@ void Client::handle_server_event (int type)
 			file_tags *tag = srv.get_tags();
 			logit ("Received tags for %s", file.c_str());
 			tags.update(file, std::unique_ptr<file_tags>(tag));
-			iface->redraw(2);
+			iface->redraw(3);
 			break;
 		}
 		case EV_FILE_RATING:

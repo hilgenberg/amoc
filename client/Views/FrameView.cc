@@ -18,7 +18,7 @@ bool FrameView::handle_click(int x, int y, bool dbl)
 	if (dbl && hits_divider(x, y))
 	{
 		CURR_RATIO = std::make_pair(1,1);
-		iface.redraw(2);
+		iface.redraw(3);
 		return true;
 	}
 
@@ -96,7 +96,7 @@ void FrameView::handle_drag(int x, int y)
 		if (r.first  < 0) { r.second -= r.first;  r.first  = 0; }
 		if (r.second < 0) { r.first  -= r.second; r.second = 0; }
 		drag0 = p;
-		iface.redraw(2);
+		iface.redraw(3);
 	}
 }
 
