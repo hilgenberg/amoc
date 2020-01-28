@@ -5,14 +5,13 @@
 void utf8_init ();
 void utf8_cleanup ();
 
-size_t strwidth (const str &s);
 str xstrtail (const str &s, int len);
 
+size_t strwidth (const str &s);
 void strdel(str &s, int i, int n = 1);
 int  strins(str &s, int i, wchar_t c); // returns width of c
 
 int xwaddstr (WINDOW *win, const str &s);
-int xmvwaddstr (WINDOW *win, const int y, const int x, const str &s);
 
 // format: r: cut off at the right:     [foo...]
 //         l: cut off at the left:      [...foo]

@@ -198,11 +198,11 @@ void Menu::draw() const
 		win.put(' ');
 		if (w0) switch (mi.state())
 		{
-			case Normal:     win.put("    "); break;
-			case Unchecked:  win.put("[ ] "); break;
-			case Checked:    win.put("[X] "); break;
-			case Unselected: win.put("( ) "); break;
-			case Selected:   win.put("(*) "); break;
+			case Normal:     win.put_ascii("    "); break;
+			case Unchecked:  win.put_ascii("[ ] "); break;
+			case Checked:    win.put_ascii("[X] "); break;
+			case Unselected: win.put_ascii("( ) "); break;
+			case Selected:   win.put_ascii("(*) "); break;
 		}
 		win.field(mi.title, w1);
 		win.put(' ');

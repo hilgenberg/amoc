@@ -21,23 +21,13 @@
 #include <codecvt>
 #include <string>
 #include <locale>
+
 typedef std::wstring wstr;
 #define WIDTH_MAX std::numeric_limits<size_t>::max() // parameter for wcswidth
 
 static bool    using_utf8 = false; // terminal is UTF-8 and term_iconv_desc is not needed?
 static iconv_t term_iconv_desc = (iconv_t)(-1); // from UTF-8 to terminal
 static iconv_t files_iconv_desc = (iconv_t)(-1); // from auto-detect to UTF-8
-
-str sanitized(const str &s_)
-{
-	str s(s_);
-	for (char &c : s) if (c != ' ' && isspace(c)) c = ' ';
-	return s;
-}
-void sanitize(str &s)
-{
-	for (char &c : s) if (c != ' ' && isspace(c)) c = ' ';
-}
 
 str iconv_str(const iconv_t desc, const str &input)
 {
@@ -82,30 +72,58 @@ str files_iconv_str (const str &s)
 	return iconv_str(files_iconv_desc, s);
 }
 
+// convert possibly broken utf8 to wstr and replace all characters
+// having wcwidth < 0 with '?'
 static wstr safe_convert(const str &src)
 {
+	wstr ws;
 	const char *s = src.c_str();
-	size_t count = 0;
-	while (true)
+
+	// optimize for the case where src contains no garbage
+	size_t count = mbstowcs(NULL, s, 0);
+	if (count != (size_t)-1)
 	{
-		mbstate_t ps; memset (&ps, 0, sizeof(ps)); // not used, but we want s updated
-		size_t n = mbsrtowcs(NULL, &s, (size_t)-1, &ps);
-		if (n != (size_t)-1) { count += n; break; }
-		++s; ++count; // skip and allocate space for one '?'
-		if (!*s) break;
+		ws.resize(count);
+		mbstowcs(const_cast<wchar_t*>(ws.c_str()), s, count+1);
+		for (auto &c : ws) if (wcwidth(c) < 0) c = '?';
+		return ws;
 	}
-	wstr ws; ws.resize(count);
-	wchar_t *t = (wchar_t*)ws.c_str();
-	memset(t, 0, count*sizeof(wchar_t)); // mbsrtowcs does not update dest, but we need to know how much was written
-	while (true)
+
+	// if it does contain garbage, replace that with '?' as well
+	mbstate_t ps; memset (&ps, 0, sizeof(ps));
+	size_t n = src.length();
+	while (n)
 	{
-		mbstate_t ps; memset (&ps, 0, sizeof(ps));
-		size_t n = mbsrtowcs(t, &s, count+1, &ps);
-		if (n != (size_t)-1) break;
-		size_t k = wcslen(t);
-		t += k; *t++ = L'?';
-		count -= k+1;
-		if (!*++s) break;
+		wchar_t c;
+		size_t k = mbrtowc(&c, s, n, &ps);
+		if (k == 0)
+		{
+			break;
+		}
+		else if (k > 0)
+		{
+			ws.push_back(wcwidth(c) >= 0 ? c : L'?');
+			n -= k;
+			s += k;
+		}
+		else if (k == (size_t)-1)
+		{
+			ws.push_back(L'?');
+			--n;
+			++s;
+		}
+		else if (k == (size_t)-2)
+		{
+			// trailing garbage
+			ws.push_back(L'?');
+			break;
+		}
+		else
+		{
+			assert(false);
+			ws.push_back(L'#');
+			break;
+		}
 	}
 
 	return ws;
@@ -118,8 +136,20 @@ static wstr safe_convert(const str &src)
 
 static str convert(const wstr &s) // back to utf8
 {
-    std::wstring_convert<std::codecvt_utf8<wchar_t>> c;
-    return c.to_bytes(s);
+	std::wstring_convert<std::codecvt_utf8<wchar_t>> c;
+	return c.to_bytes(s);
+}
+
+str sanitized(const str &s_)
+{
+	str s = convert(safe_convert(s_));
+	for (char &c : s) if (c != ' ' && isspace((unsigned char)c)) c = ' ';
+	return s;
+}
+void sanitize(str &s)
+{
+	s = convert(safe_convert(s));
+	for (char &c : s) if (c != ' ' && isspace((unsigned char)c)) c = ' ';
 }
 
 /* Return the number of columns the string occupies when displayed */
@@ -213,11 +243,6 @@ str xstrtail (const str &s, int len)
 int xwaddstr (WINDOW *win, const str &s)
 {
 	return waddstr(win, TO_TERM(s));
-}
-
-int xmvwaddstr (WINDOW *win, int y, int x, const str &s)
-{
-	return mvwaddstr(win, y, x, TO_TERM(s));
 }
 
 static int xwaddnstr (WINDOW *win, const str &s, int len)
