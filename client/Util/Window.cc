@@ -130,8 +130,6 @@ static str time_str(int sec)
 	if (h <= 99) return format("%02dh%02d", h, m);
 	int d = h/24; h %= 24;
 	if (d <= 99) return format("%02dD%02d", d, h);
-	int y = d/365; d %= 365; // um, yeah, really useful ;-)
-	if (y <= 99) return format("%02dY%02d", d, h);
 	return "++:++";
 }
 
