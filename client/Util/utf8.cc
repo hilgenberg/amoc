@@ -9,17 +9,11 @@
  *
  */
 
-
 #include "utf8.h"
-#include "../../rcc.h"
 
 #include <iconv.h>
-#include <nl_types.h>
 #include <langinfo.h>
-#include <ncurses.h>
-#include <wchar.h>
 #include <codecvt>
-#include <string>
 #include <locale>
 
 typedef std::wstring wstr;
@@ -72,6 +66,15 @@ str files_iconv_str (const str &s)
 	return iconv_str(files_iconv_desc, s);
 }
 
+// is width == length?
+static inline bool is_ascii(const str &s)
+{
+	for (char c : s)
+		if ((unsigned char)c < 32 || (unsigned char)c >= 127)
+			return false;
+	return true;
+}
+
 // convert possibly broken utf8 to wstr and replace all characters
 // having wcwidth < 0 with '?'
 static wstr safe_convert(const str &src)
@@ -100,17 +103,12 @@ static wstr safe_convert(const str &src)
 		{
 			break;
 		}
-		else if (k > 0)
-		{
-			ws.push_back(wcwidth(c) >= 0 ? c : L'?');
-			n -= k;
-			s += k;
-		}
 		else if (k == (size_t)-1)
 		{
 			ws.push_back(L'?');
 			--n;
 			++s;
+			memset (&ps, 0, sizeof(ps));
 		}
 		else if (k == (size_t)-2)
 		{
@@ -120,9 +118,9 @@ static wstr safe_convert(const str &src)
 		}
 		else
 		{
-			assert(false);
-			ws.push_back(L'#');
-			break;
+			ws.push_back(wcwidth(c) >= 0 ? c : L'?');
+			n -= k;
+			s += k;
 		}
 	}
 
@@ -155,12 +153,15 @@ void sanitize(str &s)
 /* Return the number of columns the string occupies when displayed */
 size_t strwidth (const str &s)
 {
+	if (is_ascii(s)) return s.length();
+
 	wstr ws = safe_convert(s);
 	size_t n = wcswidth(ws.c_str(), WIDTH_MAX);
 	if (n != (size_t)-1) return n;
 
-	for (wchar_t &c : ws) if (wcwidth(c) == -1) c = L'?';
-	return wcswidth (ws.c_str(), WIDTH_MAX);
+	n = 0;
+	for (const wchar_t &c : ws) { auto w = wcwidth(c); if (w < 0) ++n; else n += w; }
+	return n;
 }
 
 void strdel(str &s, int i, int n)
@@ -176,7 +177,7 @@ void strdel(str &s, int i, int n)
 	while (j < m && i > 0)
 	{
 		int cw = wcwidth(ws[j++]);
-		if (cw <= 0) cw = 1; // gets printed as '?'
+		if (cw < 0) cw = 1; // gets printed as '?'
 		i -= cw;
 	}
 	if (j >= m) return;
@@ -185,7 +186,7 @@ void strdel(str &s, int i, int n)
 	while (n > 0 && j+k < m)
 	{
 		int cw = wcwidth(ws[j + k++]);
-		if (cw <= 0) cw = 1; // gets printed as '?'
+		if (cw < 0) cw = 1; // gets printed as '?'
 		n -= cw;
 	}
 	ws.erase(j, k);
@@ -207,7 +208,7 @@ int strins(str &s, int i, wchar_t c)
 		while (j < m && i > 0)
 		{
 			int cw = wcwidth(ws[j++]);
-			if (cw <= 0) cw = 1; // gets printed as '?'
+			if (cw < 0) cw = 1; // gets printed as '?'
 			i -= cw;
 		}
 		ws.insert(j, 1, c);
@@ -222,21 +223,26 @@ str xstrtail (const str &s, int len)
 {
 	if (len <= 0) return str();
 
+	if (is_ascii(s)) return s.length() <= len ? s : s.substr(s.length() - len);
+
 	wstr ws = safe_convert(s);
-	int w = wcswidth (ws.c_str(), WIDTH_MAX);
-	if (w <= len) return s;
-
-	int k = 0, m = ws.length();
-	while (w > len && k < m)
+	int k = (int)ws.length();
+	while (len > 0 && k > 0)
 	{
-		int cw = wcwidth(ws[k++]);
-		if (cw <= 0) cw = 1; // gets printed as '?'
-		w -= cw;
+		int cw = wcwidth(ws[k-1]);
+		if (cw > len) break;
+		if (cw < 0) cw = 1; // gets printed as '?'
+		len -= cw; --k;
 	}
-	if (w > len) { assert(false); return str(); }
-	return convert(ws.substr(k));
+	while (k > 0)
+	{
+		// add zero-length chars
+		int cw = wcwidth(ws[k-1]);
+		if (cw) break;
+		--k;
+	}
+	return k == 0 ? s : convert(ws.substr(k));
 }
-
 
 #define TO_TERM(s) (using_utf8 ? (s).c_str() : iconv_str(term_iconv_desc, s).c_str())
 
@@ -254,7 +260,7 @@ static int xwaddnstr (WINDOW *win, const str &s, int len)
 	while (w < len && j < m)
 	{
 		int cw = wcwidth(ws[j++]);
-		if (cw <= 0) { ws[j-1] = L'?'; cw = 1; }
+		if (cw < 0) { ws[j-1] = L'?'; cw = 1; }
 		w += cw;
 	}
 	return xwaddstr(win, convert(j < m ? ws.substr(0, j) : ws));

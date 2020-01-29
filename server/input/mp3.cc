@@ -356,10 +356,12 @@ static bool mp3_write_info (const char *file_name, const file_tags *info)
 	if (f.isNull() || !f.tag()) return false;
 
 	TagLib::Tag *tag = f.tag();
-	if (!info->title .empty()) tag->setTitle (info->title);
-	if (!info->artist.empty()) tag->setArtist(info->artist);
-	if (!info->album .empty()) tag->setAlbum (info->album);
+	#define CVT(s) TagLib::String(s, TagLib::String::UTF8)
+	if (!info->title .empty()) tag->setTitle (CVT(info->title));
+	if (!info->artist.empty()) tag->setArtist(CVT(info->artist));
+	if (!info->album .empty()) tag->setAlbum (CVT(info->album));
 	if ( info->track >= 0)     tag->setTrack (info->track);
+	#undef CVT
 
 	return f.save();
 }

@@ -244,6 +244,9 @@ void tags_cache::write_add (const char *file, file_tags *tags, int client_id)
 {
 	assert (file != NULL);
 	debug ("Setting tags for %s", file);
+	debug ("*** artist: %s", tags->artist.c_str());
+	debug ("***  album: %s", tags->album.c_str());
+	debug ("***  title: %s", tags->title.c_str());
 
 	auto *df = get_decoder (file);
 	if (!df || !df->write_info)
