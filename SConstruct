@@ -26,7 +26,7 @@ env['CCCOMSTR']   = "C  $SOURCE"
 env['LINKCOMSTR'] = "LL $TARGET"
 
 # g++ flags
-env.Append(CXXFLAGS='-std=c++11 -DUSE_PTHREADS'.split())
+env.Append(CXXFLAGS='-std=c++17 -DUSE_PTHREADS'.split())
 env.Append(CXXFLAGS=('-Wall -Wextra -Wno-sign-compare -Wno-deprecated-declarations ' +
 	'-Wno-parentheses -Wno-misleading-indentation -Wno-reorder -fstrict-enums ' +
 	'-Wno-variadic-macros -Wno-unused-parameter -Wno-unknown-pragmas ' +

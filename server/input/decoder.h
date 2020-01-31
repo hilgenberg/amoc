@@ -134,7 +134,7 @@ struct decoder
 	 * Write changed tags for a file. Must be able to handle 
 	 * artist, album, title and track number.
 	 */
-	bool (*write_info)(const char *file, const file_tags *tags);
+	bool (*write_info)(const char *file, const tag_changes *tags);
 
 	/** Get the current bitrate.
 	 *

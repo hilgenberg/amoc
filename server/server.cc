@@ -694,7 +694,7 @@ static void handle_command (const int client_id)
 			case CMD_SET_FILE_TAGS:
 			{
 				str file = cli.socket->get_str();
-				auto *tags = cli.socket->get_tags();
+				auto *tags = cli.socket->get_tag_changes();
 				if (tags) tc->add_request(file.c_str(), client_id, tags);
 				break;
 			}

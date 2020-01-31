@@ -10,7 +10,6 @@ struct cache_record
 	file_tags tags;
 };
 
-struct file_tags;
 class tags_cache
 {
 public:
@@ -22,7 +21,7 @@ public:
 
 	/* Cache DB manipulation functions: */
 	void load (const str &cache_dir);
-	void add_request (const char *file, int client_id, file_tags *tags=NULL);
+	void add_request (const char *file, int client_id, tag_changes *tags=NULL);
 	file_tags get_immediate (const char *file);
 	void ratings_changed(const str &file, int rating);
 
@@ -49,15 +48,15 @@ private:
 	void sync();
 	void add(DBT &key, const cache_record &rec);
 	file_tags read_add(const char *file, int client_id);
-	void write_add(const char *file, file_tags *tags, int client_id);
+	void write_add(const char *file, tag_changes *tags, int client_id);
 	static void *reader_thread (void *cache_ptr);
 
 	struct Request
 	{
 		str path;
-		std::unique_ptr<file_tags> tags;
+		std::unique_ptr<tag_changes> tags;
 		Request(const str &p) : path(p) {}
-		Request(const str &p, file_tags *t) : path(p), tags(t) {}
+		Request(const str &p, tag_changes *t) : path(p), tags(t) {}
 	};
 	typedef std::queue<Request> request_queue;
 	request_queue queues[CLIENTS_MAX]; /* requests queues for each client */

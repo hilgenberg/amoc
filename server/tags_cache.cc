@@ -240,13 +240,19 @@ file_tags tags_cache::read_add (const char *file, int client_id)
 /* Read the selected tags for this file and add it to the cache.
  * If client_id != -1, the server is notified using tags_response().
  * If client_id == -1, copy of file_tags is returned. */
-void tags_cache::write_add (const char *file, file_tags *tags, int client_id)
+void tags_cache::write_add (const char *file, tag_changes *tags, int client_id)
 {
 	assert (file != NULL);
+	assert(tags);
+	if (tags->empty()) return;
+	
+	#ifndef NDEBUG
 	debug ("Setting tags for %s", file);
-	debug ("*** artist: %s", tags->artist.c_str());
-	debug ("***  album: %s", tags->album.c_str());
-	debug ("***  title: %s", tags->title.c_str());
+	if (tags->artist) debug ("*** artist: %s", tags->artist->c_str());
+	if (tags->album)  debug ("***  album: %s", tags->album->c_str());
+	if (tags->title)  debug ("***  title: %s", tags->title->c_str());
+	if (tags->track)  debug ("***  track: %d", *tags->track);
+	#endif
 
 	auto *df = get_decoder (file);
 	if (!df || !df->write_info)
@@ -333,7 +339,7 @@ void *tags_cache::reader_thread(void *cache_ptr)
 			last_client = client;
 			auto &rq = q.front();
 			str file = rq.path;
-			file_tags *tags = rq.tags.release();
+			tag_changes *tags = rq.tags.release();
 			q.pop();
 			UNLOCK (c->mutex);
 			if (!tags)
@@ -403,7 +409,7 @@ tags_cache::~tags_cache()
 	if (rc != 0) log_errno ("Can't destroy request_cond", rc);
 }
 
-void tags_cache::add_request (const char *file, int client_id, file_tags *tags)
+void tags_cache::add_request (const char *file, int client_id, tag_changes *tags)
 {
 	assert (file != NULL);
 	assert (LIMIT(client_id, CLIENTS_MAX));

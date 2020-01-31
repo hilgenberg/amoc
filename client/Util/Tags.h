@@ -1,11 +1,12 @@
 #pragma once
-#include "../../playlist.h"
+#include "../../file_tags.h"
 #include "../../Socket.h"
 
 class Tags
 {
 public:
-	std::map<str, file_tags> tags, changes;
+	std::map<str, file_tags> tags;
+	std::map<str, tag_changes> changes;
 	std::set<str> requests; // to drop some duplicate requests. not exact, but that's ok
 
 	inline void connect(const plist_item &it) const
@@ -67,11 +68,10 @@ public:
 	void set_artist(const plist_item &it, const str &val)
 	{
 		connect(it);
-		if (val.empty() || (it.tags && it.tags->artist == val))
+		if (it.tags && it.tags->artist == val)
 		{
 			auto i = changes.find(it.path); if (i == changes.end()) return;
-			i->second.artist.clear();
-			if (empty(i->second)) changes.erase(i);
+			i->second.artist.reset(); if (i->second.empty()) changes.erase(i);
 			return;
 		}
 		changes[it.path].artist = val;
@@ -79,11 +79,10 @@ public:
 	void set_album(const plist_item &it, const str &val)
 	{
 		connect(it);
-		if (val.empty() || (it.tags && it.tags->album == val))
+		if (it.tags && it.tags->album == val)
 		{
 			auto i = changes.find(it.path); if (i == changes.end()) return;
-			i->second.album.clear();
-			if (empty(i->second)) changes.erase(i);
+			i->second.album.reset(); if (i->second.empty()) changes.erase(i);
 			return;
 		}
 		changes[it.path].album = val;
@@ -91,11 +90,10 @@ public:
 	void set_title(const plist_item &it, const str &val)
 	{
 		connect(it);
-		if (val.empty() || (it.tags && it.tags->title == val))
+		if (it.tags && it.tags->title == val)
 		{
 			auto i = changes.find(it.path); if (i == changes.end()) return;
-			i->second.title.clear();
-			if (empty(i->second)) changes.erase(i);
+			i->second.title.reset(); if (i->second.empty()) changes.erase(i);
 			return;
 		}
 		changes[it.path].title = val;
@@ -104,12 +102,10 @@ public:
 	{
 		connect(it);
 		#define N(t) ((t) <= 0 ? 0 : (t))
-		if ((it.tags && N(it.tags->track) == N(val)) || (!it.tags && val <= 0))
+		if (it.tags && N(it.tags->track) == N(val))
 		{
-			auto i = changes.find(it.path);
-			if (i == changes.end()) return;
-			i->second.track = -1; // erase the change
-			if (empty(i->second)) changes.erase(i);
+			auto i = changes.find(it.path); if (i == changes.end()) return;
+			i->second.track.reset(); if (i->second.empty()) changes.erase(i);
 			return;
 		}
 
@@ -128,28 +124,28 @@ public:
 	{
 		connect(it);
 		auto ch = changes.find(it.path);
-		if (ch != changes.end() && !ch->second.title.empty()) return ch->second.title;
+		if (ch != changes.end() && ch->second.title) return *ch->second.title;
 		return it.tags ? it.tags->title : str();
 	}
 	str get_artist(const plist_item &it) const
 	{
 		connect(it);
 		auto ch = changes.find(it.path);
-		if (ch != changes.end() && !ch->second.artist.empty()) return ch->second.artist;
+		if (ch != changes.end() && ch->second.artist) return *ch->second.artist;
 		return it.tags ? it.tags->artist : str();
 	}
 	str get_album(const plist_item &it) const
 	{
 		connect(it);
 		auto ch = changes.find(it.path);
-		if (ch != changes.end() && !ch->second.album.empty()) return ch->second.album;
+		if (ch != changes.end() && ch->second.album) return *ch->second.album;
 		return it.tags ? it.tags->album : str();
 	}
 	int get_track(const plist_item &it) const
 	{
 		connect(it);
 		auto ch = changes.find(it.path);
-		if (ch != changes.end() && ch->second.track >= 0) return ch->second.track;
+		if (ch != changes.end() && ch->second.track) return *ch->second.track;
 		return it.tags ? it.tags->track : -1;
 	}
 
@@ -157,11 +153,5 @@ public:
 	{
 		auto it = tags.find(path);
 		return it == tags.end() ? 0 : it->second.time;
-	}
-
-private:
-	static bool empty(const file_tags &it)
-	{
-		return it.track < 0 && it.title.empty() && it.artist.empty() && it.album.empty();
 	}
 };

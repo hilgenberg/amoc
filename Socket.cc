@@ -101,7 +101,6 @@ void Socket::send(const file_tags *tags)
 	send(tags->time); send(tags->rating);
 	G.done();
 }
-
 file_tags *Socket::get_tags()
 {
 	bool b; get(b); if (!b) return NULL;
@@ -111,6 +110,36 @@ file_tags *Socket::get_tags()
 		get(tags->title); get(tags->artist);
 		get(tags->album); get(tags->track);
 		get(tags->time);  get(tags->rating);
+	}
+	catch (...)
+	{
+		delete tags;
+		throw;
+	}
+	return tags;
+}
+
+void Socket::send(const tag_changes *tags)
+{
+	if (!tags) { send(false); return; }
+	BufferGuard G(*this);
+	send(true);
+	send((bool)tags->title); if (tags->title) send(*tags->title);
+	send((bool)tags->artist); if (tags->artist) send(*tags->artist);
+	send((bool)tags->album); if (tags->album) send(*tags->album);
+	send((bool)tags->track); if (tags->track) send(*tags->track);
+	G.done();
+}
+tag_changes *Socket::get_tag_changes()
+{
+	bool b; get(b); if (!b) return NULL;
+
+	tag_changes *tags = new tag_changes;
+	try {
+		if (get_bool()) tags->title = get_str();
+		if (get_bool()) tags->artist = get_str();
+		if (get_bool()) tags->album = get_str();
+		if (get_bool()) tags->track = get_int();
 	}
 	catch (...)
 	{

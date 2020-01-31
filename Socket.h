@@ -70,6 +70,7 @@ public:
 	void send(const plist_item *i) { send(i ? i->path : str()); }
 	void send(const plist &pl) { for (auto &i : pl.items) send(i->path); send(""); }
 	void send(const file_tags *tags);
+	void send(const tag_changes *tags);
 	void send(ServerCommands c) { send((int)c); }
 	void send(ServerEvents   c) { send((int)c); }
 	
@@ -104,6 +105,7 @@ public:
 	bool get_bool() { bool x; get(x); return x; }
 	str  get_str()  { str  x; get(x); return x; }
 	file_tags *get_tags();
+	tag_changes *get_tag_changes();
 
 	bool get_int_noblock (int &i);
 

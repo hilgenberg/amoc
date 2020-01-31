@@ -349,18 +349,18 @@ static void mp3_info (const char *file_name, struct file_tags *info)
 	}
 }
 /* Fill info structure with data from the id3 tag */
-static bool mp3_write_info (const char *file_name, const file_tags *info)
+static bool mp3_write_info (const char *file_name, const tag_changes *info)
 {
 	TagLib::FileRef f(file_name);
 
 	if (f.isNull() || !f.tag()) return false;
 
 	TagLib::Tag *tag = f.tag();
-	#define CVT(s) TagLib::String(s, TagLib::String::UTF8)
-	if (!info->title .empty()) tag->setTitle (CVT(info->title));
-	if (!info->artist.empty()) tag->setArtist(CVT(info->artist));
-	if (!info->album .empty()) tag->setAlbum (CVT(info->album));
-	if ( info->track >= 0)     tag->setTrack (info->track);
+	#define CVT(s) TagLib::String(*info->s, TagLib::String::UTF8)
+	if (info->title ) tag->setTitle (CVT(title));
+	if (info->artist) tag->setArtist(CVT(artist));
+	if (info->album ) tag->setAlbum (CVT(album));
+	if (info->track ) tag->setTrack (*info->track);
 	#undef CVT
 
 	return f.save();
