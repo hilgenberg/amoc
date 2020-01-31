@@ -768,6 +768,13 @@ bool Client::handle_command(key_cmd cmd)
 			}
 			iface->redraw(3);
 			break;
+		case KEY_CMD_PLIST_DESYNC:
+			if (synced)
+			{
+				synced = false;
+				iface->drop_sync();
+			}
+			break;
 		case KEY_CMD_MIXER_DEC_1: adjust_mixer (-1); break;
 		case KEY_CMD_MIXER_DEC_5: adjust_mixer (-5); break;
 		case KEY_CMD_MIXER_INC_5: adjust_mixer (+5); break;

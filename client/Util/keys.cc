@@ -200,6 +200,7 @@ void keys_init ()
 	CMD(KEY_CMD_PLIST_INS,		"insert",	'i'); // Insert a file/directory after the current song
 	CMD(KEY_CMD_PLIST_CLEAR,	"clear_playlist",	'C'); // Clear the playlist
 	CMD(KEY_CMD_PLIST_REMOVE_DEAD_ENTRIES,	"remove_dead_entries",	'Y'); // Remove playlist entries for non-existent files
+	CMD(KEY_CMD_PLIST_DESYNC,	"playlist_local_copy",	0);
 	CMD(KEY_CMD_MIXER_DEC_1,	"volume_down_1",	'<'); // Decrease volume by 1%
 	CMD(KEY_CMD_MIXER_INC_1,	"volume_up_1",	'>'); // Increase volume by 1%
 	CMD(KEY_CMD_MIXER_DEC_5,	"volume_down_5",	','); // Decrease volume by 5%

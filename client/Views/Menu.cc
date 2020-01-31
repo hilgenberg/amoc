@@ -62,6 +62,7 @@ MENU("Playlist");
 	ITEM("Clear playlist", KEY_CMD_PLIST_CLEAR);
 	ITEM("Remove items", KEY_CMD_PLIST_DEL);
 	ITEM("Remove dead entries", KEY_CMD_PLIST_REMOVE_DEAD_ENTRIES);
+	ITEM("Make local copy", KEY_CMD_PLIST_DESYNC); GREY(!iface.client.synced);
 	SEPARATOR;
 	ITEM("Repeat", KEY_CMD_TOGGLE_REPEAT); CHK(options::Repeat);
 	ITEM("Auto-advance songs", KEY_CMD_TOGGLE_AUTO_NEXT); CHK(options::AutoNext);
