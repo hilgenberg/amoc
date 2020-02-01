@@ -40,14 +40,10 @@ static struct {
 	{SIGQUIT, "SIGQUIT", 0, 0},
 	{SIGTERM, "SIGTERM", 0, 0},
 	{SIGCHLD, "SIGCHLD", 0, 0},
-#ifdef SIGWINCH
 	{SIGWINCH, "SIGWINCH", 0, 0},
-#endif
 	{0, "SIG other", 0, 0}
 };
-#endif
 
-#ifndef NDEBUG
 void log_signal (int sig)
 {
 	int ix = 0;
@@ -57,9 +53,7 @@ void log_signal (int sig)
 
 	sig_info[ix].raised += 1;
 }
-#endif
 
-#ifndef NDEBUG
 static inline void flush_log (void)
 {
 	int rc;
@@ -70,9 +64,7 @@ static inline void flush_log (void)
 		} while (rc != 0 && errno == EINTR);
 	}
 }
-#endif
 
-#ifndef NDEBUG
 static void locked_logit (const char *file, const int line,
                           const char *function, const char *msg)
 {
@@ -104,9 +96,7 @@ static void locked_logit (const char *file, const int line,
 		buffered_log.push_back(
 			format(fmt, time_str, utc_time.tv_nsec / 1000L, file, line, function, msg));
 }
-#endif
 
-#ifndef NDEBUG
 static void log_signals_raised (void)
 {
 	size_t ix;
