@@ -13,16 +13,14 @@ Help("""
 SetOption('num_jobs', multiprocessing.cpu_count())
 #print("Using %d parallel jobs" % GetOption('num_jobs'))
 
-# compile all .c and .cc files
+# compile all .cc files
 src = []
 for R,D,F in os.walk('.'):
-	for f in fnmatch.filter(F, '*.c'): src.append(os.path.join(R, f))
 	for f in fnmatch.filter(F, '*.cc'): src.append(os.path.join(R, f))
 
 # less verbose output
 env['GCHCOMSTR']  = "HH $SOURCE"
 env['CXXCOMSTR']  = "CC $SOURCE"
-env['CCCOMSTR']   = "C  $SOURCE"
 env['LINKCOMSTR'] = "LL $TARGET"
 
 # g++ flags
@@ -34,7 +32,6 @@ env.Append(CXXFLAGS=('-Wall -Wextra -Wno-sign-compare -Wno-deprecated-declaratio
 
 # precompiled header
 env.Append(CXXFLAGS='-Winvalid-pch -include config.h'.split())
-env.Append(CCFLAGS='-Winvalid-pch -include config.h'.split())
 env['precompiled_header'] = File('config.h')
 env['Gch'] = env.Gch(target='config.h.gch', source=env['precompiled_header'])
 pch = env.Alias('pch', 'config.h.gch')
@@ -56,4 +53,3 @@ env.ParseConfig('pkg-config --cflags --libs pangocairo')
 # target
 amoc = env.Program(target='amoc', source=src)
 Default(amoc)
-
