@@ -71,6 +71,15 @@ struct sound_params
 	int channels; /*!< Number of channels: 1 or 2 */
 	int rate; /*!< Rate in Hz */
 	long fmt; /*!< Format of the samples (SFMT_* bits) */
+
+	bool operator== (const sound_params &p) const
+	{
+		return fmt == p.fmt && channels == p.channels && rate == p.rate;
+	}
+	bool operator!= (const sound_params &p) const
+	{
+		return !(*this == p);
+	}
 };
 
 /** Output driver capabilities.
@@ -85,33 +94,9 @@ struct output_driver_caps
 			with endianness') */
 };
 
-/** \struct hw_funcs
- * Functions to control the audio "driver".
- *
- * The structure holds pointers to functions that must be provided by the audio
- * "driver". All functions are executed only by one thread, so you don't need
- * to worry if they are thread safe.
- */
-struct hw_funcs
+struct AudioDriver
 {
-	/** Initialize the driver.
-	 *
-	 * This function is invoked only once when the MOC server starts.
-	 *
-	 * \param caps Capabilities of the driver which must be filled by the
-	 * function.
-	 * \return 1 on success and 0 otherwise.
-	 */
-	int (*init) (struct output_driver_caps *caps);
-
-	/** Clean up at exit.
-	 *
-	 * This function is invoked only once when the MOC server exits. The
-	 * audio device is not in use at this moment. The function should close
-	 * any opened devices and free any resources the driver allocated.
-	 * After this function was used, no other functions will be invoked.
-	 */
-	void (*shutdown) ();
+	virtual ~AudioDriver() {}
 
 	/** Open the sound device.
 	 *
@@ -126,13 +111,13 @@ struct hw_funcs
 	 * the required parameters.
 	 * \return 1 on success and 0 otherwise.
 	 */
-	int (*open) (struct sound_params *sound_params);
+	virtual bool open(const sound_params &sound_params) = 0;
 
 	/** Close the device.
 	 *
 	 * Request for closing the device.
 	 */
-	void (*close) ();
+	virtual void close() = 0;
 
 	/** Play sound.
 	 *
@@ -146,7 +131,7 @@ struct hw_funcs
 	 * \return The number of bytes played or a value less than zero on
 	 * error.
 	 */
-	int (*play) (const char *buff, const size_t size);
+	virtual int play(const char *buff, size_t size) = 0;
 
 	/** Read the volume setting.
 	 *
@@ -155,7 +140,7 @@ struct hw_funcs
 	 *
 	 * \return Volume value from 0% to 100%.
 	 */
-	int (*read_mixer) ();
+	virtual int read_mixer() const = 0;
 
 	/** Set the volume setting.
 	 *
@@ -164,7 +149,7 @@ struct hw_funcs
 	 *
 	 * \param vol Volume from 0% to 100%.
 	 */
-	void (*set_mixer) (int vol);
+	virtual void set_mixer(int vol) = 0;
 
 	/** Read the hardware/internal buffer fill.
 	 *
@@ -175,7 +160,7 @@ struct hw_funcs
 	 *
 	 * \return Current hardware/internal buffer fill in bytes.
 	 */
-	int (*get_buff_fill) ();
+	virtual int get_buff_fill() const = 0;
 
 	/** Stop playing immediately.
 	 *
@@ -185,7 +170,7 @@ struct hw_funcs
 	 *
 	 * \return 1 on success or 0 otherwise.
 	 */
-	int (*reset) ();
+	virtual bool reset() = 0;
 
 	/** Get the current sample rate setting.
 	 *
@@ -193,13 +178,13 @@ struct hw_funcs
 	 *
 	 * \return Sample rate in Hz.
 	 */
-	int (*get_rate) ();
+	virtual int get_rate() const = 0;
 
 	/** Toggle the mixer channel.
 	 *
 	 * Toggle between the first and the second mixer channel.
 	 */
-	void (*toggle_mixer_channel) ();
+	virtual void toggle_mixer_channel() = 0;
 
 	/** Get the mixer channel's name.
 	 *
@@ -207,12 +192,8 @@ struct hw_funcs
 	 *
 	 * \return malloc()ed channel's name.
 	 */
-	char * (*get_mixer_channel_name) ();
+	virtual str get_mixer_channel_name() const = 0;
 };
-
-/* Are the parameters p1 and p2 equal? */
-#define sound_params_eq(p1, p2) ((p1).fmt == (p2).fmt \
-		&& (p1).channels == (p2).channels && (p1).rate == (p2).rate)
 
 /* Maximum size of a string needed to hold the value returned by sfmt_str(). */
 #define SFMT_STR_MAX	265
@@ -235,29 +216,28 @@ void audio_seek (const int sec);
 void audio_jump_to (const int sec);
 void audio_fail_file (const str &path);
 
-int audio_open (struct sound_params *sound_params);
-int audio_send_buf (const char *buf, const size_t size);
-int audio_send_pcm (const char *buf, const size_t size);
+int  audio_open (struct sound_params *sound_params);
+int  audio_send_buf (const char *buf, const size_t size);
+int  audio_send_pcm (const char *buf, const size_t size);
 void audio_reset ();
-int audio_get_bpf ();
-int audio_get_bps ();
-int audio_get_buf_fill ();
+int  audio_get_bpf ();
+int  audio_get_bps ();
+int  audio_get_buf_fill ();
 void audio_close ();
-int audio_get_time ();
-int audio_get_state ();
-int audio_get_prev_state ();
+int  audio_get_time ();
+int  audio_get_state ();
+int  audio_get_prev_state ();
 void audio_plist_add (const str &file);
 void audio_plist_add (const plist &pl, int idx);
 void audio_plist_clear ();
 void audio_get_plist(plist &pl);
 void audio_get_current(str &path, int &idx);
 void audio_set_mixer (const int val);
-int audio_get_mixer ();
+int  audio_get_mixer ();
 void audio_plist_delete (int idx, int n);
 void audio_send_plist(Socket &socket);
-void audio_plist_set_time (const char *file, const int time);
 void audio_state_started_playing ();
-char *audio_get_mixer_channel_name ();
+str  audio_get_mixer_channel_name ();
 void audio_toggle_mixer_channel ();
 void audio_plist_move (int i, int j);
 

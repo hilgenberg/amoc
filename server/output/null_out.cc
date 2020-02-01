@@ -13,78 +13,43 @@
 
 #include "../audio.h"
 
-static struct sound_params params = { 0, 0, 0 };
-
-static int null_open (struct sound_params *sound_params)
+struct null_driver : public AudioDriver
 {
-	params = *sound_params;
-	return 1;
-}
+	sound_params params;
 
-static void null_close ()
+	null_driver(output_driver_caps &caps)
+	{
+		caps.formats = SFMT_S8 | SFMT_S16 | SFMT_LE;
+		caps.min_channels = 1;
+		caps.max_channels = 2;
+
+		params = { 0, 0, 0 };
+	}
+
+	bool open (const sound_params &sound_params) override
+	{
+		params = sound_params;
+		return true;
+	}
+	void close () override { params.rate = 0; }
+
+	int play (const char *, size_t size) override
+	{
+		xsleep (size, audio_get_bps());
+		return size;
+	}
+	bool reset () override { return true; }
+	int get_buff_fill () const override { return 0; }
+
+	int get_rate () const override { return params.rate; }
+
+	int  read_mixer () const override { return 100; }
+	void set_mixer(int) override { }
+	void toggle_mixer_channel () override { }
+	str  get_mixer_channel_name () const override { return "FakeMixer"; }
+};
+
+AudioDriver *NOSOUND_init(output_driver_caps &caps)
 {
-	params.rate = 0;
-}
-
-static int null_play (const char *unused, const size_t size)
-{
-	xsleep (size, audio_get_bps ());
-	return size;
-}
-
-static int null_read_mixer ()
-{
-	return 100;
-}
-
-static void null_set_mixer (int unused)
-{
-}
-
-static int null_get_buff_fill ()
-{
-	return 0;
-}
-
-static int null_reset ()
-{
-	return 1;
-}
-
-static int null_init (struct output_driver_caps *caps)
-{
-	caps->formats = SFMT_S8 | SFMT_S16 | SFMT_LE;
-	caps->min_channels = 1;
-	caps->max_channels = 2;
-
-	return 1;
-}
-
-static int null_get_rate ()
-{
-	return params.rate;
-}
-
-static void null_toggle_mixer_channel ()
-{
-}
-
-static char *null_get_mixer_channel_name ()
-{
-	return xstrdup ("FakeMixer");
-}
-
-void null_funcs (struct hw_funcs *funcs)
-{
-	funcs->init = null_init;
-	funcs->open = null_open;
-	funcs->close = null_close;
-	funcs->play = null_play;
-	funcs->read_mixer = null_read_mixer;
-	funcs->set_mixer = null_set_mixer;
-	funcs->get_buff_fill = null_get_buff_fill;
-	funcs->reset = null_reset;
-	funcs->get_rate = null_get_rate;
-	funcs->toggle_mixer_channel = null_toggle_mixer_channel;
-	funcs->get_mixer_channel_name = null_get_mixer_channel_name;
+	return new null_driver(caps);
 }

@@ -210,9 +210,6 @@ static void *precache_thread (void *data)
 		return NULL;
 	}
 
-	audio_plist_set_time (precache->file,
-			precache->f->get_duration(precache->decoder_data));
-
 	/* Stop at PCM_BUF_SIZE, because when we decode too much, there is no
 	 * place where we can put the data that doesn't fit into the buffer. */
 	while (precache->buf_fill < PCM_BUF_SIZE) {
@@ -241,8 +238,7 @@ static void *precache_thread (void *data)
 
 		if (!precache->sound_params.channels)
 			precache->sound_params = new_sound_params;
-		else if (!sound_params_eq(precache->sound_params,
-					new_sound_params)) {
+		else if (precache->sound_params != new_sound_params) {
 
 			/* There is no way to store sound with two different
 			 * parameters in the buffer, give up with
@@ -399,7 +395,7 @@ static void decode_loop (const struct decoder *f, void *decoder_data,
 				logit ("EOF from decoder");
 			}
 			else {
-				if (!sound_params_eq(new_sound_params, *sound_params))
+				if (new_sound_params != *sound_params)
 					sound_params_change = true;
 
 				bitrate_list_add (&bitrate_list, decode_time,
@@ -595,7 +591,6 @@ static void play_file (const char *file, const struct decoder *f,
 		bitrate_list_init (&bitrate_list);
 	}
 
-	audio_plist_set_time (file, f->get_duration(decoder_data));
 	audio_state_started_playing ();
 	precache_reset (&precache);
 

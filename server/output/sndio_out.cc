@@ -17,155 +17,120 @@
 #define PCT_TO_SIO(pct)	((127 * (pct) + 50) / 100)
 #define SIO_TO_PCT(vol)	((100 * (vol) + 64) / 127)
 
-static struct sio_hdl *hdl = NULL;
-static int curvol = 100;
-static struct sound_params params = { 0, 0, 0 };
+static void volume_cb (void *drv, unsigned int vol);
 
-static void sndio_close ();
-
-static void volume_cb (void *unused, unsigned int vol)
+struct sndio_driver : public AudioDriver
 {
-	curvol = SIO_TO_PCT(vol);
-}
+	sio_hdl *hdl;
+	int curvol;
+	struct sound_params params;
 
-static int sndio_init (struct output_driver_caps *caps)
-{
-	assert (caps != NULL);
+	sndio_driver(output_driver_caps &caps)
+	: hdl(NULL)
+	, curvol(100)
+	, params { 0, 0, 0 }
+	{
+		caps.formats = SFMT_S8 | SFMT_U8 | SFMT_U16 | SFMT_S16 | SFMT_NE;
+		caps.min_channels = 1;
+		caps.max_channels = 2;
+	}
 
-	caps->formats = SFMT_S8 | SFMT_U8 | SFMT_U16 | SFMT_S16 | SFMT_NE;
-	caps->min_channels = 1;
-	caps->max_channels = 2;
+	~sndio_driver()
+	{
+		if (hdl) close ();
+	}
 
-	return 1;
-}
+	bool open(const sound_params &sound_params) override
+	{
+		assert (hdl == NULL);
+		hdl = sio_open (NULL, SIO_PLAY, 0);
+		if (!hdl) return false;
 
-static void sndio_shutdown ()
-{
-	if (hdl)
-		sndio_close ();
-}
+		params = sound_params;
+		struct sio_par par; sio_initpar (&par);
+		/* Add volume change callback. */
+		sio_onvol (hdl, volume_cb, this);
+		par.rate = sound_params.rate;
+		par.pchan = sound_params.channels;
+		par.bits = (sound_params.fmt & (SFMT_S8|SFMT_U8) ? 8 : 16);
+		par.le = SIO_LE_NATIVE;
+		par.sig = (sound_params.fmt & (SFMT_S16|SFMT_S8) ? 1 : 0);
+		par.round = par.rate / 8;
+		par.appbufsz = par.round * 2;
+		logit ("rate %d pchan %d bits %d sign %d", par.rate, par.pchan, par.bits, par.sig);
 
-/* Return 0 on failure. */
-static int sndio_open (struct sound_params *sound_params)
-{
-	struct sio_par par;
+		if (!sio_setpar (hdl, &par) || !sio_getpar (hdl, &par) || !sio_start (hdl)) {
+			logit ("Failed to set sndio parameters.");
+			sio_close (hdl);
+			hdl = NULL;
+			return false;
+		}
+		sio_setvol (hdl, PCT_TO_SIO(curvol));
+		return true;
+	}
 
-	assert (hdl == NULL);
+	/* Return the number of bytes played, or -1 on error. */
+	int play (const char *buff, const size_t size) override
+	{
+		assert (hdl != NULL);
+		int count = (int) sio_write (hdl, buff, size);
+		return (!count && sio_eof(hdl) ? -1 : count);
+	}
 
-	if ((hdl = sio_open (NULL, SIO_PLAY, 0)) == NULL)
-		return 0;
-
-	params = *sound_params;
-	sio_initpar (&par);
-	/* Add volume change callback. */
-	sio_onvol (hdl, volume_cb, NULL);
-	par.rate = sound_params->rate;
-	par.pchan = sound_params->channels;
-	par.bits = (((sound_params->fmt & SFMT_S8) ||
-	             (sound_params->fmt & SFMT_U8)) ? 8 : 16);
-	par.le = SIO_LE_NATIVE;
-	par.sig = (((sound_params->fmt & SFMT_S16) ||
-	            (sound_params->fmt & SFMT_S8)) ? 1 : 0);
-	par.round = par.rate / 8;
-	par.appbufsz = par.round * 2;
-	logit ("rate %d pchan %d bits %d sign %d",
-	        par.rate, par.pchan, par.bits, par.sig);
-
-	if (!sio_setpar (hdl, &par) || !sio_getpar (hdl, &par)
-	                            || !sio_start (hdl)) {
-		logit ("Failed to set sndio parameters.");
+	void close () override
+	{
+		if (!hdl) return;
+		sio_stop (hdl);
 		sio_close (hdl);
 		hdl = NULL;
+	}
+
+	int read_mixer () const override
+	{
+		return curvol;
+	}
+
+	void set_mixer (int vol) override
+	{
+		if (hdl) sio_setvol (hdl, PCT_TO_SIO (vol));
+	}
+
+	int get_buff_fill () const override
+	{
+		/* Since we cannot stop SNDIO playing the samples already in
+		* its buffer, there will never be anything left unheard. */
 		return 0;
 	}
-	sio_setvol (hdl, PCT_TO_SIO(curvol));
 
-	return 1;
+	bool reset () override
+	{
+		/* SNDIO will continue to play the samples already in its buffer
+		* regardless of what we do, so there's nothing we can do. */
+
+		return true;
+	}
+
+	int get_rate () const override
+	{
+		return params.rate;
+	}
+
+	void toggle_mixer_channel () override
+	{
+	}
+
+	str get_mixer_channel_name () const override
+	{
+		return "moc";
+	}
+};
+
+static void volume_cb (void *drv, unsigned int vol)
+{
+	((sndio_driver*)drv)->curvol = SIO_TO_PCT(vol);
 }
 
-/* Return the number of bytes played, or -1 on error. */
-static int sndio_play (const char *buff, const size_t size)
+AudioDriver *SNDIO_init(output_driver_caps &caps)
 {
-	int count;
-
-	assert (hdl != NULL);
-
-	count = (int) sio_write (hdl, buff, size);
-	if (!count && sio_eof (hdl))
-		return -1;
-
-	return count;
-}
-
-static void sndio_close ()
-{
-	assert (hdl != NULL);
-
-	sio_stop (hdl);
-	sio_close (hdl);
-	hdl = NULL;
-}
-
-static int sndio_read_mixer ()
-{
-	return curvol;
-}
-
-static void sndio_set_mixer (int vol)
-{
-	if (hdl != NULL)
-		sio_setvol (hdl, PCT_TO_SIO (vol));
-}
-
-static int sndio_get_buff_fill ()
-{
-	assert (hdl != NULL);
-
-	/* Since we cannot stop SNDIO playing the samples already in
-	 * its buffer, there will never be anything left unheard. */
-
-	return 0;
-}
-
-static int sndio_reset ()
-{
-	assert (hdl != NULL);
-
-	/* SNDIO will continue to play the samples already in its buffer
-	 * regardless of what we do, so there's nothing we can do. */
-
-	return 1;
-}
-
-static int sndio_get_rate ()
-{
-	assert (hdl != NULL);
-
-	return params.rate;
-}
-
-static void sndio_toggle_mixer_channel ()
-{
-	assert (hdl != NULL);
-}
-
-static char *sndio_get_mixer_channel_name ()
-{
-	return xstrdup ("moc");
-}
-
-void sndio_funcs (struct hw_funcs *funcs)
-{
-	funcs->init = sndio_init;
-	funcs->shutdown = sndio_shutdown;
-	funcs->open = sndio_open;
-	funcs->close = sndio_close;
-	funcs->play = sndio_play;
-	funcs->read_mixer = sndio_read_mixer;
-	funcs->set_mixer = sndio_set_mixer;
-	funcs->get_buff_fill = sndio_get_buff_fill;
-	funcs->reset = sndio_reset;
-	funcs->get_rate = sndio_get_rate;
-	funcs->toggle_mixer_channel = sndio_toggle_mixer_channel;
-	funcs->get_mixer_channel_name = sndio_get_mixer_channel_name;
+	return new sndio_driver(caps);
 }

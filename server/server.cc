@@ -21,7 +21,6 @@
 #include "protocol.h"
 #include "../Socket.h"
 #include "audio.h"
-#include "output/oss.h"
 #include "server.h"
 #include "../playlist.h"
 #include "tags_cache.h"
@@ -513,15 +512,13 @@ static void send_ev_options(int where = -1)
 }
 static void send_ev_mixer(int where = -1)
 {
-	char *name = audio_get_mixer_channel_name ();
+	str name = audio_get_mixer_channel_name ();
 	int v = audio_get_mixer();
 
 	if (where == -1)
 		add_event_all(EV_MIXER_CHANGE, name, v);
 	else
 		add_event(clients[where], EV_MIXER_CHANGE, name, v);
-
-	free (name);
 }
 
 /* Receive a command from the client and execute it. */
@@ -678,12 +675,8 @@ static void handle_command (const int client_id)
 				send_ev_mixer();
 				break;
 			case CMD_GET_MIXER_CHANNEL_NAME:
-			{
-				char *name = audio_get_mixer_channel_name();
-				str nm; if (name) nm = name; free (name);
-				send_data_str(&cli, nm);
+				send_data_str(&cli, audio_get_mixer_channel_name());
 				break;
-			}
 			case CMD_GET_FILE_TAGS:
 			{
 				str file = cli.socket->get_str();

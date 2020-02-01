@@ -18,26 +18,8 @@
 #include "input/decoder.h"
 #include "server_plist.h"
 #include "../Socket.h"
-
-#ifdef HAVE_OSS
-# include "output/oss.h"
-#endif
-#ifdef HAVE_SNDIO
-# include "output/sndio_out.h"
-#endif
-#ifdef HAVE_ALSA
-# include "output/alsa.h"
-#endif
-#ifndef NDEBUG
-# include "output/null_out.h"
-#endif
-#ifdef HAVE_JACK
-# include "output/jack.h"
-#endif
-
 #include "output/softmixer.h"
 #include "output/equalizer.h"
-
 #include "output/out_buf.h"
 #include "output/player.h"
 #include "audio.h"
@@ -52,8 +34,8 @@ ServerPlaylist playlist;
 static pthread_mutex_t plist_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 
-static struct out_buf *out_buf;
-static struct hw_funcs hw;
+static struct out_buf *out_buf = NULL;
+static struct AudioDriver *hw = NULL;
 static struct output_driver_caps hw_caps; /* capabilities of the output
 					     driver */
 
@@ -336,8 +318,7 @@ static void *play_thread (void *unused)
 
 void audio_reset ()
 {
-	if (hw.reset)
-		hw.reset ();
+	hw->reset ();
 }
 
 void audio_stop ()
@@ -492,7 +473,7 @@ int audio_open (struct sound_params *sound_params)
 	assert (sound_format_ok(sound_params->fmt));
 
 	if (audio_opened) {
-		if (sound_params_eq(req_sound_params, *sound_params)) {
+		if (req_sound_params == *sound_params) {
 			if (audio_get_bps() >= 88200) {
 				logit ("Audio device already opened with such parameters.");
 				return 1;
@@ -528,11 +509,11 @@ int audio_open (struct sound_params *sound_params)
 	                                     req_sound_params.channels,
 	                                     hw_caps.max_channels);
 
-	res = hw.open (&driver_sound_params);
+	res = hw->open (driver_sound_params);
 
 	if (res) {
 
-		driver_sound_params.rate = hw.get_rate ();
+		driver_sound_params.rate = hw->get_rate ();
 		if (driver_sound_params.fmt != req_sound_params.fmt
 				|| driver_sound_params.channels
 				!= req_sound_params.channels
@@ -542,7 +523,7 @@ int audio_open (struct sound_params *sound_params)
 			logit ("Conversion of the sound is needed.");
 			if (!audio_conv_new (&sound_conv, &req_sound_params,
 					&driver_sound_params)) {
-				hw.close ();
+				hw->close ();
 				reset_sound_params (&req_sound_params);
 				return 0;
 			}
@@ -606,7 +587,7 @@ int audio_get_bps ()
 
 int audio_get_buf_fill ()
 {
-	return hw.get_buff_fill ();
+	return hw->get_buff_fill ();
 }
 
 int audio_send_pcm (const char *buf, const size_t size)
@@ -643,7 +624,7 @@ int audio_send_pcm (const char *buf, const size_t size)
 
 	int played;
 
-	played = hw.play (buf, size);
+	played = hw->play (buf, size);
 
 	if (played < 0)
 		fatal ("Audio output error!");
@@ -668,7 +649,7 @@ void audio_close ()
 	if (audio_opened) {
 		reset_sound_params (&req_sound_params);
 		reset_sound_params (&driver_sound_params);
-		hw.close ();
+		hw->close ();
 		if (need_audio_conversion) {
 			audio_conv_destroy (&sound_conv);
 			need_audio_conversion = 0;
@@ -679,66 +660,48 @@ void audio_close ()
 
 /* Try to initialize drivers from the list and fill funcs with
  * those of the first working driver. */
-static void find_working_driver (struct hw_funcs *funcs)
+static void find_working_driver ()
 {
-	//SoundDriver_t SoundDriver = SoundDriver_t::AUTO;
-	//OPENBSD: "SNDIO:JACK:OSS", else "Jack:ALSA:OSS"
 	using options::SoundDriver_t;
 	auto d = options::SoundDriver;
-
-	memset (funcs, 0, sizeof(*funcs));
-
 	bool a = (d == SoundDriver_t::AUTO);
-#ifdef HAVE_JACK
-	if (a || d == SoundDriver_t::JACK) {
-		memset (funcs, 0, sizeof(*funcs));
-		moc_jack_funcs (funcs);
-		if (a) printf ("Trying JACK...\n");
-		if (funcs->init(&hw_caps)) return;
-	}
-#endif
 
-#ifdef HAVE_ALSA
-	if (a || d == SoundDriver_t::ALSA) {
-		memset (funcs, 0, sizeof(*funcs));
-		alsa_funcs (funcs);
-		if (a) printf ("Trying ALSA...\n");
-		if (funcs->init(&hw_caps)) return;
+	#define TRY(X) \
+	extern AudioDriver* X ## _init(output_driver_caps &caps);\
+	if (a || d == SoundDriver_t::X) {\
+		if (a) printf ("Trying " #X "...\n");\
+		hw = X ## _init(hw_caps); if (hw) return;\
 	}
-#endif
 
-#ifdef HAVE_OSS
-	if (a || d == SoundDriver_t::OSS) {
-		memset (funcs, 0, sizeof(*funcs));
-		oss_funcs (funcs);
-		if (a) printf ("Trying OSS...\n");
-		if (funcs->init(&hw_caps)) return;
-	}
-#endif
+	#ifdef HAVE_JACK
+	TRY(JACK)
+	#endif
 
-#ifdef HAVE_SNDIO
-	if (a || d == SoundDriver_t::SNDIO) {
-		memset (funcs, 0, sizeof(*funcs));
-		sndio_funcs (funcs);
-		if (a) printf ("Trying SNDIO...\n");
-		if (funcs->init(&hw_caps)) return;
-	}
-#endif
+	#ifdef HAVE_ALSA
+	TRY(ALSA)
+	#endif
 
-#ifndef NDEBUG
+	#ifdef HAVE_OSS
+	TRY(OSS)
+	#endif
+
+	#ifdef HAVE_SNDIO
+	TRY(SNDIO)
+	#endif
+
+	#ifndef NDEBUG
+	extern AudioDriver* NOSOUND_init(output_driver_caps &caps);
 	if (d == SoundDriver_t::NOSOUND) {
-		memset (funcs, 0, sizeof(*funcs));
-		null_funcs (funcs);
-		if (funcs->init(&hw_caps)) return;
+		hw = NOSOUND_init(hw_caps); if (hw) return;
 	}
-#endif
+	#endif
 
 	fatal ("No valid sound driver!");
 }
 
 void audio_initialize ()
 {
-	find_working_driver (&hw);
+	find_working_driver ();
 
 	if (hw_caps.max_channels < hw_caps.min_channels)
 		fatal ("Error initializing audio device: "
@@ -776,8 +739,7 @@ void audio_exit ()
 	int rc;
 
 	audio_stop ();
-	if (hw.shutdown)
-		hw.shutdown ();
+	delete hw; hw = NULL;
 	out_buf_free (out_buf);
 	out_buf = NULL;
 	player_cleanup ();
@@ -865,7 +827,7 @@ int audio_get_mixer ()
 	if (current_mixer == 2)
 		return softmixer_get_value ();
 
-	return hw.read_mixer ();
+	return hw->read_mixer ();
 }
 
 void audio_set_mixer (const int val)
@@ -878,7 +840,7 @@ void audio_set_mixer (const int val)
 	if (current_mixer == 2)
 		softmixer_set_value (val);
 	else
-		hw.set_mixer (val);
+		hw->set_mixer (val);
 }
 
 void audio_plist_delete (int i, int n)
@@ -941,25 +903,6 @@ void audio_get_plist(plist &pl)
 	UNLOCK (plist_mtx);
 }
 
-
-/* Set the time for a file on the playlist. */
-void audio_plist_set_time (const char *file, const int time)
-{
-	// TODO
-	/*int i;
-
-	LOCK (plist_mtx);
-	if ((i = playlist.find(file)) != -1) {
-		plist_set_item_time (&playlist, i, time);
-		playlist.items[i].mtime = get_mtime (file);
-		debug ("Setting time for %s", file);
-	}
-	else
-		logit ("Request for updating time for a file not present on the"
-				" playlist!");
-	UNLOCK (plist_mtx);*/
-}
-
 /* Notify that the state was changed (used by the player). */
 void audio_state_started_playing ()
 {
@@ -976,17 +919,17 @@ void audio_plist_move (int i1, int i2)
 	UNLOCK (plist_mtx);
 }
 
-char *audio_get_mixer_channel_name ()
+str audio_get_mixer_channel_name ()
 {
 	if (current_mixer == 2)
 		return softmixer_name ();
 
-	return hw.get_mixer_channel_name ();
+	return hw->get_mixer_channel_name ();
 }
 
 void audio_toggle_mixer_channel ()
 {
 	current_mixer = (current_mixer + 1) % 3;
 	if (current_mixer < 2)
-		hw.toggle_mixer_channel ();
+		hw->toggle_mixer_channel ();
 }
