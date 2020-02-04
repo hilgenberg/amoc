@@ -204,14 +204,12 @@ public:
 
 		int vol;
 		if (mixer_elem1 && (vol = read_mixer_raw (mixer_elem1)) != -1) {
-			assert (RANGE(0, vol, 100));
 			volume1 = vol;
 		} else {
 			mixer_elem1 = NULL;
 			mixer_elem_curr = mixer_elem2;
 		}
 		if (mixer_elem2 && (vol = read_mixer_raw (mixer_elem2)) != -1) {
-			assert (RANGE(0, vol, 100));
 			volume2 = vol;
 		} else {
 			mixer_elem2 = NULL;
@@ -424,7 +422,6 @@ public:
 	int read_mixer () const override
 	{
 		int actual_vol = read_mixer_raw (mixer_elem_curr);
-		assert (RANGE(0, actual_vol, 100));
 
 		int &vol = (mixer_elem_curr == mixer_elem1 ? volume1 : volume2);
 		if (vol != actual_vol) {
@@ -437,7 +434,6 @@ public:
 
 	void set_mixer (int vol) override
 	{
-		assert (RANGE(0, vol, 100));
 		if (!mixer_handle) return;
 
 		debug ("Setting vol to %d", vol);
@@ -665,8 +661,6 @@ private:
 					error_errno ("Can't read mixer", rc);
 					return -1;
 				}
-
-				assert (RANGE(0, vol, 100));
 
 				#if 0
 				{

@@ -9,7 +9,6 @@ struct file_tags
 	, track(t.track), rating(t.rating), time(t.time)
 	, usage(0)
 	{
-		assert(t.usage == 0);
 	}
 	file_tags(const file_tags &&t)
 	: title(std::move(t.title)), artist(std::move(t.artist)), album(std::move(t.album))
@@ -18,7 +17,6 @@ struct file_tags
 	{
 		assert(t.usage == 0);
 	}
-	~file_tags() { assert(usage == 0); }
 
 	str title, artist, album;
 	int track, rating;
