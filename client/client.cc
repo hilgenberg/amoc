@@ -3,7 +3,7 @@
 #include <sys/wait.h>
 #include <sys/select.h>
 
-volatile int  Client::want_quit = 0; // 1=quit client, 2=quit server
+volatile int  Client::want_quit = 0;
 volatile bool Client::want_interrupt = false;
 volatile bool Client::want_resize = false;
 
@@ -26,6 +26,7 @@ void interface_fatal (const char *format, ...)
 
 Client::Client(int sock, stringlist &args)
 : srv(sock), synced(false)
+, iface(*this, dir_plist, playlist)
 , want_plist_update(false), want_state_update(false)
 , silent_seek_key_last(0.0), silent_seek_pos(-1)
 , playlist(&tags), dir_plist(&tags)
@@ -36,14 +37,13 @@ Client::Client(int sock, stringlist &args)
 	if (!setlocale(LC_CTYPE, "")) logit ("Could not set locale!");
 
 	keys_init ();
-	iface.reset(new Interface(*this, dir_plist, playlist));
 	srv.send(CMD_GET_OPTIONS);
 
 	if (options::ShowMixer)
 	{
 		srv.send(CMD_GET_MIXER_CHANNEL_NAME);
-		iface->info.update_mixer_name(get_data_str());
-		iface->info.update_mixer_value(get_mixer_value());
+		iface.info.update_mixer_name(get_data_str());
+		iface.info.update_mixer_value(get_mixer_value());
 	}
 
 	xsignal(SIGQUIT,  sig_quit);
@@ -130,8 +130,8 @@ Client::Client(int sock, stringlist &args)
 
 	if (synced)
 	{
-		int idx = iface->get_curr_index();
-		if (idx >= 0) iface->select_song(idx);
+		int idx = iface.get_curr_index();
+		if (idx >= 0) iface.select_song(idx);
 	}
 
 	if (options::ReadTags) tags.request(playlist, srv);
@@ -140,15 +140,6 @@ Client::Client(int sock, stringlist &args)
 Client::~Client ()
 {
 	options::LastDir = cwd;
-
-	try{
-		srv.send(want_quit > 1 ? CMD_QUIT : CMD_DISCONNECT);
-	}
-	catch (...) {}
-
-	iface = nullptr; // deletes the interface
-
-	logit ("Interface exited");
 }
 
 int Client::get_mixer_value() { srv.send(CMD_GET_MIXER); return get_data_int (); }
@@ -184,9 +175,9 @@ void Client::update_state ()
 {
 	want_state_update = false;
 
-	auto old_state = iface->info.get_state();
+	auto old_state = iface.info.get_state();
 	auto new_state = get_state ();
-	iface->info.update_state(new_state);
+	iface.info.update_state(new_state);
 
 	/* Silent seeking makes no sense if the state has changed. */
 	if (old_state != new_state) silent_seek_pos = -1;
@@ -194,31 +185,31 @@ void Client::update_state ()
 	srv.send(CMD_GET_CURRENT);
 	wait_for_data(); int idx = srv.get_int(); str file = srv.get_str();
 	
-	if (iface->update_curr_file(file, idx))
+	if (iface.update_curr_file(file, idx))
 	{
 		silent_seek_pos = -1;
 		if (options::ReadTags && !file.empty())
 			tags.request(file, srv);
 	}
 
-	iface->info.update_channels(get_channels());
-	iface->info.update_bitrate(get_bitrate());
-	iface->info.update_rate(get_rate());
-	if (silent_seek_pos == -1) iface->info.update_curr_time(get_curr_time ());
+	iface.info.update_channels(get_channels());
+	iface.info.update_bitrate(get_bitrate());
+	iface.info.update_rate(get_rate());
+	if (silent_seek_pos == -1) iface.info.update_curr_time(get_curr_time ());
 }
 
 bool Client::go_to_dir (const char *dir)
 {
 	bool same = !dir || cwd==dir;
-	auto &left = iface->left;
+	auto &left = iface.left;
 	int sel0 = left.sel, top0 = left.top;
 
 	str last_dir = cwd; // for selecting the old dir after going up
 
-	iface->status("Reading directory...");
+	iface.status("Reading directory...");
 	plist bak; bak.swap(dir_plist);
 	if (!dir_plist.load_directory(dir ? str(dir) : cwd)) {
-		iface->status ("Failed.");
+		iface.status ("Failed.");
 		bak.swap(dir_plist);
 		return false;
 	}
@@ -235,11 +226,11 @@ bool Client::go_to_dir (const char *dir)
 	else
 	{
 		left.top = 0;
-		iface->select_path(last_dir);
+		iface.select_path(last_dir);
 	}
 
-	iface->redraw(3);
-	iface->status ("");
+	iface.redraw(3);
+	iface.status ("");
 
 	tags.remove_unused();
 
@@ -249,18 +240,18 @@ bool Client::go_to_dir (const char *dir)
 /* Load the playlist file and switch the menu to it. Return 1 on success. */
 bool Client::go_to_playlist (const str &file)
 {
-	iface->status("Loading playlist...");
+	iface.status("Loading playlist...");
 	if (!playlist.load_m3u(file))
 	{
-		iface->message ("Playlist could not be read");
-		iface->status ("");
+		iface.message ("Playlist could not be read");
+		iface.status ("");
 		return false;
 	}
 
-	iface->message ("Playlist loaded.");
+	iface.message ("Playlist loaded.");
 	synced = false;
 	if (options::ReadTags) tags.request(playlist, srv);
-	iface->redraw(3);
+	iface.redraw(3);
 	return true;
 }
 
@@ -278,9 +269,9 @@ void Client::adjust_mixer (int diff)
 /* Recursively add the content of a directory to the playlist. */
 void Client::add_to_plist(bool at_end)
 {
-	if (!iface->in_dir_plist()) return;
+	if (!iface.in_dir_plist()) return;
 
-	auto r = iface->selection();
+	auto r = iface.selection();
 	if (r.first < 0) return;
 
 	plist pl;
@@ -306,7 +297,7 @@ void Client::add_to_plist(bool at_end)
 	int pos = -1;
 	if (!at_end)
 	{
-		int idx = iface->get_curr_index();
+		int idx = iface.get_curr_index();
 		pos = (idx < 0 ? 0 : idx+1); // insert at beginning if nothing plays
 	}
 
@@ -315,17 +306,17 @@ void Client::add_to_plist(bool at_end)
 		srv.send(CMD_PLIST_ADD);
 		srv.send(pl);
 		srv.send(pos);
-		iface->select_song(pos < 0 ? playlist.size() : pos);
+		iface.select_song(pos < 0 ? playlist.size() : pos);
 	}
 	else
 	{
 		playlist.insert(std::move(pl), pos);
-		iface->select_song(pos < 0 ? playlist.size()-pl.size()-1 : pos);
-		iface->redraw(3);
+		iface.select_song(pos < 0 ? playlist.size()-pl.size()-1 : pos);
+		iface.redraw(3);
 		if (options::ReadTags) tags.request(playlist, srv);
 	}
 
-	iface->left.move_selection(REQ_DOWN);
+	iface.left.move_selection(REQ_DOWN);
 }
 
 void Client::add_url(const str &url, bool at_end)
@@ -336,7 +327,7 @@ void Client::add_url(const str &url, bool at_end)
 	int pos = -1;
 	if (!at_end)
 	{
-		int idx = iface->get_curr_index();
+		int idx = iface.get_curr_index();
 		pos = (idx < 0 ? 0 : idx+1); // insert at beginning if nothing plays
 	}
 
@@ -346,13 +337,13 @@ void Client::add_url(const str &url, bool at_end)
 		srv.send(url);
 		srv.send("");
 		srv.send(pos);
-		iface->select_song(pos < 0 ? playlist.size() : pos);
+		iface.select_song(pos < 0 ? playlist.size() : pos);
 	}
 	else
 	{
 		playlist.insert(url, pos);
-		iface->select_song(pos < 0 ? playlist.size()-1 : pos);
-		iface->redraw(3);
+		iface.select_song(pos < 0 ? playlist.size()-1 : pos);
+		iface.redraw(3);
 	}
 }
 
@@ -360,7 +351,7 @@ void Client::set_rating (int r)
 {
 	assert (r >= 0 && r <= 5);
 
-	auto *item = iface->sel_item();
+	auto *item = iface.sel_item();
 	if (!item || item->type != F_SOUND) return;
 
 	srv.send(CMD_SET_RATING);
@@ -370,13 +361,13 @@ void Client::set_rating (int r)
 
 void Client::delete_item ()
 {
-	if (iface->in_dir_plist()) {
-		iface->message("You can only delete an item from the playlist.");
+	if (iface.in_dir_plist()) {
+		iface.message("You can only delete an item from the playlist.");
 		return;
 	}
 
 	assert (playlist.size() > 0);
-	auto r = iface->selection();
+	auto r = iface.selection();
 	int i = r.first, n = r.second-r.first+1;
 	if (i < 0 || n <= 0) return;
 
@@ -389,17 +380,17 @@ void Client::delete_item ()
 	else
 	{
 		playlist.remove(i, n);
-		iface->redraw(3);
+		iface.redraw(3);
 	}
-	iface->select_song(i); // clear multi-selection
+	iface.select_song(i); // clear multi-selection
 }
 
 void Client::files_mv(const str &dst)
 {
-	auto sel = iface->selection();
+	auto sel = iface.selection();
 	const int n = (sel.second+1-sel.first);
 	if (sel.first < 0 || n <= 0) return;
-	auto &pl = iface->active->items;
+	auto &pl = iface.active->items;
 	if (dst.empty()) return;
 
 	std::set<str> src;
@@ -408,12 +399,12 @@ void Client::files_mv(const str &dst)
 		auto &it = pl[i];
 		if (it.type == F_URL)
 		{
-			iface->error_message("URLs have no files to move");
+			iface.error_message("URLs have no files to move");
 			return;
 		}
 		if (it.type == F_DIR)
 		{
-			iface->error_message("moving directories not implemented yet");
+			iface.error_message("moving directories not implemented yet");
 			return;
 		}
 
@@ -428,7 +419,7 @@ void Client::files_mv(const str &dst)
 	{
 		if (src.size() != 1)
 		{
-			iface->error_message("destination is not a directory");
+			iface.error_message("destination is not a directory");
 			return;
 		}
 		str s = *src.begin();
@@ -444,7 +435,7 @@ void Client::files_mv(const str &dst)
 
 		if (file_exists(p))
 		{
-			iface->error_message("file already exists");
+			iface.error_message("file already exists");
 			return;
 		}
 
@@ -461,27 +452,27 @@ void Client::files_mv(const str &dst)
 		if (s == s0) { fails.insert(s0); continue; }
 		if (file_exists(s))
 		{
-			iface->error_message(format("file \"%s\" already exists", s.c_str()));
+			iface.error_message(format("file \"%s\" already exists", s.c_str()));
 			return;
 		}
 	}
 	src.erase(fails.begin(), fails.end());
 	if (src.empty()) return;
 
-	iface->message(format("moving %d files to %s", (int)src.size(), dst.c_str()));
+	iface.message(format("moving %d files to %s", (int)src.size(), dst.c_str()));
 
 	srv.send(CMD_FILES_MV);
 	srv.send(src);
 	srv.send(p);
-	iface->deselect();
+	iface.deselect();
 }
 
 void Client::files_rm()
 {
-	auto sel = iface->selection();
+	auto sel = iface.selection();
 	const int n = (sel.second+1-sel.first);
 	if (sel.first < 0 || n <= 0) return;
-	auto &pl = iface->active->items;
+	auto &pl = iface.active->items;
 
 	std::set<str> src;
 	for (int i = sel.first; i <= sel.second; ++i)
@@ -489,54 +480,54 @@ void Client::files_rm()
 		auto &it = pl[i];
 		if (it.type == F_URL)
 		{
-			iface->error_message("URLs have no files to delete");
+			iface.error_message("URLs have no files to delete");
 			return;
 		}
 		if (it.type == F_DIR)
 		{
-			iface->error_message("deleting directories not implemented yet");
+			iface.error_message("deleting directories not implemented yet");
 			return;
 		}
 		src.insert(it.path);
 	}
 	srv.send(CMD_FILES_RM);
 	srv.send(src);
-	iface->deselect();
+	iface.deselect();
 }
 
 /* Select the file that is currently played. */
 void Client::go_to_playing_file ()
 {
-	if (!iface->in_dir_plist() && synced)
+	if (!iface.in_dir_plist() && synced)
 	{
-		int idx = iface->get_curr_index();
+		int idx = iface.get_curr_index();
 		if (idx >= 0)
 		{
-			iface->select_song(idx);
+			iface.select_song(idx);
 			return;
 		}
 	}
 
-	str path = iface->get_curr_file(); if (path.empty() || is_url(path)) return;
+	str path = iface.get_curr_file(); if (path.empty() || is_url(path)) return;
 	if (!go_to_dir(containing_directory(path).c_str()))
 	{
-		iface->status("File not found!");
+		iface.status("File not found!");
 		return;
 	}
-	iface->select_path(path);
-	iface->go_to_dir_plist();
+	iface.select_path(path);
+	iface.go_to_dir_plist();
 }
 
 /* Handle silent seek key. */
 void Client::seek_silent (int sec)
 {
-	if (iface->info.get_state() != STATE_PLAY || is_url(iface->get_curr_file().c_str())) return;
+	if (iface.info.get_state() != STATE_PLAY || is_url(iface.get_curr_file().c_str())) return;
 
-	if (silent_seek_pos == -1) silent_seek_pos = iface->info.get_curr_time();
+	if (silent_seek_pos == -1) silent_seek_pos = iface.info.get_curr_time();
 	silent_seek_pos += sec;
-	silent_seek_pos = CLAMP(0, silent_seek_pos, iface->get_total_time());
+	silent_seek_pos = CLAMP(0, silent_seek_pos, iface.get_total_time());
 
-	iface->info.update_curr_time(silent_seek_pos);
+	iface.info.update_curr_time(silent_seek_pos);
 
 	silent_seek_key_last = now();
 }
@@ -544,14 +535,14 @@ void Client::seek_silent (int sec)
 /* Move the current playlist item (direction: -1 - up, +1 - down). */
 void Client::move_item (int direction)
 {
-	if (iface->in_dir_plist()) {
-		iface->message("You can move only playlist items.");
+	if (iface.in_dir_plist()) {
+		iface.message("You can move only playlist items.");
 		return;
 	}
 
 	assert (direction == -1 || direction == 1);
 
-	auto r = iface->selection();
+	auto r = iface.selection();
 	if (r.first < 0 || r.second >= playlist.size() ||
 		r.first+direction < 0 || r.second+direction >= playlist.size())
 	return;
@@ -568,8 +559,8 @@ void Client::move_item (int direction)
 	else
 	{
 		playlist.move(i, j);
-		iface->redraw(2); // layout does not depend on the order
-		iface->move_selection(direction);
+		iface.redraw(2); // layout does not depend on the order
+		iface.move_selection(direction);
 	}
 }
 
@@ -606,7 +597,7 @@ void Client::run()
 			}
 		}
 		if (n > 0 && FD_ISSET(STDIN_FILENO, &fds)) {
-			iface->handle_input();
+			iface.handle_input();
 			Client::want_interrupt = false;
 			coalesce = true;
 			continue; // handle all keyboard events before redrawing
@@ -624,8 +615,8 @@ void Client::run()
 
 		if (want_resize)
 		{
-			iface->resize();
-			want_resize = 0;
+			iface.resize();
+			want_resize = false;
 		}
 
 		if (want_plist_update && synced)
@@ -644,10 +635,15 @@ void Client::run()
 		}
 
 		if (options::ShowMixer)
-			iface->info.update_mixer_value(get_mixer_value());
+			iface.info.update_mixer_value(get_mixer_value());
 
-		iface->draw();
+		iface.draw();
 	}
+
+	try{
+		if (want_quit) srv.send(want_quit > 1 ? CMD_QUIT : CMD_DISCONNECT);
+	}
+	catch (...) {}
 }
 
 bool Client::handle_command(key_cmd cmd)
@@ -655,8 +651,8 @@ bool Client::handle_command(key_cmd cmd)
 	logit ("KEY EVENT: 0x%02x", (int)cmd);
 	switch (cmd)
 	{
-		case KEY_CMD_QUIT_CLIENT: iface->confirm_quit(1); return true;
-		case KEY_CMD_QUIT:        iface->confirm_quit(2); return true;
+		case KEY_CMD_QUIT_CLIENT: iface.confirm_quit(1); return true;
+		case KEY_CMD_QUIT:        iface.confirm_quit(2); return true;
 
 		case KEY_CMD_WRITE_TAGS:
 			for (auto &it : tags.changes)
@@ -670,11 +666,11 @@ bool Client::handle_command(key_cmd cmd)
 
 		case KEY_CMD_GO:
 		{
-			const plist_item *i = iface->sel_item();
+			const plist_item *i = iface.sel_item();
 			if (!i) break;
 			if (i->type == F_SOUND || i->type == F_URL)
 			{
-				if (iface->in_dir_plist())
+				if (iface.in_dir_plist())
 				{
 					srv.send(CMD_PLAY);
 					srv.send(-1);
@@ -683,7 +679,7 @@ bool Client::handle_command(key_cmd cmd)
 				else
 				{
 					srv.send(CMD_PLAY);
-					srv.send(iface->selected_song());
+					srv.send(iface.selected_song());
 					if (!synced)
 					{
 						srv.send(playlist);
@@ -692,7 +688,7 @@ bool Client::handle_command(key_cmd cmd)
 					else srv.send("");
 				}
 			}
-			else if (i->type == F_DIR && iface->in_dir_plist()) {
+			else if (i->type == F_DIR && iface.in_dir_plist()) {
 				go_to_dir (i->path.c_str());
 			}
 			else if (i->type == F_PLAYLIST)
@@ -702,7 +698,7 @@ bool Client::handle_command(key_cmd cmd)
 		case KEY_CMD_STOP: srv.send(CMD_STOP); break;
 		case KEY_CMD_NEXT:
 		{
-			if (iface->info.get_state() != STATE_STOP)
+			if (iface.info.get_state() != STATE_STOP)
 				srv.send(CMD_NEXT);
 			else if (playlist.size()) {
 				srv.send(CMD_PLAY);
@@ -713,7 +709,7 @@ bool Client::handle_command(key_cmd cmd)
 		}
 		case KEY_CMD_PREVIOUS: srv.send(CMD_PREV); break;
 		case KEY_CMD_PAUSE:
-			switch (iface->info.get_state()) {
+			switch (iface.info.get_state()) {
 				case STATE_PLAY: srv.send(CMD_PAUSE); break;
 				case STATE_PAUSE: srv.send(CMD_UNPAUSE); break;
 				default: logit ("User pressed pause when not playing."); break;
@@ -721,12 +717,12 @@ bool Client::handle_command(key_cmd cmd)
 			break;
 		case KEY_CMD_TOGGLE_READ_TAGS:
 			options::ReadTags ^= 1;
-			iface->status(options::ReadTags ? "ReadTags: yes" : "ReadTags: no");
+			iface.status(options::ReadTags ? "ReadTags: yes" : "ReadTags: no");
 			if (options::ReadTags) {
 				tags.request(dir_plist, srv);
 				tags.request(playlist, srv);
 			}
-			iface->redraw(3);
+			iface.redraw(3);
 			break;
 		case KEY_CMD_TOGGLE_SHUFFLE:
 			srv.send(CMD_SET_OPTION_SHUFFLE);
@@ -742,7 +738,7 @@ bool Client::handle_command(key_cmd cmd)
 			break;
 		case KEY_CMD_TOGGLE_PLAYLIST_FULL_PATHS:
 			options::PlaylistFullPaths ^= 1;
-			iface->redraw(3);
+			iface.redraw(3);
 			break;
 		case KEY_CMD_PLIST_ADD: add_to_plist(true); break;
 		case KEY_CMD_PLIST_INS: add_to_plist(false); break;
@@ -751,7 +747,7 @@ bool Client::handle_command(key_cmd cmd)
 			{
 				playlist.clear();
 				synced = false;
-				iface->drop_sync();
+				iface.drop_sync();
 			}
 			else if (!playlist.empty())
 			{
@@ -766,13 +762,13 @@ bool Client::handle_command(key_cmd cmd)
 				synced = true;
 				want_state_update = true;
 			}
-			iface->redraw(3);
+			iface.redraw(3);
 			break;
 		case KEY_CMD_PLIST_DESYNC:
 			if (synced)
 			{
 				synced = false;
-				iface->drop_sync();
+				iface.drop_sync();
 			}
 			break;
 		case KEY_CMD_MIXER_DEC_1: adjust_mixer (-1); break;
@@ -808,20 +804,20 @@ bool Client::handle_command(key_cmd cmd)
 			break;
 		case KEY_CMD_GO_MUSIC_DIR:
 			if (options::MusicDir.empty()) {
-				iface->message("ERROR: MusicDir not defined");
+				iface.message("ERROR: MusicDir not defined");
 				return true;
 			}
 			switch (plist_item::ftype(options::MusicDir)) {
 				case F_DIR: go_to_dir (options::MusicDir.c_str()); break;
 				case F_PLAYLIST: go_to_playlist(options::MusicDir); break;
-				default: iface->message("ERROR: MusicDir is neither a directory nor a playlist!"); break;
+				default: iface.message("ERROR: MusicDir is neither a directory nor a playlist!"); break;
 			}
 			break;
 		case KEY_CMD_PLIST_DEL: delete_item (); break;
 		case KEY_CMD_PLIST_MOVE_UP:   move_item (-1); break;
 		case KEY_CMD_PLIST_MOVE_DOWN: move_item (+1); break;
 		case KEY_CMD_GO_DIR_UP:
-			if (iface->in_dir_plist() && !cwd.empty() && cwd != "/")
+			if (iface.in_dir_plist() && !cwd.empty() && cwd != "/")
 			{
 				auto i = cwd.rfind('/', cwd.length()-1);
 				if (i == 0 || i == str::npos)
@@ -855,10 +851,10 @@ bool Client::handle_command(key_cmd cmd)
 		case KEY_CMD_EQUALIZER_NEXT: srv.send(CMD_EQUALIZER_NEXT); break;
 		case KEY_CMD_TOGGLE_MAKE_MONO: srv.send(CMD_TOGGLE_MAKE_MONO); break;
 		case KEY_CMD_WRONG:
-			iface->message("Bad command / key not bound to anything");
+			iface.message("Bad command / key not bound to anything");
 			break;
 		default:
-			iface->message(format("BUG: invalid key command %d!", (int)cmd));
+			iface.message(format("BUG: invalid key command %d!", (int)cmd));
 			return false;
 	}
  	return true;
@@ -877,21 +873,21 @@ void Client::handle_server_event (int type)
 		case EV_BUSY: interface_fatal ("The server is busy; too many other clients are connected!"); break;
 
 		case EV_STATE: want_state_update = true; break;
-		case EV_CTIME: { int tmp = srv.get_int(); if (silent_seek_pos == -1) iface->info.update_curr_time(tmp); } break;
-		case EV_BITRATE: iface->info.update_bitrate(srv.get_int()); break;
-		case EV_RATE:  iface->info.update_rate(srv.get_int()); break;
-		case EV_CHANNELS: iface->info.update_channels(srv.get_int()); break;
-		case EV_AVG_BITRATE: iface->info.update_avg_bitrate(srv.get_int()); break;
+		case EV_CTIME: { int tmp = srv.get_int(); if (silent_seek_pos == -1) iface.info.update_curr_time(tmp); } break;
+		case EV_BITRATE: iface.info.update_bitrate(srv.get_int()); break;
+		case EV_RATE:  iface.info.update_rate(srv.get_int()); break;
+		case EV_CHANNELS: iface.info.update_channels(srv.get_int()); break;
+		case EV_AVG_BITRATE: iface.info.update_avg_bitrate(srv.get_int()); break;
 		case EV_OPTIONS: 
 		{
 			int v = srv.get_int();
 			options::AutoNext = v & 1;
 			options::Repeat   = v & 2;
 			options::Shuffle  = v & 4;
-			iface->redraw(1);
+			iface.redraw(1);
 			break;
 		}
-		case EV_SRV_ERROR: iface->error_message(srv.get_str()); break;
+		case EV_SRV_ERROR: iface.error_message(srv.get_str()); break;
 		case EV_PLIST_NEW:
 			if (synced) want_plist_update = true;
 			break;
@@ -902,9 +898,9 @@ void Client::handle_server_event (int type)
 			if (!synced || want_plist_update) break;
 			playlist.insert(pl, idx);
 			if (options::ReadTags) tags.request(pl, srv);
-			iface->redraw(3);
-			int ci = iface->get_curr_index();
-			if (idx >= 0 && ci >= idx) iface->update_curr_index(ci+pl.size());
+			iface.redraw(3);
+			int ci = iface.get_curr_index();
+			if (idx >= 0 && ci >= idx) iface.update_curr_index(ci+pl.size());
 			break;
 		}
 		case EV_PLIST_DEL:
@@ -913,55 +909,55 @@ void Client::handle_server_event (int type)
 			int n = srv.get_int();
 			if (!synced || want_plist_update) break;
 			playlist.remove(i, n);
-			iface->redraw(3);
-			int ci = iface->get_curr_index();
-			if (ci > i) iface->update_curr_index(std::max(i, ci-n));
+			iface.redraw(3);
+			int ci = iface.get_curr_index();
+			if (ci > i) iface.update_curr_index(std::max(i, ci-n));
 			break;
 		}
 		case EV_PLIST_RM:
 		{
-			int ci = iface->get_curr_index();
+			int ci = iface.get_curr_index();
 			ci = playlist.remove(srv.get_str_set(), ci);
-			iface->update_curr_index(ci);
+			iface.update_curr_index(ci);
 			go_to_dir(NULL);
-			iface->redraw(3);
+			iface.redraw(3);
 			break;
 		}
 		case EV_PLIST_MOVE:
 		{
 			int i = srv.get_int(), j = srv.get_int();
 			if (!synced || want_plist_update) break;
-			int   ci = iface->get_curr_index();
-			auto sel = iface->selection();
-			if (!iface->in_dir_plist() && sel.first >= 0)
+			int   ci = iface.get_curr_index();
+			auto sel = iface.selection();
+			if (!iface.in_dir_plist() && sel.first >= 0)
 			{
 				if (i+1 == sel.first && j == sel.second)
 				{
-					iface->move_selection(-1);
+					iface.move_selection(-1);
 				}
 				else if (i == sel.second+1 && j == sel.first)
 				{
-					iface->move_selection(+1);
+					iface.move_selection(+1);
 				}
 			}
 			playlist.move(i, j);
-			iface->redraw(2); // layout does not depend on the order
+			iface.redraw(2); // layout does not depend on the order
 
-			if (ci == i) iface->update_curr_index(j);
-			else if (i < j && ci > i && ci <= j) iface->update_curr_index(ci-1);
-			else if (i > j && ci < i && ci >= j) iface->update_curr_index(ci+1);
+			if (ci == i) iface.update_curr_index(j);
+			else if (i < j && ci > i && ci <= j) iface.update_curr_index(ci-1);
+			else if (i > j && ci < i && ci >= j) iface.update_curr_index(ci+1);
 			break;
 		}
 		case EV_PLIST_MOD:
 			playlist.replace(srv.get_str_map());
 			go_to_dir(NULL);
-			iface->redraw(3);
+			iface.redraw(3);
 			break;
 
-		case EV_STATUS_MSG: iface->message(srv.get_str()); break;
+		case EV_STATUS_MSG: iface.message(srv.get_str()); break;
 		case EV_MIXER_CHANGE:
-			iface->info.update_mixer_name(srv.get_str());
-			iface->info.update_mixer_value(srv.get_int());
+			iface.info.update_mixer_name(srv.get_str());
+			iface.info.update_mixer_value(srv.get_int());
 			break;
 		case EV_FILE_TAGS:
 		{
@@ -969,7 +965,7 @@ void Client::handle_server_event (int type)
 			file_tags *tag = srv.get_tags();
 			logit ("Received tags for %s", file.c_str());
 			tags.update(file, std::unique_ptr<file_tags>(tag));
-			iface->redraw(3);
+			iface.redraw(3);
 			break;
 		}
 		case EV_FILE_RATING:
@@ -978,7 +974,7 @@ void Client::handle_server_event (int type)
 			int rating = srv.get_int();
 			debug ("Received rating for %s", file.c_str());
 			tags.set_rating(file, rating);
-			iface->redraw(2);
+			iface.redraw(2);
 			break;
 		}
 		default:

@@ -13,18 +13,18 @@ public:
 	~Client();
 	void run ();
 
-	Tags  tags;
+	Tags  tags; // for all items in our plists
 	plist playlist, dir_plist;
-	str   cwd; // current position of dir_plist
+	str   cwd; // current directory of dir_plist
 	bool  synced; // is our playlist synced with the server's?
 
 	bool handle_command(key_cmd cmd); // does everything that's not purely UI
 	void files_mv(const str &dst);
 	void files_rm();
 
-	static volatile int  want_quit; // 1=quit client, 2=quit server
-	static volatile bool want_interrupt;
-	static volatile bool want_resize;
+	static volatile int  want_quit;      // 1=quit client, 2=quit server
+	static volatile bool want_interrupt; // user hit Ctrl-C?
+	static volatile bool want_resize;    // SIG_WINCH needs to be handled?
 
 	void seek (int sec) { srv.send(CMD_SEEK); srv.send(sec); }
 	void jump_to (int sec) { srv.send(CMD_JUMP_TO); srv.send(sec); }
@@ -41,10 +41,11 @@ public:
 	int get_track (const plist_item &it) const { return tags.get_track(it); }
 
 private:
-	Socket srv;
-	std::unique_ptr<Interface> iface;
+	Socket    srv; // link to the server process
+	Interface iface;
 
-	bool want_plist_update, want_state_update;
+	bool want_plist_update; // do we need to re-fetch the server plist? Ignored if !synced
+	bool want_state_update; // should we call update_state() again?
 	
 	int    silent_seek_pos = -1; /* Silent seeking - where we are in seconds. -1 - no seeking. */
 	double silent_seek_key_last; /* when the silent seek key was last used */
