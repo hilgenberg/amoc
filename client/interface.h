@@ -86,9 +86,16 @@ public:
 	bool update_curr_file(const str &f, int idx);
 	void drop_sync() { update_curr_file(curr_file, curr_idx); }
 
-	str get_curr_file()  const { return curr_file; }
-	int get_curr_index() const { return curr_idx; }
-	int get_total_time() const;
+	str  get_curr_file()  const { return curr_file; }
+	int  get_curr_index() const { return curr_idx; }
+	int  get_total_time() const;
+	void update_curr_index(int idx)
+	{
+		if (curr_idx == idx) return;
+		curr_idx = idx;
+		right.mark_item(curr_idx, false);
+		redraw(2);
+	}
 	
 	Window    win;
 	Panel     left, right, *active;

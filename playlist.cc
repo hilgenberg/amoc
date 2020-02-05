@@ -74,15 +74,17 @@ void plist::remove(const std::set<int> &idx)
 	}
 	items.resize(j);
 }
-void plist::remove(const std::set<str> &files)
+int plist::remove(const std::set<str> &files, int i0)
 {
 	int j = 0;
 	for (int i = 0, n = (int)items.size(); i < n; ++i)
 	{
 		if (files.count(items[i]->path)) continue;
 		std::swap(items[i], items[j++]);
+		if (i0 > i) --i0;
 	}
 	items.resize(j);
+	return i0;
 }
 void plist::replace(const std::map<str, str> &mod)
 {

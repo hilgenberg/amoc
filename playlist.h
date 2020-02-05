@@ -49,7 +49,7 @@ public:
 	void swap(plist &other);
 	void remove(int i, int n = 1);
 	void remove(const std::set<int> &idx);
-	void remove(const std::set<str> &files);
+	int  remove(const std::set<str> &files, int i0 = -1); // returns where the item at i0 went
 	void replace(const std::map<str, str> &mod);
 	void move(int i, int j);
 

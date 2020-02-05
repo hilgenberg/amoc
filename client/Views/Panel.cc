@@ -83,9 +83,9 @@ bool Panel::mark_path(const str &f)
 	if (s && mark >= 0) sel = mark;
 	return mark >= 0;
 }
-void Panel::mark_item(int i)
+void Panel::mark_item(int i, bool take_sel)
 {
-	bool s = (sel >= 0 && sel == mark && !xsel);
+	bool s = (take_sel && sel >= 0 && sel == mark && !xsel);
 	mark = i;
 	if (s && mark >= 0) sel = mark;
 }

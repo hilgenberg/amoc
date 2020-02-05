@@ -568,9 +568,9 @@ void Client::move_item (int direction)
 	else
 	{
 		playlist.move(i, j);
-		iface->redraw(2); // layout doe not depend on the order
+		iface->redraw(2); // layout does not depend on the order
+		iface->move_selection(direction);
 	}
-	iface->move_selection(direction);
 }
 
 void Client::run()
@@ -817,9 +817,9 @@ bool Client::handle_command(key_cmd cmd)
 				default: iface->message("ERROR: MusicDir is neither a directory nor a playlist!"); break;
 			}
 			break;
-		case KEY_CMD_PLIST_DEL:
-			delete_item ();
-			break;
+		case KEY_CMD_PLIST_DEL: delete_item (); break;
+		case KEY_CMD_PLIST_MOVE_UP:   move_item (-1); break;
+		case KEY_CMD_PLIST_MOVE_DOWN: move_item (+1); break;
 		case KEY_CMD_GO_DIR_UP:
 			if (iface->in_dir_plist() && !cwd.empty() && cwd != "/")
 			{
@@ -854,8 +854,6 @@ bool Client::handle_command(key_cmd cmd)
 		case KEY_CMD_EQUALIZER_PREV: srv.send(CMD_EQUALIZER_PREV); break;
 		case KEY_CMD_EQUALIZER_NEXT: srv.send(CMD_EQUALIZER_NEXT); break;
 		case KEY_CMD_TOGGLE_MAKE_MONO: srv.send(CMD_TOGGLE_MAKE_MONO); break;
-		case KEY_CMD_PLIST_MOVE_UP:   move_item (-1); break;
-		case KEY_CMD_PLIST_MOVE_DOWN: move_item (+1); break;
 		case KEY_CMD_WRONG:
 			iface->message("Bad command / key not bound to anything");
 			break;
@@ -905,6 +903,8 @@ void Client::handle_server_event (int type)
 			playlist.insert(pl, idx);
 			if (options::ReadTags) tags.request(pl, srv);
 			iface->redraw(3);
+			int ci = iface->get_curr_index();
+			if (idx >= 0 && ci >= idx) iface->update_curr_index(ci+pl.size());
 			break;
 		}
 		case EV_PLIST_DEL:
@@ -914,19 +914,42 @@ void Client::handle_server_event (int type)
 			if (!synced || want_plist_update) break;
 			playlist.remove(i, n);
 			iface->redraw(3);
+			int ci = iface->get_curr_index();
+			if (ci > i) iface->update_curr_index(std::max(i, ci-n));
 			break;
 		}
 		case EV_PLIST_RM:
-			playlist.remove(srv.get_str_set());
+		{
+			int ci = iface->get_curr_index();
+			ci = playlist.remove(srv.get_str_set(), ci);
+			iface->update_curr_index(ci);
 			go_to_dir(NULL);
 			iface->redraw(3);
 			break;
+		}
 		case EV_PLIST_MOVE:
 		{
 			int i = srv.get_int(), j = srv.get_int();
 			if (!synced || want_plist_update) break;
+			int   ci = iface->get_curr_index();
+			auto sel = iface->selection();
+			if (!iface->in_dir_plist() && sel.first >= 0)
+			{
+				if (i+1 == sel.first && j == sel.second)
+				{
+					iface->move_selection(-1);
+				}
+				else if (i == sel.second+1 && j == sel.first)
+				{
+					iface->move_selection(+1);
+				}
+			}
 			playlist.move(i, j);
 			iface->redraw(2); // layout does not depend on the order
+
+			if (ci == i) iface->update_curr_index(j);
+			else if (i < j && ci > i && ci <= j) iface->update_curr_index(ci-1);
+			else if (i > j && ci < i && ci >= j) iface->update_curr_index(ci+1);
 			break;
 		}
 		case EV_PLIST_MOD:
