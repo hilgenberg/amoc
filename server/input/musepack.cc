@@ -20,7 +20,8 @@
 # include <mpc/mpcdec.h>
 #endif
 
-#include <taglib/tag_c.h>
+#include <taglib/fileref.h>
+#include <taglib/tag.h>
 
 #include "decoder.h"
 #include "io.h"
@@ -232,44 +233,31 @@ static void musepack_close (void *prv_data)
 	free (data);
 }
 
-static char *tag_str (const char *str)
-{
-	return str && str[0] ? xstrdup(str) : NULL;
-}
-
 /* Fill info structure with data from musepack comments */
 static void musepack_info (const char *file_name, struct file_tags *info)
 {
-	TagLib_File *tf;
+	TagLib::FileRef f(file_name);
 
-	tf = taglib_file_new_type (file_name, TagLib_File_MPC);
-	if (tf) {
-		TagLib_Tag *tt;
-
-		tt = taglib_file_tag (tf);
-
-		if (tt) {
-			info->title = tag_str (taglib_tag_title(tt));
-			info->artist = tag_str (taglib_tag_artist(tt));
-			info->album = tag_str (taglib_tag_album(tt));
-			info->track = taglib_tag_track(tt);
-
-			if (info->track == 0)
-				info->track = -1;
-		}
-
-		taglib_file_free (tf);
-		taglib_tag_free_strings ();
+	if (!f.isNull() && f.tag())
+	{
+		TagLib::Tag *tag = f.tag();
+		info->artist = tag->artist().to8Bit(true);
+		info->album = tag->album().to8Bit(true);
+		info->title = tag->title().to8Bit(true);
+		info->track = tag->track();
+	}
+	if (!f.isNull() && f.audioProperties())
+	{
+		TagLib::AudioProperties *properties = f.audioProperties();
+		info->time = properties->length();
 	}
 	else
-		logit ("taglib_file_new_type() failed.");
-
-	struct musepack_data *data = (struct musepack_data*) musepack_open (file_name);
-
-	if (data->error.type == ERROR_OK)
-		info->time = mpc_streaminfo_get_length (&data->info);
-
-	musepack_close (data);
+	{
+		struct musepack_data *data = (struct musepack_data*) musepack_open (file_name);
+		if (data->error.type == ERROR_OK)
+			info->time = mpc_streaminfo_get_length (&data->info);
+		musepack_close (data);
+	}
 }
 
 static int musepack_seek (void *prv_data, int sec)

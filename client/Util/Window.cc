@@ -1,5 +1,4 @@
 #include "Window.h"
-#include "rcc.h"
 #include <langinfo.h>
 
 chtype Window::vert, Window::horiz, Window::ulcorn, Window::urcorn, Window::llcorn, 
@@ -84,7 +83,6 @@ Window::Window()
 	if (!options::TERM.empty()) setenv ("TERM", options::TERM.c_str(), 1);
 
 	init_lines();
-	rcc_init ();
 	
 	const char *terminal_charset = nl_langinfo(CODESET);
 	if (!strcmp(terminal_charset, "UTF-8")) {
@@ -140,8 +138,6 @@ Window::~Window()
 	/* Make sure that the next line after we exit will be clear. */
 	//printf ("\n");
 	fflush (stdout);
-
-	rcc_cleanup ();
 }
 
 void Window::clear()
@@ -188,7 +184,6 @@ void Window::sanitize_path(str &s)
 {
 	sanitize(s);
 	if (options::FileNamesIconv) s = iconv_str(files_iconv_desc, s);
-	if (options::UseRCCForFilesystem) s = rcc_reencode(s);
 }
 
 static str time_str(int sec)

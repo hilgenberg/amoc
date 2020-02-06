@@ -47,7 +47,6 @@ namespace options
 	extern str  TiMidity_Config;
 	extern bool UseMMap;
 	extern bool UseMimeMagic;
-	extern bool UseRCCForFilesystem;
 	extern bool FileNamesIconv;
 	enum class ResampleMethod_t : int { SincBestQuality, SincMediumQuality, SincFastest, ZeroOrderHold, Linear };
 	extern ResampleMethod_t ResampleMethod;

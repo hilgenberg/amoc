@@ -227,7 +227,6 @@ void load(Component who)
 	OPT(RunDir);
 	OPT(UseMMap);
 	OPT(UseMimeMagic);
-	OPT(UseRCCForFilesystem);
 	OPT(FileNamesIconv);
 	OPT(TiMidity_Config);
 	OPT(TERM);
@@ -333,7 +332,6 @@ bool HideFileExtension = false;
 
 bool UseMMap = false;
 bool UseMimeMagic = false;
-bool UseRCCForFilesystem = false;
 bool FileNamesIconv = false;
 str  TiMidity_Config = "no";
 str  TERM = "";
