@@ -13,8 +13,6 @@ decoder *timidity_plugin();
 decoder *sndfile_plugin();
 decoder *vorbis_plugin();
 
-bool vorbis_has_tremor();
-
 #define ALL_INPUTS \
 	H(mp3);\
 	H(wav);\

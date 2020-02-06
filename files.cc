@@ -408,70 +408,61 @@ bool is_secure (const char *file)
 
 
 /* Purge content of a directory. */
-bool purge_directory (const char *dir_path)
+bool purge_directory (const str &dir_path)
 {
-	logit ("Purging %s...", dir_path);
+	logit ("Purging %s...", dir_path.c_str());
 
-	DIR *dir = opendir (dir_path);
+	DIR *dir = opendir (dir_path.c_str());
 	if (!dir) {
 		char *err = xstrerror (errno);
-		logit ("Can't open directory %s: %s", dir_path, err);
+		logit ("Can't open directory %s: %s", dir_path.c_str(), err);
 		free (err);
 		return false;
 	}
 
 	struct dirent *d;
-	while ((d = readdir (dir))) {
-		if (!strcmp (d->d_name, ".") || !strcmp (d->d_name, ".."))
-			continue;
-
-		int len = strlen (dir_path) + strlen (d->d_name) + 2;
-		char *fpath = (char *)xmalloc (len);
-		snprintf (fpath, len, "%s/%s", dir_path, d->d_name);
+	while ((d = readdir(dir)))
+	{
+		if (!strcmp(d->d_name, ".") || !strcmp (d->d_name, "..")) continue;
+		str fpath = add_path(dir_path, d->d_name);
 
 		struct stat st;
-		if (stat (fpath, &st) < 0) {
+		if (stat (fpath.c_str(), &st) < 0) {
 			if (errno == ENOENT) return false;
 
 			char *err = xstrerror (errno);
-			logit ("Can't stat %s: %s", fpath, err);
+			logit ("Can't stat %s: %s", fpath.c_str(), err);
 			free (err);
-			free (fpath);
 			closedir (dir);
 			return false;
 		}
 
 		if (S_ISDIR(st.st_mode)) {
 			if (!purge_directory (fpath)) {
-				free (fpath);
 				closedir (dir);
 				return false;
 			}
 
-			logit ("Removing directory %s...", fpath);
-			if (rmdir (fpath) < 0) {
+			logit ("Removing directory %s...", fpath.c_str());
+			if (rmdir (fpath.c_str()) < 0) {
 				char *err = xstrerror (errno);
-				logit ("Can't remove %s: %s", fpath, err);
+				logit ("Can't remove %s: %s", fpath.c_str(), err);
 				free (err);
-				free (fpath);
 				closedir (dir);
 				return false;
 			}
 		}
 		else {
-			logit ("Removing file %s...", fpath);
+			logit ("Removing file %s...", fpath.c_str());
 
-			if (unlink (fpath) < 0) {
+			if (unlink (fpath.c_str()) < 0) {
 				char *err = xstrerror (errno);
-				logit ("Can't remove %s: %s", fpath, err);
+				logit ("Can't remove %s: %s", fpath.c_str(), err);
 				free (err);
-				free (fpath);
 				closedir (dir);
 				return false;
 			}
 		}
-
-		free (fpath);
 	}
 
 	closedir (dir);

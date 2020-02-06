@@ -29,4 +29,4 @@ char *file_mime_type (const char *file);
 char *read_line (FILE *file);
 char *find_match_dir (char *dir);
 
-bool purge_directory (const char *dir_path);
+bool purge_directory (const str &dir_path);

@@ -42,9 +42,6 @@ static void db_panic_cb (DB_ENV *unused, int errval)
 /* The name of the version tag file in the cache directory. */
 #define MOC_VERSION_TAG "moc_version_tag"
 
-/* The maximum length of the version tag (including trailing NULL). */
-#define VERSION_TAG_MAX 64
-
 /* Number used to create cache version tag to detect incompatibilities
  * between cache version stored on the disk and MOC/BerkeleyDB environment.
  *
@@ -137,15 +134,14 @@ tags_cache::Lock::~Lock()
 	if (rc) fatal ("Can't release DB lock: %s", db_strerror (rc));
 }
 
-void tags_cache::remove_rec (const char *fname)
+void tags_cache::remove_rec (const str &fname)
 {
-	assert (fname != NULL);
-	debug ("Removing %s from the cache...", fname);
+	debug ("Removing %s from the cache...", fname.c_str());
 
 	DBT key;
 	memset (&key, 0, sizeof(key));
-	key.data = (void *)fname;
-	key.size = strlen (fname);
+	key.data = (void*)fname.c_str();
+	key.size = fname.length();
 
 	int ret = db->del (db, NULL, &key, 0);
 	if (ret)
@@ -187,17 +183,16 @@ void tags_cache::add (DBT &key, const cache_record &rec)
 /* Read the selected tags for this file and add it to the cache.
  * If client_id != -1, the server is notified using tags_response().
  * If client_id == -1, copy of file_tags is returned. */
-file_tags tags_cache::read_add (const char *file, int client_id)
+file_tags tags_cache::read_add (const str &file, int client_id)
 {
-	assert (file != NULL);
 	debug ("Getting tags for %s", file);
 
 	cache_record rec;
 	DBT key, record;
 	memset (&key, 0, sizeof (key));
 	memset (&record, 0, sizeof (record));
-	key.data = (void *) file;
-	key.size = strlen (file);
+	key.data = (void *) file.c_str();
+	key.size = file.length();
 	record.flags = DB_DBT_MALLOC;
 
 	Lock lock(*this, key);
@@ -225,7 +220,7 @@ file_tags tags_cache::read_add (const char *file, int client_id)
 	}
 
 	auto *df = get_decoder (file);
-	if (df && df->info) df->info (file, &rec.tags);
+	if (df && df->info) df->info (file.c_str(), &rec.tags);
 	rec.tags.rating = ratings_read(file);
 
 	rec.mod_time = current_mtime;
@@ -240,9 +235,8 @@ file_tags tags_cache::read_add (const char *file, int client_id)
 /* Read the selected tags for this file and add it to the cache.
  * If client_id != -1, the server is notified using tags_response().
  * If client_id == -1, copy of file_tags is returned. */
-void tags_cache::write_add (const char *file, tag_changes *tags, int client_id)
+void tags_cache::write_add (const str &file, tag_changes *tags, int client_id)
 {
-	assert (file != NULL);
 	assert(tags);
 	if (tags->empty()) return;
 	
@@ -257,16 +251,16 @@ void tags_cache::write_add (const char *file, tag_changes *tags, int client_id)
 	auto *df = get_decoder (file);
 	if (!df || !df->write_info)
 	{
-		status_msg(format("Can not write tags for %s", file));
+		status_msg(format("Can not write tags for %s", file.c_str()));
 		delete tags;
 		return;
 	}
-	bool ok = df->write_info(file, tags);
+	bool ok = df->write_info(file, *tags);
 	delete tags;
 
 	if (!ok)
 	{
-		status_msg(format("Failed writing tags for %s", file));
+		status_msg(format("Failed writing tags for %s", file.c_str()));
 		return;
 	}
 
@@ -343,9 +337,9 @@ void *tags_cache::reader_thread(void *cache_ptr)
 			q.pop();
 			UNLOCK (c->mutex);
 			if (!tags)
-				c->read_add (file.c_str(), client);
+				c->read_add (file, client);
 			else
-				c->write_add(file.c_str(), tags, client);
+				c->write_add(file, tags, client);
 			LOCK (c->mutex);
 		}
 		else if (client == last_client)
@@ -409,19 +403,18 @@ tags_cache::~tags_cache()
 	if (rc != 0) log_errno ("Can't destroy request_cond", rc);
 }
 
-void tags_cache::add_request (const char *file, int client_id, tag_changes *tags)
+void tags_cache::add_request (const str &file, int client_id, tag_changes *tags)
 {
-	assert (file != NULL);
 	assert (LIMIT(client_id, CLIENTS_MAX));
 
 	if (!tags)
 	{
-		debug ("Request for tags for '%s' from client %d", file, client_id);
+		debug ("Request for tags for '%s' from client %d", file.c_str(), client_id);
 
 		DBT key, record;
 		memset (&key, 0, sizeof (key));
-		key.data = (void *) file;
-		key.size = strlen (file);
+		key.data = (void *) file.c_str();
+		key.size = file.length();
 		memset (&record, 0, sizeof (record));
 		record.flags = DB_DBT_MALLOC;
 
@@ -462,133 +455,71 @@ void tags_cache::clear_queue (int client_id)
 	UNLOCK (mutex);
 }
 
-/* Create a MOC/db version string.
- *
- * @param buf Output buffer (at least VERSION_TAG_MAX chars long)
- */
-static const char *create_version_tag (char *buf)
+/* Create a MOC/db version string. */
+static str create_version_tag()
 {
 	int db_major, db_minor;
-
 	db_version (&db_major, &db_minor, NULL);
-
-	snprintf (buf, VERSION_TAG_MAX, "%d %d %d",
-	          CACHE_DB_FORMAT_VERSION, db_major, db_minor);
-
-	return buf;
+	return format("%d %d %d", CACHE_DB_FORMAT_VERSION, db_major, db_minor);
 }
 
 /* Check version of the cache directory.  If it was created
  * using format not handled by this version of MOC, return 0. */
-static int cache_version_matches (const char *cache_dir)
+static bool cache_version_matches (const str &cache_dir)
 {
-	char *fname = NULL;
-	char disk_version_tag[VERSION_TAG_MAX];
-	ssize_t rres;
-	FILE *f;
-	int compare_result = 0;
+	str fname = add_path(cache_dir, MOC_VERSION_TAG);
+	FILE *f = fopen (fname.c_str(), "r");
+	if (!f) return false;
 
-	fname = (char *)xmalloc (strlen (cache_dir) + sizeof (MOC_VERSION_TAG) + 1);
-	sprintf (fname, "%s/%s", cache_dir, MOC_VERSION_TAG);
-
-	f = fopen (fname, "r");
-	if (!f) {
-		logit ("No %s in cache directory", MOC_VERSION_TAG);
-		free (fname);
-		return 0;
-	}
-
-	rres = fread (disk_version_tag, 1, sizeof (disk_version_tag) - 1, f);
-	if (rres == sizeof (disk_version_tag) - 1) {
-		logit ("On-disk version tag too long");
-	}
-	else {
-		char *ptr, cur_version_tag[VERSION_TAG_MAX];
-
-		disk_version_tag[rres] = '\0';
-		ptr = strrchr (disk_version_tag, '\n');
-		if (ptr)
-			*ptr = '\0';
-		ptr = strrchr (disk_version_tag, ' ');
-		if (ptr && ptr[1] == 'r')
-			*ptr = '\0';
-
-		create_version_tag (cur_version_tag);
-		ptr = strrchr (cur_version_tag, '\n');
-		if (ptr)
-			*ptr = '\0';
-		ptr = strrchr (cur_version_tag, ' ');
-		if (ptr && ptr[1] == 'r')
-			*ptr = '\0';
-
-		compare_result = !strcmp (disk_version_tag, cur_version_tag);
-	}
-
-	fclose (f);
-	free (fname);
-
-	return compare_result;
+	str vt0 = create_version_tag(), vt;
+	vt.resize(vt0.length()+1);
+	ssize_t rres = fread ((char*)vt.c_str(), 1, vt0.length()+1, f);
+	fclose(f); f = NULL;
+	if (rres != vt0.length()) return false;
+	vt.resize(rres);
+	logit("Cache version %s", vt.c_str());
+	return vt == vt0;
 }
 
-static void write_cache_version (const char *cache_dir)
+void tags_cache::load()
 {
-	char cur_version_tag[VERSION_TAG_MAX];
-	char *fname = NULL;
-	FILE *f;
-	int rc;
+	str cache_dir = options::run_file_path("cache");
 
-	fname = (char *)xmalloc (strlen (cache_dir) + sizeof (MOC_VERSION_TAG) + 1);
-	sprintf (fname, "%s/%s", cache_dir, MOC_VERSION_TAG);
+	bool wcv = false;
+	int ret;
 
-	f = fopen (fname, "w");
-	if (!f) {
-		log_errno ("Error opening cache", errno);
-		free (fname);
-		return;
+	if (mkdir(cache_dir.c_str(), 0700) == 0) {
+		wcv = true;
 	}
-
-	create_version_tag (cur_version_tag);
-	rc = fwrite (cur_version_tag, strlen (cur_version_tag), 1, f);
-	if (rc != 1)
-		logit ("Error writing cache version tag: %d", rc);
-
-	free (fname);
-	fclose (f);
-}
-
-/* Make sure that the cache directory exists and clear it if necessary. */
-static int prepare_cache_dir (const char *cache_dir)
-{
-	if (mkdir (cache_dir, 0700) == 0) {
-		write_cache_version (cache_dir);
-		return 1;
-	}
-
-	if (errno != EEXIST) {
+	else if (errno != EEXIST) {
 		error_errno ("Failed to create directory for tags cache", errno);
-		return 0;
+		error ("Can't prepare cache directory!");
+		goto err;
 	}
-
-	if (!cache_version_matches (cache_dir)) {
+	else if (!cache_version_matches (cache_dir)) {
 		logit ("Tags cache directory is the wrong version, purging....");
 
 		if (!purge_directory (cache_dir))
-			return 0;
-		write_cache_version (cache_dir);
+		{
+			error ("Can't prepare cache directory!");
+			goto err;
+		}
+		wcv = true;
 	}
+	if (wcv)
+	{
+		str p = add_path(cache_dir, MOC_VERSION_TAG);
+		FILE *f = fopen (p.c_str(), "w");
+		if (!f) {
+			log_errno ("Error opening cache", errno);
+			goto err;
+		}
 
-	return 1;
-}
+		str vt = create_version_tag();
+		if (fwrite (vt.c_str(), vt.length(), 1, f) != 1)
+			logit ("Error writing cache version tag");
 
-void tags_cache::load(const str &cache_dir)
-{
-	assert (!cache_dir.empty());
-
-	int ret;
-
-	if (!prepare_cache_dir (cache_dir.c_str())) {
-		error ("Can't prepare cache directory!");
-		goto err;
+		fclose (f);
 	}
 
 	ret = db_env_create (&db_env, 0);
@@ -662,15 +593,10 @@ err:
 }
 
 /* Immediately read tags for a file bypassing the request queue. */
-file_tags tags_cache::get_immediate (const char *file)
+file_tags tags_cache::get_immediate (const str &file)
 {
-	assert (file != NULL);
-	debug ("Immediate tags read for %s", file);
-
-	if (!is_url (file))
-		return read_add (file, -1);
-
-	return file_tags();
+	debug ("Immediate tags read for %s", file.c_str());
+	return !is_url(file) ? read_add(file, -1) : file_tags();
 }
 
 void tags_cache::files_rm(std::set<str> &src)
@@ -682,7 +608,7 @@ void tags_cache::files_rm(std::set<str> &src)
 			fails.insert(f);
 		else
 		{
-			remove_rec(f.c_str());
+			remove_rec(f);
 			ratings_remove(f);
 		}
 	}
@@ -717,7 +643,7 @@ void tags_cache::files_mv(std::set<str> &src, const str &dst)
 			fails.insert(f);
 			continue;
 		}
-		remove_rec(f.c_str());
+		remove_rec(f);
 		ratings_move(f, p);
 	}
 	src.erase(fails.begin(), fails.end());

@@ -20,9 +20,9 @@ public:
 	void clear_queue (int client_id);
 
 	/* Cache DB manipulation functions: */
-	void load (const str &cache_dir);
-	void add_request (const char *file, int client_id, tag_changes *tags=NULL);
-	file_tags get_immediate (const char *file);
+	void load ();
+	void add_request (const str &file, int client_id, tag_changes *tags=NULL);
+	file_tags get_immediate (const str &file);
 	void ratings_changed(const str &file, int rating);
 
 	void files_rm(std::set<str> &src); // unlinks all files in src, removing those that fail
@@ -44,11 +44,11 @@ private:
 	};
 	friend struct Lock;
 
-	void remove_rec(const char *fname);
+	void remove_rec(const str &fname);
 	void sync();
 	void add(DBT &key, const cache_record &rec);
-	file_tags read_add(const char *file, int client_id);
-	void write_add(const char *file, tag_changes *tags, int client_id);
+	file_tags read_add(const str &file, int client_id);
+	void write_add(const str &file, tag_changes *tags, int client_id);
 	static void *reader_thread (void *cache_ptr);
 
 	struct Request

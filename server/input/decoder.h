@@ -134,7 +134,7 @@ struct decoder
 	 * Write changed tags for a file. Must be able to handle 
 	 * artist, album, title and track number.
 	 */
-	bool (*write_info)(const char *file, const tag_changes *tags);
+	bool (*write_info)(const str &file, const tag_changes &tags);
 
 	/** Get the current bitrate.
 	 *
@@ -237,21 +237,11 @@ struct decoder
 	int (*get_avg_bitrate)(void *data);
 };
 
-/** Initialize decoder plugin.
- *
- * Each decoder plugin must export a function name plugin_init of this
- * type. The function must return a pointer to the struct decoder variable
- * filled with pointers to decoder's functions.
- */
-typedef struct decoder *plugin_init_func ();
-
 bool is_sound_file (const str &name);
-struct decoder *get_decoder (const char *file);
-struct decoder *get_decoder_by_content (struct io_stream *stream);
-const char *get_decoder_name (const struct decoder *decoder);
-void decoder_init (int debug_info);
+decoder *get_decoder (const str &file);
+decoder *get_decoder_by_content (struct io_stream *stream);
+void decoder_init ();
 void decoder_cleanup ();
-char *file_type_name (const char *file);
 
 /** @defgroup decoder_error_funcs Decoder error functions
  *

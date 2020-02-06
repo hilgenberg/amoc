@@ -287,7 +287,7 @@ void server_init (int debugging, int foreground)
 	clients_init ();
 	audio_initialize ();
 	tc = new tags_cache();
-	tc->load(options::run_file_path("cache"));
+	tc->load();
 
 	/* Load the playlist from .moc directory. */
 	str plist_file = options::run_file_path(PLAYLIST_FILE);
@@ -892,10 +892,9 @@ void status_msg (const str &msg)
 	add_event_all (EV_STATUS_MSG, msg);
 }
 
-void tags_response (const int client_id, const char *file, const file_tags *tags)
+void tags_response (const int client_id, const str &file, const file_tags *tags)
 {
 	SOCKET_DEBUG("sending tag response");
-	assert (file != NULL);
 	assert (tags != NULL);
 	assert (LIMIT(client_id, CLIENTS_MAX));
 

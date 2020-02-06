@@ -14,8 +14,7 @@ enum PlayState : int
 
 void server_init (int debug, int foreground);
 void server_loop ();
-void server_error (const char *file, int line, const char *function,
-                   const char *msg);
+void server_error (const char *file, int line, const char *function, const char *msg);
 void state_change ();
 void set_info_rate (const int rate);
 void set_info_channels (const int channels);
@@ -24,12 +23,9 @@ void set_info_avg_bitrate (const int avg_bitrate);
 void tags_change ();
 void ctime_change ();
 void status_msg (const str &msg);
-void tags_response (const int client_id, const char *file,
-		const struct file_tags *tags);
+void tags_response (const int client_id, const str &file, const file_tags *tags);
 void ev_audio_start ();
 void ev_audio_stop ();
 void ev_audio_fail (const str &path); // path failed to play
-
-void server_queue_pop (const str &filename);
 
 #endif

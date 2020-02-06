@@ -459,7 +459,7 @@ int main (int argc, const char *argv[])
 	check_moc_dir();
 
 	io_init ();
-	decoder_init (params.debug);
+	decoder_init ();
 	srand (time(NULL));
 
 	if (params.allow_iface)
