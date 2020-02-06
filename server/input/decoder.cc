@@ -357,7 +357,7 @@ static int lookup_decoder_by_name (const char *name)
 }
 
 /* Create a new preferences entry and initialise it. */
-static decoder_t_preference *make_preference (const std::string &prefix)
+static decoder_t_preference *make_preference (const str &prefix)
 {
 	decoder_t_preference *result;
 
@@ -396,7 +396,7 @@ static bool is_listed_decoder (decoder_t_preference *pref, int d)
 }
 
 /* Add the named decoder (if valid) to a preferences decoder list. */
-static void load_each_decoder (decoder_t_preference *pref, const std::string &name)
+static void load_each_decoder (decoder_t_preference *pref, const str &name)
 {
 	int d;
 
@@ -418,7 +418,7 @@ static void load_each_decoder (decoder_t_preference *pref, const std::string &na
 }
 
 /* Build a preference's decoder list. */
-static void load_decoders (decoder_t_preference *pref, const stringlist &tokens)
+static void load_decoders (decoder_t_preference *pref, const strings &tokens)
 {
 	int ix, dx, asterisk_at;
 	int decoder[PLUGINS_NUM];
@@ -469,7 +469,7 @@ static void load_preferences ()
 
 	for (auto *s : PreferredDecoders)
 	{
-		stringlist tokens = split(s, "(,)");
+		strings tokens = split(s, "(,)");
 		assert(tokens.size() >= 1);
 		decoder_t_preference *pref = make_preference (tokens[0]);
 		load_decoders (pref, tokens);

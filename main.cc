@@ -24,7 +24,6 @@
 #include "client/client.h"
 #include "server/protocol.h"
 #include "Socket.h"
-#include "rcc.h"
 
 struct parameters
 {
@@ -96,7 +95,7 @@ static void check_moc_dir ()
 }
 
 /* Run client and the server if needed. */
-static void start_moc (const struct parameters *params, stringlist &args)
+static void start_moc (const struct parameters *params, strings &args)
 {
 	if (params->foreground) {
 		set_me_server ();
@@ -138,7 +137,6 @@ static void start_moc (const struct parameters *params, stringlist &args)
 			decoder_cleanup ();
 			io_cleanup ();
 			files_cleanup ();
-			rcc_cleanup ();
 			exit (EXIT_SUCCESS);
 		case -1:
 			fatal ("fork() failed: %s", xstrerror (errno));
@@ -191,7 +189,7 @@ void interface_cmdline_play_first (Socket &srv)
 	srv.send("");
 }
 
-void interface_cmdline_playit (Socket &srv, stringlist &args)
+void interface_cmdline_playit (Socket &srv, strings &args)
 {
 	if (args.size() != 1) return;
 	srv.send(CMD_PLAY);
@@ -210,7 +208,7 @@ void interface_cmdline_set_rating (Socket &srv, int rating)
 }
 
 /* Send commands requested in params to the server. */
-static void server_command (struct parameters *params, stringlist &args)
+static void server_command (struct parameters *params, strings &args)
 {
 	int srv_sock = server_connect();
 	if (srv_sock == -1) fatal ("The server is not running!");
@@ -449,7 +447,7 @@ int main (int argc, const char *argv[])
 	if (params.foreground) params.only_server = 1;
 
 	const char **rest = poptGetArgs (ctx);
-	stringlist args;
+	strings args;
 	if (rest) args = unpack(rest);
 
 	poptFreeContext (ctx);
@@ -461,7 +459,6 @@ int main (int argc, const char *argv[])
 	check_moc_dir();
 
 	io_init ();
-	rcc_init ();
 	decoder_init (params.debug);
 	srand (time(NULL));
 
@@ -472,7 +469,6 @@ int main (int argc, const char *argv[])
 
 	decoder_cleanup ();
 	io_cleanup ();
-	rcc_cleanup ();
 	files_cleanup ();
 
 	return EXIT_SUCCESS;

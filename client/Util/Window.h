@@ -2,6 +2,7 @@
 #include <ncurses.h>
 #include <wctype.h>
 #include <wchar.h>
+#include <iconv.h>
 #include "Rect.h"
 #include "themes.h"
 #include "utf8.h"
@@ -32,8 +33,15 @@ public:
 	void put(chtype c) { waddch (win, c); }
 	void put_ascii(const str &s) { waddstr(win, s.c_str()); }
 	void put_ascii(const char *s) { waddstr(win, s); }
-	void put(const str &s) { xwaddstr(win, s); }
-	void field(const str &s, int w, char fmt = 'r') { xwprintfield(win, s, w, fmt); }
+	void put(const str &s);
+
+	// format: r: cut off at the right:     [fooo...]
+	//         l: cut off at the left:      [...fooo]
+	//         c: cut off in the center:    [fo...oo]
+	//         R: right-align or same as l: [    foo]
+	//         C: centered or r:            [  foo  ]
+	void field(const str &s, int w, char fmt = 'r');
+
 	void spaces(int n) { while (n-- > 0) waddch(win, ' '); } // unlike clear, this moves the cursor
 	
 	void time(int sec); static constexpr int TIME_WIDTH = 5;
@@ -44,6 +52,7 @@ public:
 	void clear(int w) { whline(win, ' ', w); }
 
 	void frame(const Rect &r, const str &title, int title_space = 0, bool draw_bottom = true);
+	void sanitize_path(str &s);
 
 	static chtype vert;	// vertical
 	static chtype horiz;	// horizontal
@@ -58,6 +67,9 @@ public:
 
 private:
 	WINDOW *win;
+	bool    using_utf8;       // terminal is UTF-8 and term_iconv_desc is not needed?
+	iconv_t term_iconv_desc;  // from UTF-8 to terminal
+	iconv_t files_iconv_desc; // from auto-detect to UTF-8
 };
 
 

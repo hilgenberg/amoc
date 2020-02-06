@@ -24,7 +24,7 @@ static enum {
 	LOGGING
 } logging_state = UNINITIALISED;
 
-static stringlist buffered_log;
+static strings buffered_log;
 static int log_records_spilt = 0;
 
 static pthread_mutex_t logging_mtx = PTHREAD_MUTEX_INITIALIZER;

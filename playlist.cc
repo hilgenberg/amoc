@@ -327,7 +327,7 @@ bool plist::load_m3u (const str &fname)
 
 	str base(fname);
 	size_t i = base.rfind('/');
-	if (i != std::string::npos) base.erase(i+1); else base = "";
+	if (i != str::npos) base.erase(i+1); else base = "";
 
 	for (char *line = NULL; (line = read_line(file)) != NULL; free(line))
 	{

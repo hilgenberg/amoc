@@ -92,7 +92,7 @@ public:
 	}
 	void get(plist &plist)
 	{
-		stringlist S;
+		strings S;
 		while (true) {
 			str s; get(s);
 			if (s.empty()) break;

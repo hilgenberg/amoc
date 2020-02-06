@@ -9,7 +9,7 @@
 class Client
 {
 public:
-	Client(int sock, stringlist &args);
+	Client(int sock, strings &args);
 	~Client();
 	void run ();
 

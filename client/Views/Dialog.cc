@@ -382,7 +382,7 @@ void Dialog::draw() const
 	win.color(CLR_ENTRY);
 	if (hscroll > 0) {
 		win.put_ascii("...");
-		win.field(sanitized(xstrtail(response, n-hscroll-3)), w-3);
+		win.field(sanitized(strtail(response, n-hscroll-3)), w-3);
 	} else {
 		win.field(sanitized(response), w);
 	}

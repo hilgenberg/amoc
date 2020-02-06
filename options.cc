@@ -12,7 +12,7 @@ static void parse(int &o, const char *v)
 {
 	if (!is_int(v, o)) throw std::runtime_error(format("Invalid integer: '%s'", v));
 }
-static void parse(std::string &o, const char *v)
+static void parse(str &o, const char *v)
 {
 	o = v;
 }
@@ -83,7 +83,7 @@ static bool read_config_file(const str &path, std::map<str,str> &items)
 		}
 
 		// read this option's key
-		std::string key, value;
+		str key, value;
 		while (!isspace(c) && c != EOF && c != '=') { key += c; c = fgetc(file); }
 
 		// skip space, equal sign, space
@@ -180,7 +180,7 @@ void load(Component who)
 		case SERVER: read_config_file(add_path(ConfigDir, "config_srv"), items); break;
 	}
 
-	std::string RatingSpace(" "), RatingStar("*");
+	str RatingSpace(" "), RatingStar("*");
 	RunDir = ConfigDir;
 
 	int hsplit_plist = 1, hsplit_dirlist = 1, vsplit_plist = 1, vsplit_dirlist = 1;

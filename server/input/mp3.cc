@@ -27,8 +27,6 @@
 #include "mp3_xing.h"
 #include "io.h"
 #include "../audio.h"
-#include "../../client/Util/utf8.h"
-#include "../../rcc.h"
 
 #define INPUT_BUFFER	(32 * 1024)
 

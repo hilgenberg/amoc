@@ -10,61 +10,11 @@
  */
 
 #include "utf8.h"
-
-#include <iconv.h>
-#include <langinfo.h>
 #include <codecvt>
 #include <locale>
 
 typedef std::wstring wstr;
 #define WIDTH_MAX std::numeric_limits<size_t>::max() // parameter for wcswidth
-
-static bool    using_utf8 = false; // terminal is UTF-8 and term_iconv_desc is not needed?
-static iconv_t term_iconv_desc = (iconv_t)(-1); // from UTF-8 to terminal
-static iconv_t files_iconv_desc = (iconv_t)(-1); // from auto-detect to UTF-8
-
-str iconv_str(const iconv_t desc, const str &input)
-{
-	if (input.empty() || desc == (iconv_t)-1) return input;
-
-	iconv (desc, NULL, NULL, NULL, NULL); // reset state
-	
-	str ret;
-	size_t n = input.size(), m = 0;
-	const char *s = input.data(); // current input position
-	char *t = NULL; // current output position
-
-	while (n)
-	{
-		size_t min_buf = std::max((size_t)8, n);
-		if (!t || m < min_buf)
-		{
-			size_t m0 = ret.size()-m;
-			m = min_buf;
-			ret.resize(m0 + m);
-			t = (char*)ret.data() + m0;
-		}
-		if (iconv(desc, (char**)&s, &n, &t, &m) == (size_t)-1)
-		{
-			if (errno == EILSEQ || errno == EINVAL) {
-				// invalid sequence at s: skip first byte and try again
-				if (n) { ++s; --n; }
-				if (m) { *t++ = '#'; --m; } else ret.push_back('#');
-			}
-			else if (errno != E2BIG) {
-				assert(false);
-				break;
-			}
-		}
-	}
-
-	ret.resize(ret.size() - m);
-	return ret;
-}
-str files_iconv_str (const str &s)
-{
-	return iconv_str(files_iconv_desc, s);
-}
 
 // is width == length?
 static inline bool is_ascii(const str &s)
@@ -158,7 +108,8 @@ size_t strwidth (const str &s)
 	wstr ws = safe_convert(s);
 	size_t n = wcswidth(ws.c_str(), WIDTH_MAX);
 	if (n != (size_t)-1) return n;
-
+	
+	assert(false); // safe_convert should have sanitized the string
 	n = 0;
 	for (const wchar_t &c : ws) { auto w = wcwidth(c); if (w < 0) ++n; else n += w; }
 	return n;
@@ -177,7 +128,7 @@ void strdel(str &s, int i, int n)
 	while (j < m && i > 0)
 	{
 		int cw = wcwidth(ws[j++]);
-		if (cw < 0) cw = 1; // gets printed as '?'
+		assert(cw >= 0);
 		i -= cw;
 	}
 	if (j >= m) return;
@@ -186,7 +137,7 @@ void strdel(str &s, int i, int n)
 	while (n > 0 && j+k < m)
 	{
 		int cw = wcwidth(ws[j + k++]);
-		if (cw < 0) cw = 1; // gets printed as '?'
+		assert(cw >= 0);
 		n -= cw;
 	}
 	ws.erase(j, k);
@@ -208,7 +159,7 @@ int strins(str &s, int i, wchar_t c)
 		while (j < m && i > 0)
 		{
 			int cw = wcwidth(ws[j++]);
-			if (cw < 0) cw = 1; // gets printed as '?'
+			assert(cw >= 0);
 			i -= cw;
 		}
 		ws.insert(j, 1, c);
@@ -219,10 +170,9 @@ int strins(str &s, int i, wchar_t c)
 
 /* Return a string containing the tail of 'str' up to a
  * maximum of len characters (in columns occupied on the screen). */
-str xstrtail (const str &s, int len)
+str strtail (const str &s, int len)
 {
 	if (len <= 0) return str();
-
 	if (is_ascii(s)) return s.length() <= len ? s : s.substr(s.length() - len);
 
 	wstr ws = safe_convert(s);
@@ -231,123 +181,30 @@ str xstrtail (const str &s, int len)
 	{
 		int cw = wcwidth(ws[k-1]);
 		if (cw > len) break;
-		if (cw < 0) cw = 1; // gets printed as '?'
+		assert(cw >= 0);
 		len -= cw; --k;
 	}
 	while (k > 0)
 	{
 		// add zero-length chars
 		int cw = wcwidth(ws[k-1]);
-		if (cw) break;
+		if (cw != 0) break;
 		--k;
 	}
-	return k == 0 ? s : convert(ws.substr(k));
+	return convert(ws.substr(k));
 }
-
-#define TO_TERM(s) (using_utf8 ? (s).c_str() : iconv_str(term_iconv_desc, s).c_str())
-
-int xwaddstr (WINDOW *win, const str &s)
+str strhead (const str &s, int len)
 {
-	return waddstr(win, TO_TERM(s));
-}
-
-static int xwaddnstr (WINDOW *win, const str &s, int len)
-{
-	if (len <= 0) return 0;
+	if (len <= 0) return str();
+	if (is_ascii(s)) return s.length() <= len ? s : s.substr(0, len);
 
 	wstr ws = safe_convert(s);
 	int w = 0, j = 0, m = ws.length();
 	while (w < len && j < m)
 	{
 		int cw = wcwidth(ws[j++]);
-		if (cw < 0) { ws[j-1] = L'?'; cw = 1; }
+		assert(cw >= 0);
 		w += cw;
 	}
-	return xwaddstr(win, convert(j < m ? ws.substr(0, j) : ws));
-}
-
-void xwprintfield(WINDOW *win, const str &s, int W, char fmt)
-{
-	int w = strwidth(s);
-	if (w <= W)
-	{
-		if (fmt == 'R')
-		{
-			while (w++ < W) waddch (win, ' ');
-			xwaddstr(win, s);
-		}
-		else if (fmt == 'C')
-		{
-			int k = W-w;
-			for (int i = 0; i < k/2; ++i) waddch (win, ' ');
-			xwaddstr(win, s);
-			for (int i = k/2; i < k; ++i) waddch (win, ' ');
-		}
-		else
-		{
-			xwaddstr(win, s);
-			while (w++ < W) waddch (win, ' ');
-		}
-		return;
-	}
-	
-	if (W < 3)
-	{
-		xwaddnstr(win, s, W);
-		return;
-	}
-
-	switch (fmt)
-	{
-		case 'r':
-		case 'C':
-			xwaddnstr(win, s, W-3);
-			xwaddstr(win, "...");
-			break;
-		case 'l':
-		case 'R':
-		{
-			xwaddstr(win, "...");
-			xwaddstr(win, xstrtail(s, W-3));
-			break;
-		}
-		case 'c':
-		{
-			int l = (W-3)/2;
-			xwaddnstr(win, s, l);
-			xwaddstr(win, "...");
-			xwaddstr(win, xstrtail(s, W-3-l));
-			break;
-		}
-		default: assert(false);
-	}
-}
-
-void utf8_init ()
-{
-	const char *terminal_charset = nl_langinfo(CODESET);
-	assert (terminal_charset != NULL);
-
-	if (!strcmp(terminal_charset, "UTF-8")) {
-		logit ("Using UTF8 output");
-		using_utf8 = true;
-	}
-	else
-		logit ("Terminal character set: %s", terminal_charset);
-
-	if (!using_utf8 && terminal_charset) {
-		term_iconv_desc = iconv_open (terminal_charset, "UTF-8");
-		if (term_iconv_desc == (iconv_t)(-1)) log_errno ("iconv_open() failed", errno);
-	}
-
-	if (options::FileNamesIconv)
-		files_iconv_desc = iconv_open ("UTF-8", "");
-}
-
-void utf8_cleanup ()
-{
-	if (term_iconv_desc != (iconv_t)-1 && iconv_close(term_iconv_desc) == -1)
-		log_errno ("iconv_close() failed", errno);
-	if (files_iconv_desc != (iconv_t)-1 && iconv_close(files_iconv_desc) == -1)
-		log_errno ("iconv_close() failed", errno);
+	return convert(j < m ? ws.substr(0, j) : ws);
 }

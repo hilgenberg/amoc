@@ -10,7 +10,6 @@
  */
 
 #include "Panel.h"
-#include "../../rcc.h"
 #include "../Util/utf8.h"
 #include "../Util/themes.h"
 #include "../interface.h"
@@ -476,9 +475,7 @@ void Panel::draw() const
 				const char *file = s.c_str(), *ext = ext_pos(file);
 				if (ext) s = s.substr(0, ext-1-file);
 			}
-			sanitize(s);
-			if (options::FileNamesIconv) s = files_iconv_str (s);
-			if (options::UseRCCForFilesystem) s = rcc_reencode(s);
+			win.sanitize_path(s);
 			win.field(s, x1-x0+1, 'l');
 		}
 	}

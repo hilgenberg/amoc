@@ -1,7 +1,6 @@
 #include "FrameView.h"
 #include "../interface.h"
 #include "../client.h"
-#include "../../rcc.h"
 
 #define CURR_RATIO (options::layout == HSPLIT ? options::hsplit : options::vsplit)
 
@@ -127,9 +126,7 @@ void FrameView::draw() const
 			s[0] = '~'; s[1] = '/';
 		}
 		else if (s+"/" == uhome) s = "~";
-		sanitize(s);
-		if (options::FileNamesIconv) s = files_iconv_str (s);
-		if (options::UseRCCForFilesystem) s = rcc_reencode(s);
+		win.sanitize_path(s);
 		win.frame(r1, s, options::layout == VSPLIT ? 14 : 0, false);
 	}
 	if (options::layout != SINGLE || active == &right)

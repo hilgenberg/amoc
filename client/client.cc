@@ -24,7 +24,7 @@ void interface_fatal (const char *format, ...)
 	fatal ("%s", msg);
 }
 
-Client::Client(int sock, stringlist &args)
+Client::Client(int sock, strings &args)
 : srv(sock), synced(false)
 , iface(*this, dir_plist, playlist)
 , want_plist_update(false), want_state_update(false)

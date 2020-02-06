@@ -16,7 +16,6 @@
 #include "../Util/themes.h"
 #include "../Util/keys.h"
 #include "../../playlist.h"
-#include "../../rcc.h"
 #include "../../server/input/decoder.h"
 #include "../../server/output/softmixer.h"
 
@@ -179,10 +178,7 @@ void InfoView::draw() const
 			s = s.substr(uhome.length()-2);
 			s[0] = '~'; s[1] = '/';
 		}
-		sanitize(s);
-		if (options::FileNamesIconv) s = files_iconv_str (s);
-		if (options::UseRCCForFilesystem) s = rcc_reencode(s);
-
+		win.sanitize_path(s);
 		win.field(s, W-6, 'l');
 	}
 

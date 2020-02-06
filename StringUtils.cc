@@ -1,11 +1,11 @@
-#include "StringFormatting.h"
+#include "StringUtils.h"
 
 #include <cstdarg>
 #include <vector>
 #include <cassert>
 #include <cstring>
 
-std::string format(const char *fmt, ...)
+str format(const char *fmt, ...)
 {
 	va_list  ap;
 	va_start(ap, fmt);
@@ -28,14 +28,14 @@ std::string format(const char *fmt, ...)
 	
 	va_end (ap);
 	
-	return std::string(buf, (size_t)n);
+	return str(buf, (size_t)n);
 }
 
-std::string spaces(int n)
+str spaces(int n)
 {
 	assert(n >= 0);
-	if (n <= 0) return std::string();
-	return std::string(n, ' ');
+	if (n <= 0) return str();
+	return str(n, ' ');
 }
 
 bool is_int(const char *s, int &v_)
@@ -55,7 +55,7 @@ bool is_int(const char *s, int &v_)
 	return true;
 }
 
-bool is_int(const std::string &s, int &v_)
+bool is_int(const str &s, int &v_)
 {
 	int v = 0, sign = 1;
 	size_t i = 0, n = s.length();
@@ -81,14 +81,14 @@ bool has_prefix(const char *s, const char *p, bool ignore_case)
 	auto cmp = ignore_case ? strncasecmp : strncmp;
 	return cmp(s, p, l) == 0;
 }
-bool has_prefix(const std::string &s, const char *p, bool ignore_case)
+bool has_prefix(const str &s, const char *p, bool ignore_case)
 {
 	size_t l = strlen(p);
 	if (s.length() < l) return false;
 	auto cmp = ignore_case ? strncasecmp : strncmp;
 	return cmp(s.c_str(), p, l) == 0;
 }
-bool has_prefix(const std::string &s, const std::string &p, bool ignore_case)
+bool has_prefix(const str &s, const str &p, bool ignore_case)
 {
 	size_t l = p.length();
 	if (s.length() < l) return false;
@@ -102,4 +102,53 @@ void intersect(str &s1, const str &s2)
 	size_t i = 0, n = std::min(s1.length(), s2.length());
 	while (i < n && s1[i]==s2[i]) ++i;
 	s1.resize(i);
+}
+
+strings split(const str &s, const char *delims)
+{
+	strings ret;
+	size_t i = 0, N = s.length();
+	while (i < N)
+	{
+		size_t j = s.find_first_of(delims, i);
+		if (j == i) { ++i; continue; }
+		if (j == str::npos)
+		{
+			ret.emplace_back(s.substr(i));
+			break;
+		}
+		ret.emplace_back(s.substr(i, j-i));
+		i = j+1;
+	}
+	return ret;
+}
+
+/* Return a "snapshot" of the given string list.  The returned memory is a
+ * null-terminated list of pointers to the given list's strings copied into
+ * memory allocated after the pointer list.  This list is suitable for passing
+ * to functions which take such a list as an argument (e.g., execv()).
+ * Invoking free() on the returned pointer also frees the strings. */
+char** pack(const strings &list)
+{
+	size_t size = (list.size()+1) * sizeof(char*);
+	for (auto &s : list) size += s.length() + 1;
+	char **result = (char **) xmalloc(size);
+	char **p0 = result, *p = (char *) (result + list.size() + 1);
+	for (auto &s : list)
+	{
+		*p0++ = p;
+		strcpy (p, s.c_str());
+		p += s.length()+ 1;
+	}
+	*p0 = NULL;
+	return result;
+}
+
+/* Reload saved strings into a list.  The reloaded strings are appended
+ * to the list.  The number of items reloaded is returned. */
+strings unpack(const char **saved)
+{
+	strings ret;
+	for (; *saved; ++saved) ret.emplace_back(*saved);
+	return ret;
 }

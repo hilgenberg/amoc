@@ -39,11 +39,11 @@
 #include <ctype.h>
 
 typedef std::string str;
+typedef std::vector<str> strings;
 typedef std::pair<int,int> Ratio;
 
 #include "common.h"
 #include "log.h"
 #include "options.h"
-#include "StringFormatting.h"
-#include "lists.h"
+#include "StringUtils.h"
 #include "files.h"
