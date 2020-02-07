@@ -14,221 +14,138 @@
  *
  */
 
-#include <string.h>
-#include <strings.h>
-#include <assert.h>
 #include <timidity.h>
 
 #include "io.h"
 #include "decoder.h"
 
-
 // former options:
-static int   TiMidity_Rate = 44100;
-static int   TiMidity_Bits = 16;
-static int   TiMidity_Channels = 2;
-static int   TiMidity_Volume = 100;
-
+static int TiMidity_Rate = 44100;
+static int TiMidity_Bits = 16;
+static int TiMidity_Channels = 2;
+static int TiMidity_Volume = 100;
 
 MidSongOptions midioptions;
 
-struct timidity_data
+struct timidity_data : public Codec
 {
-  MidSong *midisong;
-  int length;
-  struct decoder_error error;
+	MidSong *midisong;
+	int length;
+
+	timidity_data(const char *file)
+	{
+		midisong = NULL;
+		length = -1000;
+
+		MidIStream *midistream = mid_istream_open_file(file);
+
+		if (!midistream) {
+			error.fatal("Can't open midifile: %s", file);
+			return;
+		}
+
+		midisong = mid_song_load(midistream, &midioptions);
+		mid_istream_close(midistream);
+
+		if (!midisong) {
+			error.fatal("Can't load midifile: %s", file);
+			return;
+		}
+
+		length = mid_song_get_total_time(midisong);
+	}
+
+	int get_duration() const override { return length/1000; }
+
+	~timidity_data()
+	{
+		if (midisong) mid_song_free(midisong);
+	}
+
+	int seek (int sec) override
+	{
+		int ms = sec*1000;
+		ms = MIN(ms, length);
+		mid_song_seek(midisong, ms);
+		return ms/1000;
+	}
+
+	int decode (char *buf, int buf_len, sound_params &sound_params) override
+	{
+		sound_params.channels = midioptions.channels;
+		sound_params.rate = midioptions.rate;
+		sound_params.fmt = (midioptions.format==MID_AUDIO_S16LSB)?(SFMT_S16 | SFMT_LE):SFMT_S8;
+
+		return mid_song_read_wave(midisong, (sint8*)buf, buf_len);
+	}
 };
 
-static struct timidity_data *make_timidity_data(const char *file) {
-  struct timidity_data *data;
-
-  data = (struct timidity_data *)xmalloc (sizeof(struct timidity_data));
-
-  data->midisong = NULL;
-  decoder_error_init (&data->error);
-
-  MidIStream *midistream = mid_istream_open_file(file);
-
-  if(midistream==NULL) {
-    decoder_error(&data->error, ERROR_FATAL, 0,
-                  "Can't open midifile: %s", file);
-    return data;
-  }
-
-  data->midisong = mid_song_load(midistream, &midioptions);
-  mid_istream_close(midistream);
-
-  if(data->midisong==NULL) {
-    decoder_error(&data->error, ERROR_FATAL, 0,
-                  "Can't load midifile: %s", file);
-    return data;
-  }
-
-  return data;
-}
-
-static void *timidity_open (const char *file)
+struct timidity_decoder : public Decoder
 {
-  struct timidity_data *data = make_timidity_data(file);
+	bool matches_ext(const char *ext) const override
+	{
+		return !strcasecmp (ext, "mid");
+	}
 
-  if(data->midisong) {
-    data->length = mid_song_get_total_time(data->midisong);
-  }
+	bool matches_mime (const str &mime)
+	{
+		return !strcasecmp(mime.c_str(), "audio/midi")
+		|| !strncasecmp(mime.c_str(), "audio/midi;", 10);
+	}
 
+	~timidity_decoder()
+	{
+		mid_exit();
+	}
 
-  if(data->midisong) {
-    debug ("Opened file %s", file);
+	Codec* open(const str &file) override
+	{
+		auto *data = new timidity_data(file.c_str());
+		if (data->midisong) {
+			mid_song_set_volume(data->midisong, TiMidity_Volume);
+			mid_song_start(data->midisong);
+		}
+		return data;
+	}
 
-    mid_song_set_volume(data->midisong, TiMidity_Volume);
-    mid_song_start(data->midisong);
-  }
+	int get_duration(const str &file_name)
+	{
+		timidity_data data(file_name.c_str());
+		if (data.midisong) return data.get_duration();
+		return -1;
+	}
 
-  return data;
-}
+	timidity_decoder ()
+	{
+		int initresult;
 
-static void timidity_close (void *void_data)
-{
-  struct timidity_data *data = (struct timidity_data *)void_data;
+		str config = options::TiMidity_Config;
+		if (config.empty() || config == "yes")
+			initresult = mid_init(NULL);
+		else if (config == "no")
+			initresult = mid_init_no_config();
+		else
+			initresult = mid_init(config.c_str());
 
-  if (data->midisong) {
-    mid_song_free(data->midisong);
-  }
+		logit("Timidity: %s: %d", config.c_str(), initresult);
 
-  decoder_error_clear (&data->error);
-  free (data);
-}
+		// Is there a better way to signal failed init?
+		// The decoder-init-function may not return errors AFAIK...
+		if(initresult < 0)
+		{
+			if (config.empty() || config == "yes") config = "<default>";
+			fatal("TiMidity-Plugin: Error processing TiMidity-Configuration!\n"
+			"Configuration file is: %s", config.c_str());
+		}
 
-static void timidity_info (const char *file_name, struct file_tags *info)
-{
-  struct timidity_data *data = make_timidity_data(file_name);
-
-  if(data->midisong==NULL) {
-    free (data);
-    return;
-  }
-
-    info->time = mid_song_get_total_time(data->midisong) / 1000;
-
-  timidity_close(data);
-}
-
-static int timidity_seek (void *void_data, int sec)
-{
-  struct timidity_data *data = (struct timidity_data *)void_data;
-
-  assert (sec >= 0);
-
-  int ms = sec*1000;
-
-  ms = MIN(ms,data->length);
-
-  mid_song_seek(data->midisong, ms);
-
-  return ms/1000;
-}
-
-static int timidity_decode (void *void_data, char *buf, int buf_len,
-		struct sound_params *sound_params)
-{
-  struct timidity_data *data = (struct timidity_data *)void_data;
-
-  sound_params->channels = midioptions.channels;
-  sound_params->rate = midioptions.rate;
-  sound_params->fmt = (midioptions.format==MID_AUDIO_S16LSB)?(SFMT_S16 | SFMT_LE):SFMT_S8;
-
-  return mid_song_read_wave(data->midisong, (sint8*)buf, buf_len);
-}
-
-static int timidity_get_bitrate (void *unused)
-{
-  return -1;
-}
-
-static int timidity_get_duration (void *void_data)
-{
-  struct timidity_data *data = (struct timidity_data *)void_data;
-  return data->length/1000;
-}
-
-static void timidity_get_name (const char *unused, char buf[4])
-{
-  strcpy (buf, "MID");
-}
-
-static int timidity_our_format_ext(const char *ext)
-{
-  return !strcasecmp (ext, "mid");
-}
-
-static int timidity_our_format_mime (const char *mime)
-{
-  return !strcasecmp(mime, "audio/midi")
-      || !strncasecmp(mime, "audio/midi;", 10);
-}
-
-static void timidity_get_error (void *prv_data, struct decoder_error *error)
-{
-  struct timidity_data *data = (struct timidity_data *)prv_data;
-
-  decoder_error_copy (error, &data->error);
-}
-
-static void timidity_destroy()
-{
-  mid_exit();
-}
-
-static struct decoder timidity_decoder =
-{
-  NULL,
-  timidity_destroy,
-  timidity_open,
-  NULL,
-  NULL,
-  timidity_close,
-  timidity_decode,
-  timidity_seek,
-  timidity_info,
-	NULL,
-  timidity_get_bitrate,
-  timidity_get_duration,
-  timidity_get_error,
-  timidity_our_format_ext,
-  timidity_our_format_mime,
-  timidity_get_name,
-  NULL,
-  NULL,
-  NULL
+		midioptions.rate = TiMidity_Rate;
+		midioptions.format = (TiMidity_Bits==16)?MID_AUDIO_S16LSB:MID_AUDIO_S8;
+		midioptions.channels = TiMidity_Channels;
+		midioptions.buffer_size = midioptions.rate;
+	}
 };
 
-struct decoder *timidity_plugin ()
+Decoder *timidity_plugin ()
 {
-  int initresult;
-
-  str config = options::TiMidity_Config;
-  if (config.empty() || config == "yes")
-    initresult = mid_init(NULL);
-  else if (config == "no")
-    initresult = mid_init_no_config();
-  else
-    initresult = mid_init(config.c_str());
-
-logit("Timidity: %s: %d", config.c_str(), initresult);
-
-  // Is there a better way to signal failed init?
-  // The decoder-init-function may not return errors AFAIK...
-  if(initresult < 0)
-  {
-    if (config.empty() || config == "yes")
-      config = "<default>";
-    fatal("TiMidity-Plugin: Error processing TiMidity-Configuration!\n"
-          "                              Configuration file is: %s", config.c_str());
-  }
-
-  midioptions.rate = TiMidity_Rate;
-  midioptions.format = (TiMidity_Bits==16)?MID_AUDIO_S16LSB:MID_AUDIO_S8;
-  midioptions.channels = TiMidity_Channels;
-  midioptions.buffer_size = midioptions.rate;
-
-  return &timidity_decoder;
+	return new timidity_decoder;
 }

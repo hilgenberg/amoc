@@ -23,145 +23,22 @@
 #include "io.h"
 #include "../audio.h"
 
-/* These merely silence compiler warnings about unused definitions in
- * the Vorbis library header files. * /
-#if !defined(HAVE_TREMOR)
-static ov_callbacks *vorbis_unused[] = {
-	&OV_CALLBACKS_DEFAULT,
-	&OV_CALLBACKS_NOCLOSE,
-	&OV_CALLBACKS_STREAMONLY,
-	&OV_CALLBACKS_STREAMONLY_NOCLOSE
-};
-#endif*/
-
 /* Tremor defines time as 64-bit integer milliseconds. */
 #ifndef HAVE_TREMOR
-static const int64_t time_scaler = 1;
+static constexpr int64_t time_scaler = 1;
 #else
-static const int64_t time_scaler = 1000;
+static constexpr int64_t time_scaler = 1000;
 #endif
-
-struct vorbis_data
-{
-	struct io_stream *stream;
-	OggVorbis_File vf;
-	int last_section;
-	int bitrate;
-	int avg_bitrate;
-	int duration;
-	struct decoder_error error;
-	int ok; /* was this stream successfully opened? */
-
-	int tags_change; /* the tags were changed from the last call of
-	                    ogg_current_tags() */
-	struct file_tags *tags;
-};
-
-static void get_comment_tags (OggVorbis_File *vf, struct file_tags *info)
-{
-	int i;
-	vorbis_comment *comments;
-
-	comments = ov_comment (vf, -1);
-	for (i = 0; i < comments->comments; i++) {
-		if (!strncasecmp(comments->user_comments[i], "title=",
-				 strlen ("title=")))
-			info->title = xstrdup(comments->user_comments[i]
-					+ strlen ("title="));
-		else if (!strncasecmp(comments->user_comments[i],
-					"artist=", strlen ("artist=")))
-			info->artist = xstrdup (
-					comments->user_comments[i]
-					+ strlen ("artist="));
-		else if (!strncasecmp(comments->user_comments[i],
-					"album=", strlen ("album=")))
-			info->album = xstrdup (
-					comments->user_comments[i]
-					+ strlen ("album="));
-		else if (!strncasecmp(comments->user_comments[i],
-					"tracknumber=",
-					strlen ("tracknumber=")))
-			info->track = atoi (comments->user_comments[i]
-					+ strlen ("tracknumber="));
-		else if (!strncasecmp(comments->user_comments[i],
-					"track=", strlen ("track=")))
-			info->track = atoi (comments->user_comments[i]
-					+ strlen ("track="));
-	}
-}
-
-/* Return a description of an ov_*() error. */
-static const char *vorbis_strerror (const int code)
-{
-	const char *result;
-
-	switch (code) {
-		case OV_EREAD:
-			result = "read error";
-			break;
-		case OV_ENOTVORBIS:
-			result = "not a vorbis file";
-			break;
-		case OV_EVERSION:
-			result = "vorbis version mismatch";
-			break;
-		case OV_EBADHEADER:
-			result = "invalid Vorbis bitstream header";
-			break;
-		case OV_EFAULT:
-			result = "internal (vorbis) logic fault";
-			break;
-		default:
-			result = "unknown error";
-	}
-
-	return result;
-}
-
-/* Fill info structure with data from ogg comments */
-static void vorbis_tags (const char *file_name, struct file_tags *info)
-{
-	OggVorbis_File vf;
-	FILE *file;
-	int err_code;
-
-	if (!(file = fopen (file_name, "r"))) {
-		log_errno ("Can't open an OGG file", errno);
-		return;
-	}
-
-	/* ov_test() is faster than ov_open(), but we can't read file time
-	 * with it. */
-	err_code = ov_open(file, &vf, NULL, 0);
-	//err_code = ov_test(file, &vf, NULL, 0);
-
-	if (err_code < 0) {
-		logit ("Can't open %s: %s", file_name, vorbis_strerror (err_code));
-		fclose (file);
-		return;
-	}
-
-	get_comment_tags (&vf, info);
-
-	int64_t vorbis_time = ov_time_total (&vf, -1);
-	if (vorbis_time >= 0)
-		info->time = vorbis_time / time_scaler;
-
-	ov_clear (&vf);
-}
 
 static size_t read_cb (void *ptr, size_t size, size_t nmemb, void *datasource)
 {
-	ssize_t res;
-
-	res = io_read ((io_stream*) datasource, ptr, size * nmemb);
+	ssize_t res = io_read ((io_stream*) datasource, ptr, size * nmemb);
 
 	/* libvorbisfile expects the read callback to return >= 0 with errno
-	 * set to non zero on error. */
+	* set to non zero on error. */
 	if (res < 0) {
 		logit ("Read error");
-		if (errno == 0)
-			errno = 0xffff;
+		if (errno == 0) errno = 0xffff;
 		res = 0;
 	}
 	else
@@ -188,264 +65,245 @@ static long tell_cb (void *datasource)
 	return (long)io_tell ((io_stream*) datasource);
 }
 
-static void vorbis_open_stream_internal (struct vorbis_data *data)
+static void get_comment_tags (OggVorbis_File *vf, struct file_tags *info)
 {
-	int res;
-	ov_callbacks callbacks = {
-		read_cb,
-		seek_cb,
-		close_cb,
-		tell_cb
-	};
-
-	data->tags = new file_tags;
-
-	res = ov_open_callbacks (data->stream, &data->vf, NULL, 0, callbacks);
-	if (res < 0) {
-		const char *vorbis_err = vorbis_strerror (res);
-
-		decoder_error (&data->error, ERROR_FATAL, 0, "%s", vorbis_err);
-		debug ("ov_open error: %s", vorbis_err);
+	vorbis_comment *comments = ov_comment (vf, -1);
+	for (int i = 0; i < comments->comments; i++) {
+		if (!strncasecmp(comments->user_comments[i], "title=",
+				 strlen ("title=")))
+			info->title = (comments->user_comments[i]
+					+ strlen ("title="));
+		else if (!strncasecmp(comments->user_comments[i],
+					"artist=", strlen ("artist=")))
+			info->artist = (comments->user_comments[i]
+					+ strlen ("artist="));
+		else if (!strncasecmp(comments->user_comments[i],
+					"album=", strlen ("album=")))
+			info->album = (comments->user_comments[i]
+					+ strlen ("album="));
+		else if (!strncasecmp(comments->user_comments[i],
+					"tracknumber=",
+					strlen ("tracknumber=")))
+			info->track = atoi (comments->user_comments[i]
+					+ strlen ("tracknumber="));
+		else if (!strncasecmp(comments->user_comments[i],
+					"track=", strlen ("track=")))
+			info->track = atoi (comments->user_comments[i]
+					+ strlen ("track="));
 	}
-	else {
+}
+
+/* Return a description of an ov_*() error. */
+static const char *vorbis_strerror (const int code)
+{
+	switch (code) {
+		case OV_EREAD: return "read error";
+		case OV_ENOTVORBIS: return "not a vorbis file";
+		case OV_EVERSION: return "vorbis version mismatch";
+		case OV_EBADHEADER: return "invalid Vorbis bitstream header";
+		case OV_EFAULT: return "internal (vorbis) logic fault";
+		default: return "unknown error";
+	}
+}
+
+struct vorbis_data : public Codec
+{
+	struct io_stream *stream;
+	OggVorbis_File vf;
+	int last_section;
+	int bitrate;
+	int avg_bitrate;
+	int duration;
+	int ok; /* was this stream successfully opened? */
+	int tags_change; /* the tags were changed from the last call of
+	                    ogg_current_tags() */
+	struct file_tags *tags;
+
+
+	vorbis_data(struct io_stream *stream)
+	: stream(stream)
+	, ok(0)
+	, tags_change(0)
+	, tags(new file_tags)
+	{
+		ov_callbacks callbacks = {
+			read_cb,
+			seek_cb,
+			close_cb,
+			tell_cb
+		};
+
+		int res = ov_open_callbacks (stream, &vf, NULL, 0, callbacks);
+		if (res < 0) {
+			const char *vorbis_err = vorbis_strerror (res);
+			error.fatal("%s", vorbis_err);
+			debug ("ov_open error: %s", vorbis_err);
+			return;
+		}
 		int64_t duration;
 
-		data->last_section = -1;
-		data->avg_bitrate = ov_bitrate (&data->vf, -1) / 1000;
-		data->bitrate = data->avg_bitrate;
-		data->duration = -1;
-		duration = ov_time_total (&data->vf, -1);
-		if (duration >= 0)
-			data->duration = duration / time_scaler;
-		data->ok = 1;
-		get_comment_tags (&data->vf, data->tags);
-	}
-}
-
-static void *vorbis_open (const char *file)
-{
-	struct vorbis_data *data;
-
-	data = (struct vorbis_data *)xmalloc (sizeof(struct vorbis_data));
-	data->ok = 0;
-
-	decoder_error_init (&data->error);
-	data->tags_change = 0;
-	data->tags = NULL;
-
-	data->stream = io_open (file, 1);
-	if (!io_ok(data->stream)) {
-		decoder_error (&data->error, ERROR_FATAL, 0,
-		               "Can't load OGG: %s", io_strerror(data->stream));
-		return data;
+		last_section = -1;
+		avg_bitrate = ov_bitrate (&vf, -1) / 1000;
+		bitrate = avg_bitrate;
+		duration = -1;
+		duration = ov_time_total (&vf, -1);
+		if (duration >= 0) duration /= time_scaler;
+		ok = 1;
+		get_comment_tags(&vf, tags);
 	}
 
-	/* This a restriction placed on us by the vorbisfile API. */
-#if INT64_MAX > LONG_MAX
-	if (io_file_size (data->stream) > LONG_MAX) {
-		decoder_error (&data->error, ERROR_FATAL, 0, "File too large!");
-		return data;
-	}
-#endif
-
-	vorbis_open_stream_internal (data);
-
-	return data;
-}
-
-static int vorbis_can_decode (struct io_stream *stream)
-{
-	char buf[35];
-
-	if (io_peek (stream, buf, 35) == 35 && !memcmp (buf, "OggS", 4)
-			&& !memcmp (buf + 28, "\01vorbis", 7))
-		return 1;
-
-	return 0;
-}
-
-static void *vorbis_open_stream (struct io_stream *stream)
-{
-	struct vorbis_data *data;
-
-	data = (struct vorbis_data *)xmalloc (sizeof(struct vorbis_data));
-	data->ok = 0;
-
-	decoder_error_init (&data->error);
-	data->stream = stream;
-	vorbis_open_stream_internal (data);
-
-	return data;
-}
-
-static void vorbis_close (void *prv_data)
-{
-	struct vorbis_data *data = (struct vorbis_data *)prv_data;
-
-	if (data->ok) {
-		ov_clear (&data->vf);
+	~vorbis_data()
+	{
+		if (ok) ov_clear (&vf);
+		io_close (stream);
+		delete tags;
 	}
 
-	io_close (data->stream);
-	decoder_error_clear (&data->error);
-	delete data->tags;
-	free (data);
-}
+	int seek (int sec) override
+	{
+		return ov_time_seek (&vf, sec * time_scaler) ? -1 : sec;
+	}
 
-static int vorbis_seek (void *prv_data, int sec)
-{
-	struct vorbis_data *data = (struct vorbis_data *)prv_data;
+	int decode (char *buf, int buf_len, sound_params &sound_params) override
+	{
+		int ret;
+		int current_section;
+		int bitrate;
+		vorbis_info *info;
 
-	assert (sec >= 0);
+		error.clear();
 
-	return ov_time_seek (&data->vf, sec * time_scaler) ? -1 : sec;
-}
+		while (1) {
+			#ifndef HAVE_TREMOR
+			ret = ov_read(&vf, buf, buf_len,
+				(SFMT_NE == SFMT_LE ? 0 : 1),
+				2, 1, &current_section);
+			#else
+			ret = ov_read(&vf, buf, buf_len, &current_section);
+			#endif
+			if (ret == 0) return 0;
+			if (ret < 0) {
+				error.warn("Error in the stream!");
+				continue;
+			}
 
-static int vorbis_decode (void *prv_data, char *buf, int buf_len,
-		struct sound_params *sound_params)
-{
-	struct vorbis_data *data = (struct vorbis_data *)prv_data;
-	int ret;
-	int current_section;
-	int bitrate;
-	vorbis_info *info;
+			if (current_section != last_section) {
+				logit ("section change or first section");
 
-	decoder_error_clear (&data->error);
+				last_section = current_section;
+				tags_change = 1;
+				delete tags;
+				tags = new file_tags;
+				get_comment_tags (&vf, tags);
+			}
 
-	while (1) {
-#ifndef HAVE_TREMOR
-		ret = ov_read(&data->vf, buf, buf_len,
-		              (SFMT_NE == SFMT_LE ? 0 : 1),
-		              2, 1, &current_section);
-#else
-		ret = ov_read(&data->vf, buf, buf_len, &current_section);
-#endif
-		if (ret == 0)
-			return 0;
-		if (ret < 0) {
-			decoder_error (&data->error, ERROR_STREAM, 0,
-			               "Error in the stream!");
-			continue;
+			info = ov_info (&vf, -1);
+			assert (info != NULL);
+			sound_params.channels = info->channels;
+			sound_params.rate = info->rate;
+			sound_params.fmt = SFMT_S16 | SFMT_NE;
+
+			/* Update the bitrate information */
+			bitrate = ov_bitrate_instant (&vf);
+			if (bitrate > 0) bitrate /= 1000;
+
+			break;
 		}
 
-		if (current_section != data->last_section) {
-			logit ("section change or first section");
-
-			data->last_section = current_section;
-			data->tags_change = 1;
-			delete data->tags;
-			data->tags = new file_tags;
-			get_comment_tags (&data->vf, data->tags);
-		}
-
-		info = ov_info (&data->vf, -1);
-		assert (info != NULL);
-		sound_params->channels = info->channels;
-		sound_params->rate = info->rate;
-		sound_params->fmt = SFMT_S16 | SFMT_NE;
-
-		/* Update the bitrate information */
-		bitrate = ov_bitrate_instant (&data->vf);
-		if (bitrate > 0)
-			data->bitrate = bitrate / 1000;
-
-		break;
+		return ret;
 	}
 
-	return ret;
-}
-
-static int vorbis_current_tags (void *prv_data, struct file_tags *tags)
-{
-	struct vorbis_data *data = (struct vorbis_data *)prv_data;
-
-	if (data->tags) *tags = *data->tags;
-
-	if (data->tags_change) {
-		data->tags_change = 0;
-		return 1;
+	bool current_tags (file_tags &t) override
+	{
+		if (!tags_change) return false;
+		if (tags) t = *tags;
+		tags_change = 0;
+		return true;
 	}
 
-	return 0;
-}
-
-static int vorbis_get_bitrate (void *prv_data)
-{
-	struct vorbis_data *data = (struct vorbis_data *)prv_data;
-
-	return data->bitrate;
-}
-
-static int vorbis_get_avg_bitrate (void *prv_data)
-{
-	struct vorbis_data *data = (struct vorbis_data *)prv_data;
-
-	return data->avg_bitrate;
-}
-
-static int vorbis_get_duration (void *prv_data)
-{
-	struct vorbis_data *data = (struct vorbis_data *)prv_data;
-
-	return data->duration;
-}
-
-static struct io_stream *vorbis_get_stream (void *prv_data)
-{
-	struct vorbis_data *data = (struct vorbis_data *)prv_data;
-
-	return data->stream;
-}
-
-static void vorbis_get_name (const char *unused, char buf[4])
-{
-	strcpy (buf, "OGG");
-}
-
-static int vorbis_our_format_ext (const char *ext)
-{
-	return !strcasecmp (ext, "ogg")
-		|| !strcasecmp (ext, "oga");
-}
-
-static void vorbis_get_error (void *prv_data, struct decoder_error *error)
-{
-	struct vorbis_data *data = (struct vorbis_data *)prv_data;
-
-	decoder_error_copy (error, &data->error);
-}
-
-static int vorbis_our_mime (const char *mime)
-{
-	return !strcasecmp (mime, "application/ogg")
-		|| !strncasecmp (mime, "application/ogg;", 16)
-		|| !strcasecmp (mime, "application/x-ogg")
-		|| !strncasecmp (mime, "application/x-ogg;", 18);
-}
-
-static struct decoder vorbis_decoder = {
-	NULL,
-	NULL,
-	vorbis_open,
-	vorbis_open_stream,
-	vorbis_can_decode,
-	vorbis_close,
-	vorbis_decode,
-	vorbis_seek,
-	vorbis_tags,
-	NULL,
-	vorbis_get_bitrate,
-	vorbis_get_duration,
-	vorbis_get_error,
-	vorbis_our_format_ext,
-	vorbis_our_mime,
-	vorbis_get_name,
-	vorbis_current_tags,
-	vorbis_get_stream,
-	vorbis_get_avg_bitrate
+	int get_bitrate () const override { return bitrate; }
+	int get_avg_bitrate () const override { return avg_bitrate; }
+	int get_duration () const override { return duration; }
+	io_stream *get_stream () override { return stream; }
 };
 
-struct decoder *vorbis_plugin ()
+struct vorbis_decoder : public Decoder
 {
-	return &vorbis_decoder;
+	void read_tags (const str &file_name, file_tags &info) override
+	{
+		FILE *file = fopen (file_name.c_str(), "r");
+		if (!file) {
+			log_errno ("Can't open an OGG file", errno);
+			return;
+		}
+
+		OggVorbis_File vf;
+		int err_code = ov_open(file, &vf, NULL, 0);
+		/* ov_test() is faster than ov_open(), but we can't read file time
+		* with it. */
+		//err_code = ov_test(file, &vf, NULL, 0);
+
+		if (err_code < 0) {
+			logit ("Can't open %s: %s", file_name, vorbis_strerror (err_code));
+			fclose (file);
+			return;
+		}
+
+		get_comment_tags (&vf, &info);
+
+		int64_t vorbis_time = ov_time_total (&vf, -1);
+		if (vorbis_time >= 0) info.time = vorbis_time / time_scaler;
+
+		ov_clear (&vf);
+	}
+
+	Codec* open(io_stream &stream) override
+	{
+		return new vorbis_data(&stream);
+	}
+
+	#if INT64_MAX > LONG_MAX
+	Codec* open(const str &file) override
+	{
+		auto *stream = io_open (file, 1);
+		if (!io_ok(stream)) {
+			io_close(stream);
+			return NULL;
+		}
+
+		/* This a restriction placed on us by the vorbisfile API. */
+		if (io_file_size (stream) > LONG_MAX) {
+			io_close(stream);
+			return NULL;
+		}
+
+		return open(*stream);
+	}
+	#endif
+
+	bool can_decode (io_stream &stream) override
+	{
+		char buf[35];
+		return io_peek(&stream, buf, 35) == 35 && !memcmp(buf, "OggS", 4)
+				&& !memcmp (buf + 28, "\01vorbis", 7);
+	}
+
+	bool matches_ext (const char *ext) const override
+	{
+		return !strcasecmp (ext, "ogg")
+			|| !strcasecmp (ext, "oga");
+	}
+
+	bool matches_mime (const str &mime)
+	{
+		return !strcasecmp (mime.c_str(), "application/ogg")
+			|| !strncasecmp (mime.c_str(), "application/ogg;", 16)
+			|| !strcasecmp (mime.c_str(), "application/x-ogg")
+			|| !strncasecmp (mime.c_str(), "application/x-ogg;", 18);
+	}
+};
+
+Decoder *vorbis_plugin ()
+{
+	return new vorbis_decoder;
 }

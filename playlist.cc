@@ -26,7 +26,7 @@ bool plist_item::can_tag() const
 {
 	if (type != F_SOUND) return false;
 	auto *df = get_decoder (path.c_str());
-	return df && df->info && df->write_info;
+	return df && df->can_write_tags(path);
 }
 
 plist::~plist()

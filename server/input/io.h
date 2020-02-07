@@ -1,5 +1,4 @@
-#ifndef IO_H
-#define IO_H
+#pragma once
 
 #include <sys/types.h>
 #include <pthread.h>
@@ -111,5 +110,3 @@ void io_prebuffer (struct io_stream *s, const size_t to_fill);
 void io_set_buf_fill_callback (struct io_stream *s,
 		buf_fill_callback_t callback, void *data_ptr);
 int io_seekable (const struct io_stream *s);
-
-#endif

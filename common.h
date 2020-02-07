@@ -43,14 +43,6 @@ struct timespec;
                               (val) > (max) ? (max) : (val))
 #endif
 
-#ifdef NDEBUG
-#define error(...) internal_error (NULL, 0, NULL, ## __VA_ARGS__)
-#define fatal(...) internal_fatal (NULL, 0, NULL, ## __VA_ARGS__)
-#else
-#define error(...) internal_error (__FILE__, __LINE__, __func__, ## __VA_ARGS__)
-#define fatal(...) internal_fatal (__FILE__, __LINE__, __func__, ## __VA_ARGS__)
-#endif
-
 #ifndef STRERROR_FN
 # define STRERROR_FN xstrerror
 #endif
@@ -70,12 +62,9 @@ void xsleep (size_t ticks, size_t ticks_per_sec);
 char *xstrerror (int errnum);
 void xsignal (int signum, void (*func)(int));
 
-void internal_error (const char *file, int line, const char *function,
-                     const char *format, ...);
-void internal_fatal (const char *file, int line, const char *function,
-                     const char *format, ...) ATTR_NORETURN;
+void error (const char *format, ...);
+void fatal (const char *format, ...) ATTR_NORETURN;
 void set_me_server ();
-char *trim (const char *src, size_t len);
 char *format_msg (const char *format, ...);
 char *format_msg_va (const char *format, va_list va);
 int get_realtime (struct timespec *ts);

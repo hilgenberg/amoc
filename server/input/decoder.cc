@@ -11,15 +11,94 @@
 #include "decoder.h"
 #include "io.h"
 #include "inputs.h"
+#include <taglib/fileref.h>
+#include <taglib/tag.h>
+
+void decoder_error::warn(const char *format, ...)
+{
+	type = ERROR_STREAM;
+	va_list va; va_start(va, format);
+	char *err_str = format_msg_va (format, va);
+	va_end (va);
+	if (err_str) desc = err_str;
+	free (err_str);
+}
+void decoder_error::fatal(const char *format, ...)
+{
+	type = ERROR_FATAL;
+	va_list va; va_start (va, format);
+	char *err_str = format_msg_va (format, va);
+	va_end (va);
+	if (err_str) desc = err_str;
+	free (err_str);
+}
+
+Codec* Decoder::open(const str &file)
+{
+	io_stream *stream = io_open(file.c_str(), 1);
+
+	if (!io_ok (stream))
+	{
+		io_close(stream);
+		return NULL;
+	}
+
+	return open(*stream);
+}
+
+void Decoder::read_tags(const str &file_name, file_tags &info)
+{
+	TagLib::FileRef f(file_name.c_str());
+
+	if (!f.isNull() && f.tag())
+	{
+		TagLib::Tag *tag = f.tag();
+		info.artist = tag->artist().to8Bit(true);
+		info.album  = tag->album().to8Bit(true);
+		info.title  = tag->title().to8Bit(true);
+		info.track  = tag->track();
+	}
+	if (!f.isNull() && f.audioProperties())
+	{
+		TagLib::AudioProperties *properties = f.audioProperties();
+		info.time = properties->length();
+	}
+	else
+	{
+		info.time = get_duration(file_name);
+	}
+}
+bool Decoder::write_tags(const str &file_name, const tag_changes &info)
+{
+	TagLib::FileRef f(file_name.c_str());
+
+	if (f.isNull() || !f.tag()) return false;
+
+	TagLib::Tag *tag = f.tag();
+	#define CVT(s) TagLib::String(*info.s, TagLib::String::UTF8)
+	if (info.title ) tag->setTitle (CVT(title));
+	if (info.artist) tag->setArtist(CVT(artist));
+	if (info.album ) tag->setAlbum (CVT(album));
+	if (info.track ) tag->setTrack (*info.track);
+	#undef CVT
+
+	return f.save();
+}
+bool Decoder::can_write_tags(const str &file_name)
+{
+	TagLib::FileRef f(file_name.c_str());
+
+	if (f.isNull() || !f.tag()) return false;
+
+	return true; // TODO, this is a bit optimistic
+}
+
 
 struct plugin
 {
-	plugin(const char *name, decoder *f) : name(name), decoder(f)
-	{
-		if (f->init) f->init();
-	}
+	plugin(const char *name, Decoder *f) : name(name), decoder(f) {}
 	const char *name;
-	struct decoder *decoder;
+	Decoder *decoder;
 };
 static std::vector<plugin> plugins;
 
@@ -80,13 +159,12 @@ static std::vector<int> default_decoder_list;
 
 /* Return the index of the first decoder able to handle files with the
  * given filename extension, or -1 if none can. */
-static decoder* find_extn_decoder (const std::vector<int> &decoder_list, const char *extn)
+static Decoder* find_extn_decoder (const std::vector<int> &decoder_list, const char *extn)
 {
 	assert (extn && extn[0]);
 
 	for (int i : decoder_list) {
-		if (plugins[i].decoder->our_format_ext &&
-		    plugins[i].decoder->our_format_ext (extn))
+		if (plugins[i].decoder->matches_ext(extn))
 			return plugins[i].decoder;
 	}
 
@@ -95,11 +173,10 @@ static decoder* find_extn_decoder (const std::vector<int> &decoder_list, const c
 
 /* Return the index of the first decoder able to handle audio with the
  * given MIME media type, or -1 if none can. */
-static decoder* find_mime_decoder (const std::vector<int> &decoder_list, const str &mime)
+static Decoder* find_mime_decoder (const std::vector<int> &decoder_list, const str &mime)
 {
 	for (int i : decoder_list) {
-		if (plugins[i].decoder->our_format_mime &&
-		    plugins[i].decoder->our_format_mime (mime.c_str()))
+		if (plugins[i].decoder->matches_mime(mime))
 			return plugins[i].decoder;
 	}
 
@@ -108,7 +185,7 @@ static decoder* find_mime_decoder (const std::vector<int> &decoder_list, const s
 
 /* Return the index of the first decoder able to handle audio with the
  * given filename extension and/or MIME media type, or -1 if none can. */
-static decoder* find_decoder (const char *file, str *mime)
+static Decoder* find_decoder (const char *file, str *mime)
 {
 	const char *extn = file ? ext_pos(file) : NULL;
 
@@ -146,7 +223,7 @@ static decoder* find_decoder (const char *file, str *mime)
 			return find_extn_decoder (pref.decoder_list, extn);
 	}
 
-	decoder *d = NULL;
+	Decoder *d = NULL;
 	if (mime && !mime->empty())
 		d = find_mime_decoder (default_decoder_list, *mime);
 	if (!d && extn && *extn)
@@ -159,27 +236,25 @@ bool is_sound_file (const str &name)
 	return find_decoder(name.c_str(), NULL);
 }
 
-struct decoder *get_decoder (const str &file)
+struct Decoder *get_decoder (const str &file)
 {
 	return find_decoder(file.c_str(), NULL);
 }
 
 /* Return the decoder for this stream. */
-decoder *get_decoder_by_content (struct io_stream *stream)
+Decoder *get_decoder_by_content (io_stream &stream)
 {
 	char buf[8096];
 	ssize_t res;
-
-	assert (stream != NULL);
 
 	/* Peek at the start of the stream to check if sufficient data is
 	 * available.  If not, there is no sense in trying the decoders as
 	 * each of them would issue an error.  The data is also needed to
 	 * get the MIME type. */
 	logit ("Testing the stream...");
-	res = io_peek (stream, buf, sizeof (buf));
+	res = io_peek (&stream, buf, sizeof (buf));
 	if (res < 0) {
-		error("Stream error: %s", io_strerror (stream));
+		error("Stream error: %s", io_strerror (&stream));
 		return NULL;
 	}
 
@@ -189,10 +264,10 @@ decoder *get_decoder_by_content (struct io_stream *stream)
 	}
 
 	// get decoder by mime type
-	const char *tmp = io_get_mime_type (stream);
+	const char *tmp = io_get_mime_type (&stream);
 	if (tmp) {
 		str mime = tmp;
-		decoder *d = find_decoder (NULL, &mime);
+		Decoder *d = find_decoder (NULL, &mime);
 		if (d) {
 			logit ("Found decoder for MIME type %s", mime.c_str());
 			return d;
@@ -201,8 +276,7 @@ decoder *get_decoder_by_content (struct io_stream *stream)
 	else logit ("No MIME type.");
 
 	for (auto &p : plugins) {
-		if (p.decoder->can_decode
-				&& p.decoder->can_decode(stream)) {
+		if (p.decoder->can_decode(stream)) {
 			logit ("Found decoder for stream: %s", p.name);
 			return p.decoder;
 		}
@@ -214,12 +288,12 @@ decoder *get_decoder_by_content (struct io_stream *stream)
 
 void decoder_init()
 {
-	#define H(X) plugins.emplace_back(#X, X ## _plugin())
+	#define H(X) do{ auto *d = X ## _plugin(); if (d) plugins.emplace_back(#X, d); }while(0)
 	ALL_INPUTS
 	#undef H
 
-	for (int ix = 0; ix < plugins.size(); ix += 1)
-		default_decoder_list.push_back(ix);
+	for (int i = 0; i < plugins.size(); ++i)
+		default_decoder_list.push_back(i);
 
 	const char *PreferredDecoders[] = {
 	"aac(aac,ffmpeg)", "m4a(ffmpeg)", "mpc(musepack,*,ffmpeg)", "mpc8(musepack,*,ffmpeg)",
@@ -232,71 +306,6 @@ void decoder_init()
 
 void decoder_cleanup ()
 {
-	for (auto &p : plugins) 
-		if (p.decoder->destroy) p.decoder->destroy();
-
 	preferences.clear();
-}
-
-/* Fill the error structure with an error of a given type and message.
- * strerror(add_errno) is appended at the end of the message if add_errno != 0.
- * The old error message is free()ed.
- * This is thread safe; use this instead of constructs using strerror(). */
-void decoder_error (struct decoder_error *error,
-		const enum decoder_error_type type, const int add_errno,
-		const char *format, ...)
-{
-	char *err_str;
-	va_list va;
-
-	if (error->err)
-		free (error->err);
-
-	error->type = type;
-
-	va_start (va, format);
-	err_str = format_msg_va (format, va);
-	va_end (va);
-
-	if (add_errno) {
-		char *err_buf;
-
-		err_buf = xstrerror (add_errno);
-		error->err = format_msg ("%s%s", err_str, err_buf);
-		free (err_buf);
-	}
-	else
-		error->err = format_msg ("%s", err_str);
-
-	free (err_str);
-}
-
-/* Initialize the decoder_error structure. */
-void decoder_error_init (struct decoder_error *error)
-{
-	error->type = ERROR_OK;
-	error->err = NULL;
-}
-
-/* Set the decoder_error structure to contain "success" information. */
-void decoder_error_clear (struct decoder_error *error)
-{
-	error->type = ERROR_OK;
-	if (error->err) {
-		free (error->err);
-		error->err = NULL;
-	}
-}
-
-void decoder_error_copy (struct decoder_error *dst,
-		const struct decoder_error *src)
-{
-	dst->type = src->type;
-	dst->err = xstrdup (src->err);
-}
-
-/* Return the error text from the decoder_error variable. */
-const char *decoder_error_text (const struct decoder_error *error)
-{
-	return error->err;
+	for (auto &p : plugins) delete p.decoder;
 }

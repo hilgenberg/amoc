@@ -21,41 +21,29 @@
 
 static int im_server = 0; /* Am I the server? */
 
-void internal_error (const char *file, int line, const char *function,
-                     const char *format, ...)
+void error (const char *format, ...)
 {
 	int saved_errno = errno;
-	va_list va;
-	char *msg;
-
-	va_start (va, format);
-	msg = format_msg_va (format, va);
+	va_list va; va_start (va, format);
+	char *msg = format_msg_va (format, va);
 	va_end (va);
-
 	if (im_server)
-		server_error (file, line, function, msg);
+		server_error(NULL, 0, NULL, msg);
 	else
 		fputs(msg, stderr);
-		//interface_error (msg); -- TODO
-
 	free (msg);
-
 	errno = saved_errno;
 }
 
 /* End program with a message. Use when an error occurs and we can't recover.
  * If we're the server, then also log the message to the system log. */
-void internal_fatal (const char *file, int line,
-                 const char *function, const char *format, ...)
+void fatal (const char *format, ...)
 {
-	va_list va;
-	char *msg;
-
-	va_start (va, format);
-	msg = format_msg_va (format, va);
+	va_list va; va_start (va, format);
+	char *msg = format_msg_va (format, va);
 	fprintf (stderr, "\nFATAL_ERROR: %s\n\n", msg);
 #ifndef NDEBUG
-	internal_logit (file, line, function, "FATAL ERROR: %s", msg);
+	internal_logit (NULL, 0, NULL, "FATAL ERROR: %s", msg);
 #endif
 	va_end (va);
 
@@ -72,37 +60,30 @@ void internal_fatal (const char *file, int line,
 void *xmalloc (size_t size)
 {
 	void *p = malloc(size);
-
 	if (!p) fatal ("Can't allocate memory!");
 	return p;
 }
 
 void *xcalloc (size_t nmemb, size_t size)
 {
-	void *p;
-
-	if ((p = calloc(nmemb, size)) == NULL)
-		fatal ("Can't allocate memory!");
+	void *p = calloc(nmemb, size);
+	if (!p) fatal ("Can't allocate memory!");
 	return p;
 }
 
 void *xrealloc (void *ptr, const size_t size)
 {
-	void *p;
-
-	if ((p = realloc(ptr, size)) == NULL && size != 0)
-		fatal ("Can't allocate memory!");
+	void *p = realloc(ptr, size);
+	if (!p && size) fatal ("Can't allocate memory!");
 	return p;
 }
 
 char *xstrdup (const char *s)
 {
-	char *n;
-
-	if (s && (n = strdup(s)) == NULL)
-		fatal ("Can't allocate memory!");
-
-	return s ? n : NULL;
+	if (!s) return NULL;
+	char *n = strdup(s);
+	if (!n) fatal ("Can't allocate memory!");
+	return n;
 }
 
 /* Sleep for the specified number of 'ticks'. */
@@ -111,7 +92,6 @@ void xsleep (size_t ticks, size_t ticks_per_sec)
 	assert(ticks_per_sec > 0);
 
 	if (ticks > 0) {
-		int rc;
 		struct timespec delay = {.tv_sec = (__time_t)ticks, .tv_nsec = 0};
 
 		if (ticks_per_sec > 1) {
@@ -128,6 +108,7 @@ void xsleep (size_t ticks, size_t ticks_per_sec)
 			}
 		}
 
+		int rc;
 		do {
 			rc = nanosleep (&delay, &delay);
 			if (rc == -1 && errno != EINTR)
@@ -179,35 +160,6 @@ void set_me_server ()
 	im_server = 1;
 }
 
-/* Extract a substring starting at 'src' for length 'len' and remove
- * any leading and trailing whitespace.  Return NULL if unable.  */
-char *trim (const char *src, size_t len)
-{
-	char *result;
-	const char *first, *last;
-
-	for (last = &src[len - 1]; last >= src; last -= 1) {
-		if (!isspace (*last))
-			break;
-	}
-	if (last < src)
-		return NULL;
-
-	for (first = src; first <= last; first += 1) {
-		if (!isspace (*first))
-			break;
-	}
-	if (first > last)
-		return NULL;
-
-	last += 1;
-	result = (char*) xcalloc (last - first + 1, sizeof (char));
-	strncpy (result, first, last - first);
-	result[last - first] = 0x00;
-
-	return result;
-}
-
 /* Format argument values according to 'format' and return it as a
  * malloc()ed string. */
 char *format_msg (const char *format, ...)
@@ -257,7 +209,6 @@ int random_int(int a, int b)
 	int i = a + (int)(rand() / (float)RAND_MAX * (b-a+1));
 	return i <= b ? i : b;
 	// TODO...
-
 }
 
 double now()

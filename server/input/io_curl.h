@@ -1,6 +1,4 @@
-#ifndef IO_CURL_H
-#define IO_CURL_H
-
+#pragma once
 #include "io.h"
 
 void io_curl_init ();
@@ -10,5 +8,3 @@ void io_curl_close (struct io_stream *s);
 ssize_t io_curl_read (struct io_stream *s, char *buf, size_t count);
 void io_curl_strerror (struct io_stream *s);
 void io_curl_wake_up (struct io_stream *s);
-
-#endif

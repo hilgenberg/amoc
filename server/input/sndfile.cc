@@ -22,15 +22,7 @@
  * - some tags can be read.
  */
 
-struct sndfile_data
-{
-	SNDFILE *sndfile;
-	SF_INFO snd_info;
-	struct decoder_error error;
-	bool timing_broken;
-};
-
-static std::set<std::string> supported_extns;
+static std::set<str> supported_extns;
 
 static void load_extn_list ()
 {
@@ -66,217 +58,136 @@ static void load_extn_list ()
 	#undef SYN
 }
 
-static void sndfile_init ()
+struct sndfile_data : public Codec
 {
-	load_extn_list ();
-}
+	SNDFILE *sndfile;
+	SF_INFO snd_info;
 
-static void sndfile_destroy ()
-{
-	supported_extns.clear();
-}
+	/* Return true iff libsndfile's frame count is unknown or miscalculated. */
+	bool is_timing_broken (int fd)
+	{
+		int rc;
+		struct stat buf;
+		SF_INFO *info = &snd_info;
 
-/* Return true iff libsndfile's frame count is unknown or miscalculated. */
-static bool is_timing_broken (int fd, struct sndfile_data *data)
-{
-	int rc;
-	struct stat buf;
-	SF_INFO *info = &data->snd_info;
+		if (info->frames == SF_COUNT_MAX) return true;
+		if (info->frames / info->samplerate > INT32_MAX) return true;
 
-	if (info->frames == SF_COUNT_MAX)
-			return true;
+		/* The libsndfile code warns of miscalculation for huge files of
+		* specific formats, but it's unclear if others are known to work
+		* or the test is just omitted for them.  We'll assume they work
+		* until it's shown otherwise. */
+		switch (info->format & SF_FORMAT_TYPEMASK) {
+		case SF_FORMAT_AIFF:
+		case SF_FORMAT_AU:
+		case SF_FORMAT_SVX:
+		case SF_FORMAT_WAV:
+			rc = fstat (fd, &buf);
+			if (rc == -1) {
+				log_errno ("Can't stat file", errno);
+				/* We really need to return "unknown" here. */
+				return false;
+			}
 
-	if (info->frames / info->samplerate > INT32_MAX)
-			return true;
-
-	/* The libsndfile code warns of miscalculation for huge files of
-	 * specific formats, but it's unclear if others are known to work
-	 * or the test is just omitted for them.  We'll assume they work
-	 * until it's shown otherwise. */
-	switch (info->format & SF_FORMAT_TYPEMASK) {
-	case SF_FORMAT_AIFF:
-	case SF_FORMAT_AU:
-	case SF_FORMAT_SVX:
-	case SF_FORMAT_WAV:
-		rc = fstat (fd, &buf);
-		if (rc == -1) {
-			log_errno ("Can't stat file", errno);
-			/* We really need to return "unknown" here. */
-			return false;
+			if (buf.st_size > UINT32_MAX)
+				return true;
 		}
 
-		if (buf.st_size > UINT32_MAX)
-			return true;
+		return false;
 	}
 
-	return false;
-}
+	sndfile_data(const str &file)
+	: sndfile(NULL)
+	{
+		memset (&snd_info, 0, sizeof(snd_info));
 
-static void *sndfile_open (const char *file)
-{
-	int fd;
-	struct sndfile_data *data;
+		int fd = open (file.c_str(), O_RDONLY);
+		if (fd == -1) {
+			char *err = xstrerror (errno);
+			error.fatal("Can't open file: %s", err);
+			free (err);
+			return;
+		}
 
-	data = (struct sndfile_data *)xmalloc (sizeof(struct sndfile_data));
+		/* sf_open_fd() close()s 'fd' on error and in sf_close(). */
+		sndfile = sf_open_fd (fd, SFM_READ, &snd_info, SF_TRUE);
+		if (!sndfile) {
+			/* FIXME: sf_strerror is not thread safe with NULL argument */
+			error.fatal("Can't open file: %s", sf_strerror(NULL));
+			return;
+		}
 
-	decoder_error_init (&data->error);
-	memset (&data->snd_info, 0, sizeof(data->snd_info));
-	data->timing_broken = false;
+		/* If the timing is broken, sndfile only decodes up to the broken value. */
+		if (is_timing_broken (fd)) {
+			error.fatal("File too large for audio format!");
+			return;
+		}
 
-	fd = open (file, O_RDONLY);
-	if (fd == -1) {
-		char *err = xstrerror (errno);
-		decoder_error (&data->error, ERROR_FATAL, 0,
-		               "Can't open file: %s", err);
-		free (err);
-		return data;
+		debug ("Opened file %s", file.c_str());
+		debug ("Channels: %d", snd_info.channels);
+		debug ("Format: %08X", snd_info.format);
+		debug ("Sample rate: %d", snd_info.samplerate);
 	}
 
-	/* sf_open_fd() close()s 'fd' on error and in sf_close(). */
-	data->sndfile = sf_open_fd (fd, SFM_READ, &data->snd_info, SF_TRUE);
-	if (!data->sndfile) {
-		/* FIXME: sf_strerror is not thread safe with NULL argument */
-		decoder_error (&data->error, ERROR_FATAL, 0,
-				"Can't open file: %s", sf_strerror(NULL));
-		return data;
+	~sndfile_data()
+	{
+		if (sndfile) sf_close (sndfile);
 	}
 
-	/* If the timing is broken, sndfile only decodes up to the broken value. */
-	data->timing_broken = is_timing_broken (fd, data);
-	if (data->timing_broken) {
-		decoder_error (&data->error, ERROR_FATAL, 0,
-		               "File too large for audio format!");
-		return data;
+	int seek (int sec) override
+	{
+		int res = sf_seek (sndfile, snd_info.samplerate * sec, SEEK_SET);
+		if (res < 0) return -1;
+		return res / snd_info.samplerate;
 	}
 
-	debug ("Opened file %s", file);
-	debug ("Channels: %d", data->snd_info.channels);
-	debug ("Format: %08X", data->snd_info.format);
-	debug ("Sample rate: %d", data->snd_info.samplerate);
+	int decode (char *buf, int buf_len, sound_params &sound_params)
+	{
+		sound_params.channels = snd_info.channels;
+		sound_params.rate = snd_info.samplerate;
+		sound_params.fmt = SFMT_FLOAT;
 
-	return data;
-}
-
-static void sndfile_close (void *void_data)
-{
-	struct sndfile_data *data = (struct sndfile_data *)void_data;
-
-	if (data->sndfile)
-		sf_close (data->sndfile);
-
-	decoder_error_clear (&data->error);
-	free (data);
-}
-
-static void sndfile_info (const char *file_name, struct file_tags *info)
-{
-	struct sndfile_data *data = (sndfile_data*) sndfile_open (file_name);
-	if (data->sndfile && !data->timing_broken)
-		info->time = data->snd_info.frames / data->snd_info.samplerate;
-	sndfile_close (data);
-}
-
-static int sndfile_seek (void *void_data, int sec)
-{
-	struct sndfile_data *data = (struct sndfile_data *)void_data;
-	int res;
-
-	assert (sec >= 0);
-
-	res = sf_seek (data->sndfile, data->snd_info.samplerate * sec,
-			SEEK_SET);
-
-	if (res < 0)
-		return -1;
-
-	return res / data->snd_info.samplerate;
-}
-
-static int sndfile_decode (void *void_data, char *buf, int buf_len,
-		struct sound_params *sound_params)
-{
-	struct sndfile_data *data = (struct sndfile_data *)void_data;
-
-	sound_params->channels = data->snd_info.channels;
-	sound_params->rate = data->snd_info.samplerate;
-	sound_params->fmt = SFMT_FLOAT;
-
-	return sf_readf_float (data->sndfile, (float *)buf,
-			buf_len / sizeof(float) / data->snd_info.channels)
-		* sizeof(float) * data->snd_info.channels;
-}
-
-static int sndfile_get_bitrate (void *unused)
-{
-	return -1;
-}
-
-static int sndfile_get_duration (void *void_data)
-{
-	int result;
-	struct sndfile_data *data = (struct sndfile_data *)void_data;
-
-	result = -1;
-	if (!data->timing_broken)
-		result = data->snd_info.frames / data->snd_info.samplerate;
-
-	return result;
-}
-
-static void sndfile_get_name (const char *file, char buf[4])
-{
-	const char *ext;
-
-	ext = ext_pos (file);
-	if (ext) {
-		if (!strcasecmp (ext, "snd"))
-			strcpy (buf, "AU");
-		else if (!strcasecmp (ext, "8svx"))
-			strcpy (buf, "SVX");
-		else if (!strcasecmp (ext, "oga"))
-			strcpy (buf, "OGG");
-		else if (!strcasecmp (ext, "sf") || !strcasecmp (ext, "icram"))
-			strcpy (buf, "IRC");
-		else if (!strcasecmp (ext, "mat4") || !strcasecmp (ext, "mat5"))
-			strcpy (buf, "MAT");
+		return sf_readf_float (sndfile, (float *)buf,
+				buf_len / sizeof(float) / snd_info.channels)
+			* sizeof(float) * snd_info.channels;
 	}
-}
 
-static int sndfile_our_format_ext (const char *ext)
-{
-	return supported_extns.count(ext);
-}
-
-static void sndfile_get_error (void *prv_data, struct decoder_error *error)
-{
-	struct sndfile_data *data = (struct sndfile_data *)prv_data;
-
-	decoder_error_copy (error, &data->error);
-}
-
-static struct decoder sndfile_decoder = {
-	sndfile_init,
-	sndfile_destroy,
-	sndfile_open,
-	NULL,
-	NULL,
-	sndfile_close,
-	sndfile_decode,
-	sndfile_seek,
-	sndfile_info,
-	NULL,
-	sndfile_get_bitrate,
-	sndfile_get_duration,
-	sndfile_get_error,
-	sndfile_our_format_ext,
-	NULL,
-	sndfile_get_name,
-	NULL,
-	NULL,
-	NULL
+	int get_duration () const override
+	{
+		return snd_info.frames / snd_info.samplerate;
+	}
 };
 
-struct decoder *sndfile_plugin ()
+struct sndfile_decoder : public Decoder
 {
-	return &sndfile_decoder;
+	sndfile_decoder()
+	{
+		load_extn_list ();
+	}
+
+	~sndfile_decoder()
+	{
+		supported_extns.clear();
+	}
+
+	Codec* open(const str &f) { return new sndfile_data(f); }
+
+	bool matches_ext(const char *ext) const override
+	{
+		str s(ext);
+		std::transform(s.begin(), s.end(), s.begin(),
+		[](unsigned char c){ return c >= 'A' && c <= 'Z' ? c-('A'-'a') : c; });
+		return supported_extns.count(s);
+	}
+
+	int get_duration(const str &file_name) override
+	{
+		sndfile_data data(file_name);
+		return data.error.type == ERROR_OK ? data.get_duration() : -1;
+	}
+};
+
+Decoder *sndfile_plugin ()
+{
+	return new sndfile_decoder;
 }

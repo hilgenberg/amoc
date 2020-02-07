@@ -32,7 +32,7 @@ file_tags tags_cache::read_add (const str &file, int client_id)
 	}
 
 	auto *df = get_decoder (file);
-	if (df && df->info) df->info(file.c_str(), &rec.tags);
+	if (df) df->read_tags(file, rec.tags);
 	rec.tags.rating = ratings_read(file);
 	rec.mod_time = current_mtime;
 
@@ -61,13 +61,13 @@ void tags_cache::write_add (const str &file, tag_changes *tags, int client_id)
 	#endif
 
 	auto *df = get_decoder (file);
-	if (!df || !df->write_info)
+	if (!df)
 	{
 		status_msg(format("Can not write tags for %s", file.c_str()));
 		delete tags;
 		return;
 	}
-	bool ok = df->write_info(file, *tags);
+	bool ok = df->write_tags(file, *tags);
 	delete tags;
 	if (!ok)
 	{
@@ -104,7 +104,6 @@ void tags_cache::ratings_changed(const str &file, int rating)
 	rec.tags.rating = rating;
 	db->add(file, rec);
 }
-
 
 void *tags_cache::reader_thread(void *cache_ptr)
 {
