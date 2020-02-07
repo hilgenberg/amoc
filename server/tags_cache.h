@@ -1,14 +1,6 @@
 #pragma once
 #include "server.h"
-# include <db.h>
-
-// TODO: handle load() failing!
-
-struct cache_record
-{
-	time_t mod_time; // last modification time of the file
-	file_tags tags;
-};
+#include "tags_db.h"
 
 class tags_cache
 {
@@ -16,27 +8,21 @@ public:
 	tags_cache();
 	~tags_cache();
 
-	/* Request queue manipulation functions: */
-	void clear_queue (int client_id);
-
-	/* Cache DB manipulation functions: */
-	void load ();
 	void add_request (const str &file, int client_id, tag_changes *tags=NULL);
 	file_tags get_immediate (const str &file);
 	void ratings_changed(const str &file, int rating);
+	void clear_queue (int client_id);
 
 	void files_rm(std::set<str> &src); // unlinks all files in src, removing those that fail
 	void files_mv(std::set<str> &src, const str &dst); // move file to new directory
 	bool files_mv(const str &src, str &dst); // rename/move single file
 
 private:
-	DB_ENV *db_env;
-	DB *db;
-	u_int32_t locker;
+	tags_db *db;
 
 	struct Lock
 	{
-		Lock(tags_cache &c, DBT &key);
+		Lock(tags_db &db, DBT &key);
 		Lock(const Lock &) = delete;
 		~Lock();
 		DB_LOCK lock;
@@ -45,7 +31,6 @@ private:
 	friend struct Lock;
 
 	void remove_rec(const str &fname);
-	void sync();
 	void add(DBT &key, const cache_record &rec);
 	file_tags read_add(const str &file, int client_id);
 	void write_add(const str &file, tag_changes *tags, int client_id);

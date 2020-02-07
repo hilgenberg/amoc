@@ -287,7 +287,6 @@ void server_init (int debugging, int foreground)
 	clients_init ();
 	audio_initialize ();
 	tc = new tags_cache();
-	tc->load();
 
 	/* Load the playlist from .moc directory. */
 	str plist_file = options::run_file_path(PLAYLIST_FILE);

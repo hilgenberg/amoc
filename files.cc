@@ -468,3 +468,42 @@ bool purge_directory (const str &dir_path)
 	closedir (dir);
 	return true;
 }
+
+bool file_delete(const str &fpath)
+{
+	struct stat st;
+	if (stat (fpath.c_str(), &st) < 0) {
+		if (errno == ENOENT) return true;
+
+		char *err = xstrerror (errno);
+		logit ("Can't stat %s: %s", fpath.c_str(), err);
+		free (err);
+		return false;
+	}
+
+	if (S_ISDIR(st.st_mode)) {
+		if (!purge_directory (fpath)) {
+			return false;
+		}
+
+		logit ("Removing directory %s...", fpath.c_str());
+		if (rmdir (fpath.c_str()) < 0) {
+			char *err = xstrerror (errno);
+			logit ("Can't remove %s: %s", fpath.c_str(), err);
+			free (err);
+			return false;
+		}
+	}
+	else {
+		logit ("Removing file %s...", fpath.c_str());
+
+		if (unlink (fpath.c_str()) < 0) {
+			char *err = xstrerror (errno);
+			logit ("Can't remove %s: %s", fpath.c_str(), err);
+			free (err);
+			return false;
+		}
+	}
+
+	return true;
+}

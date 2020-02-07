@@ -116,8 +116,6 @@ static void start_moc (const struct parameters *params, strings &args)
 		int notify_pipe[2];
 		ssize_t rc;
 
-		printf ("Running the server...\n");
-
 		/* To notify the client that the server socket is ready */
 		if (pipe(notify_pipe))
 			fatal ("pipe() failed: %s", xstrerror (errno));

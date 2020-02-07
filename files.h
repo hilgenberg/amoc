@@ -30,3 +30,4 @@ char *read_line (FILE *file);
 char *find_match_dir (char *dir);
 
 bool purge_directory (const str &dir_path);
+bool file_delete(const str &path);
