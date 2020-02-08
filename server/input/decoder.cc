@@ -14,6 +14,10 @@
 #include <taglib/fileref.h>
 #include <taglib/tag.h>
 
+//-----------------------------------------------------------------------------
+// Decoder methods
+//-----------------------------------------------------------------------------
+
 void decoder_error::warn(const char *format, ...)
 {
 	type = ERROR_STREAM;
@@ -93,10 +97,12 @@ bool Decoder::can_write_tags(const str &file_name)
 	return true; // TODO, this is a bit optimistic
 }
 
+//-----------------------------------------------------------------------------
+// Functions
+//-----------------------------------------------------------------------------
 
 struct plugin
 {
-	plugin(const char *name, Decoder *f) : name(name), decoder(f) {}
 	const char *name;
 	Decoder *decoder;
 };
@@ -151,84 +157,62 @@ struct decoder_preference
 			decoder_list.insert(decoder_list.begin() + asterisk_at++, i);
 		}
 	}
-	std::vector<int> decoder_list; /* decoder indices */
-	str type, subtype; /* MIME type or filename extn, MIME subtype or NULL */
+	std::vector<int> decoder_list; // plugin indices
+	str type, subtype; // MIME type or extension
 };
 static std::vector<decoder_preference> preferences;
 static std::vector<int> default_decoder_list;
-
-/* Return the index of the first decoder able to handle files with the
- * given filename extension, or -1 if none can. */
-static Decoder* find_extn_decoder (const std::vector<int> &decoder_list, const char *extn)
-{
-	assert (extn && extn[0]);
-
-	for (int i : decoder_list) {
-		if (plugins[i].decoder->matches_ext(extn))
-			return plugins[i].decoder;
-	}
-
-	return NULL;
-}
-
-/* Return the index of the first decoder able to handle audio with the
- * given MIME media type, or -1 if none can. */
-static Decoder* find_mime_decoder (const std::vector<int> &decoder_list, const str &mime)
-{
-	for (int i : decoder_list) {
-		if (plugins[i].decoder->matches_mime(mime))
-			return plugins[i].decoder;
-	}
-
-	return NULL;
-}
 
 /* Return the index of the first decoder able to handle audio with the
  * given filename extension and/or MIME media type, or -1 if none can. */
 static Decoder* find_decoder (const char *file, str *mime)
 {
-	const char *extn = file ? ext_pos(file) : NULL;
+	const std::vector<int> *decoder_list = NULL;
 
-	str type, subtype;
-	for (auto &pref : preferences)
+	// lookup by mime type first, if we have it
+	str m, type, subtype;
+	if (mime && !mime->empty())
 	{
-		if (pref.subtype.empty()) {
-			if (!extn || strcasecmp(pref.type.c_str(), extn)) continue;
-		}
-		else
-		{
-			if (type.empty())
-			{
-				if (options::UseMimeMagic && (!mime || mime->empty()) && file && *file)
-				{
-					type = file_mime_type(file);
-					split_mime(type, subtype);
-				}
-				else if (mime)
-				{
-					type = *mime;
-					split_mime(type, subtype);
-				}
-				else type = "/";
-			}
-
-			if (strcasecmp(pref.type.c_str(), type.c_str()) ||
-			    strcasecmp(pref.subtype.c_str(), subtype.c_str())) continue;
-		}
-
-		// match
-		if (!pref.subtype.empty())
-			return find_mime_decoder (pref.decoder_list, *mime);
-		else
-			return find_extn_decoder (pref.decoder_list, extn);
+		type = *mime;
+		split_mime(type, subtype);
+	}
+	else if (options::UseMimeMagic && file && *file)
+	{
+		m = type = file_mime_type(file);
+		split_mime(type, subtype);
+		mime = m.empty() ? NULL : &m;
+	}
+	else mime = NULL;
+	if (!type.empty()) for (auto &pref : preferences)
+	{
+		if (strcasecmp(pref.type.c_str(), type.c_str()) ||
+		    strcasecmp(pref.subtype.c_str(), subtype.c_str())) continue;
+		decoder_list = &pref.decoder_list;
+		break;
 	}
 
-	Decoder *d = NULL;
-	if (mime && !mime->empty())
-		d = find_mime_decoder (default_decoder_list, *mime);
-	if (!d && extn && *extn)
-		d = find_extn_decoder (default_decoder_list, extn);
-	return d;
+	// if not found, try extension
+	const char *ext = file ? ext_pos(file) : NULL;
+	if (!decoder_list && ext) for (auto &pref : preferences)
+	{
+		if (!pref.subtype.empty() || strcasecmp(pref.type.c_str(), ext)) continue;
+		decoder_list = &pref.decoder_list;
+		break;
+	}
+	if (!mime && !ext) return NULL;
+
+	// try all of them, if we have no preference
+	if (!decoder_list) decoder_list = &default_decoder_list;
+
+	// return first match
+	// TODO: maybe this should return the first codec...
+	// at least for get_decoder?
+	for (int i : *decoder_list) {
+		auto *d = plugins[i].decoder;
+		if (mime && d->matches_mime(*mime)) return d;
+		if (ext  && d->matches_ext (ext))   return d;
+	}
+	return NULL;
 }
 
 bool is_sound_file (const str &name)
@@ -288,7 +272,7 @@ Decoder *get_decoder_by_content (io_stream &stream)
 
 void decoder_init()
 {
-	#define H(X) do{ auto *d = X ## _plugin(); if (d) plugins.emplace_back(#X, d); }while(0)
+	#define H(X) do{ auto *d = X ## _plugin(); if (d) plugins.push_back({#X, d}); }while(0)
 	ALL_INPUTS
 	#undef H
 
@@ -307,5 +291,6 @@ void decoder_init()
 void decoder_cleanup ()
 {
 	preferences.clear();
+	default_decoder_list.clear();
 	for (auto &p : plugins) delete p.decoder;
 }

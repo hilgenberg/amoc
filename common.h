@@ -71,6 +71,5 @@ int get_realtime (struct timespec *ts);
 double now();
 
 #ifndef SUN_LEN
-#define SUN_LEN(p) \
-        ((sizeof *(p)) - sizeof((p)->sun_path) + strlen ((p)->sun_path))
+#define SUN_LEN(p) ((sizeof *(p)) - sizeof((p)->sun_path) + strlen ((p)->sun_path))
 #endif
