@@ -19,6 +19,19 @@ struct timespec;
 #define ARRAY_SIZE(x)   (sizeof(x)/sizeof(x[0]))
 #define ssizeof(x)      ((ssize_t) sizeof(x))
 
+struct LockGuard
+{
+	LockGuard(pthread_mutex_t &m) : mutex(m)
+	{
+		pthread_mutex_lock(&mutex);
+	}
+	~LockGuard()
+	{
+		pthread_mutex_unlock(&mutex);
+	}
+	pthread_mutex_t &mutex;
+};
+
 /* Exit status on fatal error. */
 #define EXIT_FATAL	2
 

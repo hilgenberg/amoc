@@ -902,16 +902,3 @@ void tags_response (const int client_id, const str &file, const file_tags *tags)
 		wake_up_server ();
 	}
 }
-
-void ev_audio_start ()
-{
-}
-
-void ev_audio_stop ()
-{
-}
-
-void ev_audio_fail (const str &path)
-{
-	audio_fail_file(path);
-}

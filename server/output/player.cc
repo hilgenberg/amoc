@@ -10,6 +10,7 @@
  */
 
 #include <pthread.h>
+#include <deque>
 
 #include "../input/decoder.h"
 #include "../audio.h"
@@ -19,299 +20,263 @@
 #define PCM_BUF_SIZE		(36 * 1024)
 #define PREBUFFER_THRESHOLD	(18 * 1024)
 
-enum request
+enum Request
 {
 	REQ_NOTHING,
 	REQ_SEEK,
-	REQ_STOP,
-	REQ_PAUSE,
-	REQ_UNPAUSE
+	REQ_STOP
 };
-
-struct bitrate_list_node
-{
-	struct bitrate_list_node *next;
-	int time;
-	int bitrate;
-};
-
-/* List of points where bitrate has changed. We use it to show bitrate at the
- * right time when playing, because the output buffer may be big and decoding
- * may be many seconds ahead of what the user can hear. */
-struct bitrate_list
-{
-	struct bitrate_list_node *head;
-	struct bitrate_list_node *tail;
-	pthread_mutex_t mtx;
-};
-
-struct precache
-{
-	char *file; /* the file to precache */
-	char buf[2 * PCM_BUF_SIZE]; /* PCM buffer with precached data */
-	int buf_fill;
-	int ok; /* 1 if precache succeed */
-	struct sound_params sound_params; /* of the sound in the buffer */
-	Decoder *f; /* Decoder functions for precached file */
-	Codec *codec;
-	int running; /* if the precache thread is running */
-	pthread_t tid; /* tid of the precache thread */
-	struct bitrate_list bitrate_list;
-	int decoded_time; /* how much sound we decoded in seconds */
-};
-
-struct precache precache;
-
-/* Request conditional and mutex. */
 static pthread_cond_t request_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t request_cond_mtx = PTHREAD_MUTEX_INITIALIZER;
+static volatile Request request = REQ_NOTHING;
+static volatile int req_seek = 0;
 
-static enum request request = REQ_NOTHING;
-static int req_seek;
+//-----------------------------------------------------------------------------
+// BitrateList
+//-----------------------------------------------------------------------------
+// List of points where bitrate has changed. We use it to show bitrate at the
+// right time when playing, because the output buffer may be big and decoding
+// may be many seconds ahead of what the user can hear.
+//-----------------------------------------------------------------------------
 
-/* Stream associated with the currently playing Decoder. */
-static struct io_stream *decoder_stream = NULL;
-static pthread_mutex_t decoder_stream_mtx = PTHREAD_MUTEX_INITIALIZER;
-
-static int prebuffering = 0; /* are we prebuffering now? */
-
-static struct bitrate_list bitrate_list;
-
-static void bitrate_list_init (struct bitrate_list *b)
+struct BitrateList
 {
-	assert (b != NULL);
+	struct Entry { int time, bitrate; };
+	std::deque<Entry> entries;
+	pthread_mutex_t mtx;
 
-	b->head = NULL;
-	b->tail = NULL;
-	pthread_mutex_init (&b->mtx, NULL);
-}
+	BitrateList() { pthread_mutex_init (&mtx, NULL); }
+	~BitrateList()
+	{
+		int rc = pthread_mutex_destroy (&mtx);
+		if (rc != 0) log_errno ("Can't destroy bitrate list mutex", rc);
+	}
+	void swap(BitrateList &other)
+	{
+		LockGuard G1(mtx), G2(other.mtx);
+		entries.swap(other.entries);
+	}
+	void clear() { LockGuard G(mtx); entries.clear(); }
 
-static void bitrate_list_empty (struct bitrate_list *b)
+	void add(int time, int bitrate)
+	{
+		LockGuard G(mtx);
+		assert(entries.empty() || time >= entries.back().time);
+		if (!entries.empty() && time == entries.back().time)
+			entries.back().bitrate = bitrate;
+		else
+			entries.push_back({time, bitrate});
+	}
+
+	int get (int t)
+	{
+		LockGuard G(mtx);
+		if (entries.empty() || entries.front().time > t) return -1;
+		while (entries.size() > 1 && entries[1].time <= t) entries.pop_front();
+		return entries.front().bitrate;
+	}
+};
+static BitrateList bitrate_list;
+
+//-----------------------------------------------------------------------------
+// DecoderState
+//-----------------------------------------------------------------------------
+
+struct DecoderState
 {
-	assert (b != NULL);
-
-	LOCK (b->mtx);
-	if (b->head) {
-		while (b->head) {
-			struct bitrate_list_node *t = b->head->next;
-
-			free (b->head);
-			b->head = t;
+	DecoderState(const str &path)
+	: buf(PCM_BUF_SIZE), buf_fill(0), path(path), time(0.0)
+	, sp{ -1, -1, -1 }, sound_params_changed(false), tags_changed(false)
+	, stream(NULL), codec(NULL), done(true)
+	{
+		if (is_url(path))
+		{
+			stream = io_open (path.c_str(), 1);
+			if (!io_ok(stream))
+			{
+				io_close (stream); stream = NULL;
+				error ("Could not open URL: %s", io_strerror(stream));
+				audio_fail_file (path);
+				return;
+			}
 		}
-
-		b->tail = NULL;
-	}
-
-	debug ("Bitrate list elements removed.");
-
-	UNLOCK (b->mtx);
-}
-
-static void bitrate_list_destroy (struct bitrate_list *b)
-{
-	int rc;
-
-	assert (b != NULL);
-
-	bitrate_list_empty (b);
-
-	rc = pthread_mutex_destroy (&b->mtx);
-	if (rc != 0)
-		log_errno ("Can't destroy bitrate list mutex", rc);
-}
-
-static void bitrate_list_add (struct bitrate_list *b, const int time,
-		const int bitrate)
-{
-	assert (b != NULL);
-
-	LOCK (b->mtx);
-	if (!b->tail) {
-		b->head = b->tail = (struct bitrate_list_node *)xmalloc (
-				sizeof(struct bitrate_list_node));
-		b->tail->next = NULL;
-		b->tail->time = time;
-		b->tail->bitrate = bitrate;
-	}
-	else if (b->tail->bitrate != bitrate && b->tail->time != time) {
-		assert (b->tail->time < time);
-
-		b->tail->next = (struct bitrate_list_node *)xmalloc (
-				sizeof(struct bitrate_list_node));
-		b->tail = b->tail->next;
-		b->tail->next = NULL;
-		b->tail->time = time;
-		b->tail->bitrate = bitrate;
-	}
-	UNLOCK (b->mtx);
-}
-
-static int bitrate_list_get (struct bitrate_list *b, const int time)
-{
-	int bitrate = -1;
-
-	assert (b != NULL);
-
-	LOCK (b->mtx);
-	if (b->head) {
-		while (b->head->next && b->head->next->time <= time) {
-			struct bitrate_list_node *o = b->head;
-
-			b->head = o->next;
-			//debug ("Removing old bitrate %d for time %d", o->bitrate, o->time);
-			free (o);
+		Decoder *f = stream ? get_decoder_by_content(*stream) : get_decoder(path);;
+		if (!f)
+		{
+			if (stream) io_close(stream); stream = NULL;
+			error ("No decoder for %s", path.c_str());
+			audio_fail_file (path);
+			return;
 		}
+		codec = stream ? f->open(*stream) : f->open(path);
+		if (!codec || codec->error.type == ERROR_FATAL)
+		{
+			if (stream) io_close(stream); stream = NULL;
+			if (codec)
+				error ("Codec error for %s: %s", path.c_str(), codec->error.desc.c_str());
+			else
+				error ("No codec for %s", path.c_str());
+			delete codec;
+			audio_fail_file (path);
+			return;
+		}
+		if (stream) io_prebuffer(stream, options::Prebuffering * 1024);
 
-		bitrate = b->head->bitrate /*b->head->time + 1000*/;
-		//debug ("Getting bitrate for time %d (%d)", time, bitrate);
+		done = false;
 	}
-	else {
-		//debug ("Getting bitrate for time %d (no bitrate information)", time);
-		bitrate = -1;
+	~DecoderState()
+	{
+		delete codec;
+		if (stream) io_close(stream);
 	}
-	UNLOCK (b->mtx);
 
-	return bitrate;
-}
+	bool decode() // returns false if buffer was already full
+	{
+		const size_t N = buf.size();
+		if (done || buf_fill >= N) return false;
+		
+		// decode next chunk
+		sound_params sp0 = sp;
+		int n = codec->decode(buf.data() + buf_fill, N - buf_fill, sp);
+		buf_fill += n; assert(buf_fill <= N);
+		
+		// update bitrate and such
+		if (sp != sp0) sound_params_changed = true;
+		bitrate.add(time, codec->get_bitrate());
+		time += n / (double)(sfmt_Bps(sp.fmt) * sp.rate * sp.channels);
+		
+		// if it fails without producing any sound, mark the file as broken
+		if (!n && sp0.channels == -1) audio_fail_file(path);
 
-static void update_time ()
+		// check if we're done
+		if (!n || codec->error.type == ERROR_FATAL) done = true;
+		//if (!done && codec->current_tags(tags)) if (sp0.channels != -1) tags_changed = true;
+
+		return true;
+	}
+	
+	void flush()
+	{
+		audio_send_buf(buf.data(), buf_fill);
+		buf_fill = 0;
+	}
+
+
+	Codec *codec;
+	io_stream *stream;
+	str path; // what is this decoding?
+
+	std::vector<char> buf;
+	size_t buf_fill;
+	
+	double time; // at the end of buf (used to update bitrate)
+	sound_params sp; // from last decode call
+	BitrateList bitrate;
+	file_tags tags;
+	bool tags_changed;
+	bool sound_params_changed;
+
+	bool done;
+};
+
+//-----------------------------------------------------------------------------
+// Precache
+//-----------------------------------------------------------------------------
+
+static void *precache_thread (void *data); // below
+
+struct Precache
 {
-	static int last_time = 0;
-	int ctime = audio_get_time ();
+	Precache() : decoder(NULL), running(false), tid(0) {}
+	~Precache() { assert(!running); delete decoder; }
 
-	if (ctime >= 0 && ctime != last_time) {
-		last_time = ctime;
-		ctime_change ();
-		set_info_bitrate (bitrate_list_get (&bitrate_list, ctime));
+	DecoderState *decoder;
+	bool running; /* if the precache thread is running */
+	pthread_t tid; /* tid of the precache thread */
+	str path;
+
+	bool start(const str &p)
+	{
+		if (running) finish();
+		path = p;
+		logit ("Precaching %s", path.c_str());
+		int rc = pthread_create (&tid, NULL, precache_thread, NULL);
+		if (rc != 0)
+			log_errno ("Could not run precache thread", rc);
+		else
+			running = true;
+		return running;
 	}
-}
+	void finish()
+	{
+		if (!running) return;
+		debug ("Waiting for precache thread...");
+		int rc = pthread_join(tid, NULL);
+		if (rc != 0) fatal("pthread_join() for precache thread failed: %s", xstrerror(rc));
+		running = false;
+		debug ("done");
+	}
+	void drop()
+	{
+		finish();
+		delete decoder;
+		decoder = NULL;
+	}
+};
+static Precache precache;
 
-static void *precache_thread (void *data)
+static void *precache_thread (void *)
 {
-	struct precache *precache = (struct precache *)data;
-	int decoded;
-	struct sound_params new_sound_params;
-
-	precache->buf_fill = 0;
-	precache->sound_params.channels = 0; /* mark that sound_params were not
-						yet filled. */
-	precache->decoded_time = 0.0;
-	precache->f = get_decoder (precache->file);
-	assert (precache->f != NULL);
-
-	precache->codec = precache->f->open(precache->file);
-	if (!precache->codec || precache->codec->error) {
-		delete precache->codec; precache->codec = NULL;
-		ev_audio_fail (precache->file);
+	delete precache.decoder;
+	precache.decoder = new DecoderState(precache.path);
+	if (precache.decoder->done)
+	{
+		delete precache.decoder;
+		precache.decoder = NULL;
 		return NULL;
 	}
+	auto &decoder = *precache.decoder;
+	assert(decoder.sp.channels == -1);
 
-	/* Stop at PCM_BUF_SIZE, because when we decode too much, there is no
-	 * place where we can put the data that doesn't fit into the buffer. */
-	while (precache->buf_fill < PCM_BUF_SIZE) {
-		decoded = precache->codec->decode (precache->buf + precache->buf_fill,
-				PCM_BUF_SIZE, new_sound_params);
+	while (!decoder.done)
+	{
+		bool first = (decoder.sp.channels == -1);
+		bool ok = decoder.decode();
+		if (!ok) break;
 
-		if (!decoded) {
-
-			/* EOF so fast? We can't pass this information
-			 * in precache, so give up. */
-			logit ("EOF when precaching.");
-			delete precache->codec; precache->codec = NULL;
-			return NULL;
-		}
-
-		if (precache->codec->error.type == ERROR_FATAL) {
-			logit ("Error reading file for precache: %s", precache->codec->error.desc.c_str());
-			delete precache->codec; precache->codec = NULL;
-			ev_audio_fail (precache->file);
-			return NULL;
-		}
-
-		if (!precache->sound_params.channels)
-			precache->sound_params = new_sound_params;
-		else if (precache->sound_params != new_sound_params) {
-
-			/* There is no way to store sound with two different
-			 * parameters in the buffer, give up with
-			 * precaching. (this should never happen). */
-			logit ("Sound parameters have changed when precaching.");
-			delete precache->codec; precache->codec = NULL;
-			return NULL;
-		}
-
-		bitrate_list_add (&precache->bitrate_list,
-				precache->decoded_time,
-				precache->codec->get_bitrate());
-
-		precache->buf_fill += decoded;
-		precache->decoded_time += decoded / (float)(sfmt_Bps(
-					new_sound_params.fmt) *
-				new_sound_params.rate *
-				new_sound_params.channels);
-
-		if (precache->codec->error) {
-			precache->codec->error.clear ();
-			break; /* Don't lose the error message */ // huh?
+		// if sound_params change, we have no place to put that
+		// information, so cancel (this thing can't be precached)
+		if (decoder.sound_params_changed || decoder.tags_changed)
+		{
+			if (first)
+			{
+				decoder.sound_params_changed = false;
+				decoder.tags_changed = false;
+			}
+			else
+			{
+				logit("Cannot precache");
+				// we can pre-open the thing again though...
+				delete precache.decoder;
+				precache.decoder = new DecoderState(precache.path);
+				break;
+			}
 		}
 	}
 
-	precache->ok = 1;
-	logit ("Successfully precached file (%d bytes)", precache->buf_fill);
+	logit ("Precached %d bytes from %s", decoder.buf_fill, precache.path.c_str());
 	return NULL;
 }
 
-static void start_precache (struct precache *precache, const char *file)
-{
-	int rc;
+//-----------------------------------------------------------------------------
+// Player
+//-----------------------------------------------------------------------------
 
-	assert (!precache->running);
-	assert (file != NULL);
-
-	precache->file = xstrdup (file);
-	bitrate_list_init (&precache->bitrate_list);
-	logit ("Precaching file %s", file);
-	precache->ok = 0;
-	rc = pthread_create (&precache->tid, NULL, precache_thread, precache);
-	if (rc != 0)
-		log_errno ("Could not run precache thread", rc);
-	else
-		precache->running = 1;
-}
-
-static void precache_wait (struct precache *precache)
-{
-	int rc;
-
-	if (precache->running) {
-		debug ("Waiting for precache thread...");
-		rc = pthread_join (precache->tid, NULL);
-		if (rc != 0)
-			fatal ("pthread_join() for precache thread failed: %s",
-			        xstrerror (rc));
-		precache->running = 0;
-		debug ("done");
-	}
-	else
-		debug ("Precache thread is not running");
-}
-
-static void precache_reset (struct precache *precache)
-{
-	assert (!precache->running);
-	precache->ok = 0;
-	if (precache->file) {
-		free (precache->file);
-		precache->file = NULL;
-		bitrate_list_destroy (&precache->bitrate_list);
-	}
-}
+static DecoderState *decoder = NULL;
+static pthread_mutex_t decoder_stream_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 void player_init ()
 {
-	precache.file = NULL;
-	precache.running = 0;
-	precache.ok = 0;
 }
 
 /* Called when some free space in the output buffer appears. */
@@ -321,283 +286,12 @@ static void buf_free_cb ()
 	pthread_cond_broadcast (&request_cond);
 	UNLOCK (request_cond_mtx);
 
-	update_time ();
-}
-
-/* Decoder loop for already opened and probably running for some time Decoder.
- * next_file will be precached at eof. */
-// codec will be deleted!
-static void decode_loop (Codec *codec,
-		const char *next_file, out_buf *out_buf,
-		sound_params *sound_params, 
-		const float already_decoded_sec)
-{
-	bool eof = false;
-	bool stopped = false;
-	char buf[PCM_BUF_SIZE];
-	int decoded = 0;
-	struct sound_params new_sound_params;
-	bool sound_params_change = false;
-	float decode_time = already_decoded_sec; /* the position of the Decoder
-	                                            (in seconds) */
-
-	out_buf_set_free_callback (out_buf, buf_free_cb);
-
-	LOCK (decoder_stream_mtx);
-	decoder_stream = codec->get_stream();
-	UNLOCK (decoder_stream_mtx);
-
-	while (1) {
-		LOCK (request_cond_mtx);
-		if (!eof && !decoded) {
-			struct decoder_error &err = codec->error;
-
-			UNLOCK (request_cond_mtx);
-
-			if (decoder_stream && out_buf_get_fill(out_buf)
-					< PREBUFFER_THRESHOLD) {
-				prebuffering = 1;
-				io_prebuffer (decoder_stream, options::Prebuffering * 1024);
-				prebuffering = 0;
-			}
-
-			decoded = codec->decode (buf, sizeof(buf), new_sound_params);
-
-			if (decoded)
-				decode_time += decoded / (float)(sfmt_Bps(
-							new_sound_params.fmt) *
-						new_sound_params.rate *
-						new_sound_params.channels);
-
-			if (err) {
-				if (err.type != ERROR_STREAM)
-					error ("%s", err.desc.c_str());
-				err.clear();
-			}
-
-			if (!decoded) {
-				eof = true;
-				logit ("EOF from Decoder");
-			}
-			else {
-				if (new_sound_params != *sound_params)
-					sound_params_change = true;
-
-				bitrate_list_add (&bitrate_list, decode_time,
-						codec->get_bitrate());
-			}
-		}
-
-		/* Wait, if there is no space in the buffer to put the decoded
-		 * data or EOF occurred and there is something in the buffer. */
-		else if (decoded > out_buf_get_free(out_buf)
-					|| (eof && out_buf_get_fill(out_buf))) {
-			if (eof && !precache.file && next_file
-					&& plist_item::ftype(next_file) == F_SOUND
-					&& options::AutoNext)
-				start_precache (&precache, next_file);
-			pthread_cond_wait (&request_cond, &request_cond_mtx);
-			UNLOCK (request_cond_mtx);
-		}
-		else
-			UNLOCK (request_cond_mtx);
-
-		/* When clearing request, we must make sure, that another
-		 * request will not arrive at the moment, so we check if
-		 * the request has changed. */
-		if (request == REQ_STOP) {
-			logit ("stop");
-			stopped = true;
-			out_buf_stop (out_buf);
-
-			LOCK (request_cond_mtx);
-			if (request == REQ_STOP)
-				request = REQ_NOTHING;
-			UNLOCK (request_cond_mtx);
-
-			break;
-		}
-		else if (request == REQ_SEEK) {
-			logit ("seeking");
-			req_seek = MAX(0, req_seek);
-			int decoder_seek = codec->seek(req_seek);
-			if (decoder_seek == -1)
-			{
-				logit ("error when seeking - checking for end of song");
-				int m = codec->get_duration();
-				if (m > 0 && m <= req_seek)
-				{
-					logit ("seeking to EOF");
-					req_seek = m;
-					out_buf_stop (out_buf);
-					out_buf_reset (out_buf);
-					out_buf_time_set (out_buf, m);
-					bitrate_list_empty (&bitrate_list);
-					decode_time = m;
-					eof = true;
-					decoded = 0;
-				}
-				else logit ("true error when seeking");
-			}
-			else logit ("error when seeking");
-
-			if (decoder_seek != -1) {
-				out_buf_stop (out_buf);
-				out_buf_reset (out_buf);
-				out_buf_time_set (out_buf, decoder_seek);
-				bitrate_list_empty (&bitrate_list);
-				decode_time = decoder_seek;
-				eof = false;
-				decoded = 0;
-			}
-
-			LOCK (request_cond_mtx);
-			if (request == REQ_SEEK)
-				request = REQ_NOTHING;
-			UNLOCK (request_cond_mtx);
-
-		}
-		else if (!eof && decoded <= out_buf_get_free(out_buf)
-				&& !sound_params_change) {
-			audio_send_buf (buf, decoded);
-			decoded = 0;
-		}
-		else if (!eof && sound_params_change
-				&& out_buf_get_fill(out_buf) == 0) {
-			logit ("Sound parameters have changed.");
-			*sound_params = new_sound_params;
-			sound_params_change = false;
-			set_info_channels (sound_params->channels);
-			set_info_rate (sound_params->rate / 1000);
-			out_buf_wait (out_buf);
-			if (!audio_open(sound_params)) {
-				break;
-			}
-		}
-		else if (eof && out_buf_get_fill(out_buf) == 0) {
-			logit ("played everything");
-			break;
-		}
-	}
-
-	LOCK (decoder_stream_mtx);
-	decoder_stream = NULL;
-	delete codec; codec = NULL;
-	UNLOCK (decoder_stream_mtx);
-
-	bitrate_list_destroy (&bitrate_list);
-
-	out_buf_wait (out_buf);
-
-	if (precache.ok && (stopped || !options::AutoNext)) {
-		precache_wait (&precache);
-		delete precache.codec;
-		precache.codec = NULL;
-		precache_reset (&precache);
-	}
-}
-
-/* Play a file (disk file) using the given Decoder. next_file is precached. */
-static void play_file (const char *file, Decoder *f,
-		const char *next_file, struct out_buf *out_buf)
-{
-	Codec *codec = NULL;
-	struct sound_params sound_params = { 0, 0, 0 };
-	float already_decoded_time;
-
-	out_buf_reset (out_buf);
-
-	precache_wait (&precache);
-
-	if (precache.ok && strcmp(precache.file, file)) {
-		logit ("The precached file is not the file we want.");
-		delete precache.codec; precache.codec = NULL;
-		precache_reset (&precache);
-	}
-
-	if (precache.ok && !strcmp(precache.file, file)) {
-
-		logit ("Using precached file");
-
-		assert (f == precache.f);
-
-		sound_params = precache.sound_params;
-		codec = precache.codec; precache.codec = NULL;
-		set_info_channels (sound_params.channels);
-		set_info_rate (sound_params.rate / 1000);
-
-		if (!audio_open(&sound_params)) {
-			delete codec;
-			precache_reset (&precache);
-			return;
-		}
-
-		audio_send_buf (precache.buf, precache.buf_fill);
-
-		struct decoder_error &err = codec->error;
-		if (err) {
-			if (err.type != ERROR_STREAM)
-				error ("%s", err.desc.c_str());
-			err.clear();
-		}
-
-		already_decoded_time = precache.decoded_time;
-
-		set_info_avg_bitrate (codec->get_avg_bitrate());
-
-		bitrate_list_init (&bitrate_list);
-		bitrate_list.head = precache.bitrate_list.head;
-		bitrate_list.tail = precache.bitrate_list.tail;
-
-		/* don't free list elements when resetting precache */
-		precache.bitrate_list.head = NULL;
-		precache.bitrate_list.tail = NULL;
-	}
-	else {
-		decoder_error err;
-
-		codec = f->open(file);
-		if (!codec || codec->error) {
-			if (codec) error ("%s", codec->error.desc.c_str());
-			delete codec;
-			logit ("Can't open file, exiting");
-			ev_audio_fail (file);
-			return;
-		}
-
-		already_decoded_time = 0.0;
-		set_info_avg_bitrate (codec->get_avg_bitrate());
-		bitrate_list_init (&bitrate_list);
-	}
-
-	audio_state_started_playing ();
-	precache_reset (&precache);
-
-	decode_loop (codec, next_file, out_buf, &sound_params,
-			already_decoded_time);
-}
-
-/* Play the stream (global decoder_stream) using the given Decoder. */
-static void play_stream (Decoder *f, struct out_buf *out_buf)
-{
-	struct sound_params sound_params = { 0, 0, 0 };
-
-	out_buf_reset (out_buf);
-
-	Codec *codec = f->open(*decoder_stream);
-	if (!codec || codec->error) {
-		LOCK (decoder_stream_mtx);
-		decoder_stream = NULL;
-		UNLOCK (decoder_stream_mtx);
-
-		if (codec) error ("%s", codec->error.desc.c_str());
-		delete codec;
-		logit ("Can't open file");
-	}
-	else {
-		audio_state_started_playing ();
-		bitrate_list_init (&bitrate_list);
-		decode_loop (codec, NULL, out_buf, &sound_params, 0.0);
+	static int last_time = 0;
+	int ctime = audio_get_time ();
+	if (ctime >= 0 && ctime != last_time) {
+		last_time = ctime;
+		ctime_change ();
+		set_info_bitrate(decoder ? decoder->bitrate.get(ctime) : -1);
 	}
 }
 
@@ -605,54 +299,158 @@ static void play_stream (Decoder *f, struct out_buf *out_buf)
  * precaching next_file. */
 void player (const char *file, const char *next_file, struct out_buf *out_buf)
 {
-	struct Decoder *f;
+	out_buf_reset (out_buf);
 
-	if (is_url(file)) {
-		LOCK (decoder_stream_mtx);
-		decoder_stream = io_open (file, 1);
-		if (!io_ok(decoder_stream)) {
-			error ("Could not open URL: %s", io_strerror(decoder_stream));
-			io_close (decoder_stream);
-			decoder_stream = NULL;
-			UNLOCK (decoder_stream_mtx);
-			ev_audio_fail (file);
-			return;
+	DecoderState *d = NULL;
+	precache.finish();
+	if (precache.decoder)
+	{
+		if (precache.decoder->path == file)
+		{
+			logit ("Using precached file");
+			d = precache.decoder;
+			precache.decoder = NULL;
+
+			auto &sp = d->sp;
+			set_info_channels (sp.channels);
+			set_info_rate (sp.rate / 1000);
+			if (!audio_open(&sp))
+			{
+				delete d;
+				return;
+			}
+
+			d->flush();
+			set_info_avg_bitrate (d->codec ? d->codec->get_avg_bitrate() : -1);
 		}
-		UNLOCK (decoder_stream_mtx);
-
-		f = get_decoder_by_content (*decoder_stream);
-		if (!f) {
-			LOCK (decoder_stream_mtx);
-			io_close (decoder_stream);
-			decoder_stream = NULL;
-			UNLOCK (decoder_stream_mtx);
-			return;
+		else
+		{
+			logit ("The precached file is not the file we want.");
+			precache.drop();
 		}
-
-		prebuffering = 1;
-		io_prebuffer (decoder_stream, options::Prebuffering * 1024);
-		prebuffering = 0;
-
-		ev_audio_start ();
-		play_stream (f, out_buf);
-		ev_audio_stop ();
 	}
-	else {
-		f = get_decoder (file);
-		LOCK (decoder_stream_mtx);
-		decoder_stream = NULL;
-		UNLOCK (decoder_stream_mtx);
+	
+	if (!d) d = new DecoderState(file);
+	if (d->done && !d->buf_fill) return;
 
-		if (!f) {
-			error ("Can't get Decoder for %s", file);
-			ev_audio_fail (file);
-			return;
+	delete decoder; decoder = d;
+	if (is_url(file)) next_file = NULL;
+	
+	audio_state_started_playing ();
+	assert(decoder); if (!decoder) return;
+
+	bool stopped = false;
+
+	out_buf_set_free_callback (out_buf, buf_free_cb);
+
+	LOCK (decoder_stream_mtx);
+	io_stream *decoder_stream = decoder->codec ? decoder->codec->get_stream() : NULL;
+	UNLOCK (decoder_stream_mtx);
+
+	while (true)
+	{
+		if (!decoder->done)
+		{
+			if (decoder_stream && out_buf_get_fill(out_buf) < PREBUFFER_THRESHOLD)
+				io_prebuffer(decoder_stream, options::Prebuffering * 1024);
+
+			decoder->decode();
+
+			decoder_error &err = decoder->codec->error;
+			if (err) error ("%s", err.desc.c_str());
 		}
 
-		ev_audio_start ();
-		play_file (file, f, next_file, out_buf);
-		ev_audio_stop ();
+		/* Wait, if there is no space in the buffer to put the decoded
+		 * data or EOF occurred and there is something in the buffer. */
+		if (decoder->buf_fill > out_buf_get_free(out_buf)
+		|| (decoder->done && out_buf_get_fill(out_buf)))
+		{
+			if (next_file && !precache.running && !precache.decoder && 
+			plist_item::ftype(next_file) == F_SOUND && options::AutoNext)
+				precache.start(next_file);
+			
+			LOCK (request_cond_mtx);
+			pthread_cond_wait (&request_cond, &request_cond_mtx);
+			UNLOCK (request_cond_mtx);
+		}
+
+		if (request != REQ_NOTHING)
+		{
+			LOCK (request_cond_mtx);
+			auto rq = request; request = REQ_NOTHING;
+			int  sq = std::max(0, (int)req_seek);
+			UNLOCK (request_cond_mtx);
+
+			switch (rq)
+			{
+				case REQ_STOP:
+					logit ("stop");
+					stopped = true;
+					out_buf_stop (out_buf);
+					break;
+
+				case REQ_SEEK:
+				{
+					logit ("seeking");
+					int pos = decoder->codec->seek(sq);
+					if (pos == -1)
+					{
+						logit ("error when seeking - checking for end of song");
+						int m = decoder->codec->get_duration();
+						if (m > 0 && m <= sq)
+						{
+							logit ("seeking to EOF");
+							decoder->done = true;
+							stopped = true;
+							pos = m;
+						}
+						else logit ("true error when seeking");
+					}
+
+					if (pos != -1) {
+						out_buf_stop (out_buf);
+						out_buf_reset (out_buf);
+						out_buf_time_set (out_buf, pos);
+						decoder->bitrate.clear();
+						decoder->time = pos;
+						decoder->buf_fill = 0;
+					}
+					break;
+				}
+
+				default: break;
+			}
+		}
+		if (stopped) break;
+
+		if (decoder->buf_fill <= out_buf_get_free(out_buf) && !decoder->sound_params_changed)
+		{
+			decoder->flush();
+		}
+		
+		if (decoder->sound_params_changed && out_buf_get_fill(out_buf) == 0)
+		{
+			decoder->sound_params_changed = false;
+			auto &sp = decoder->sp;
+			logit ("Sound parameters have changed.");
+			set_info_channels (sp.channels);
+			set_info_rate (sp.rate / 1000);
+			out_buf_wait (out_buf);
+			if (!audio_open(&sp)) break;
+		}
+		
+		if (decoder->done && out_buf_get_fill(out_buf) == 0)
+		{
+			logit ("played everything");
+			break;
+		}
 	}
+
+	LOCK (decoder_stream_mtx);
+	delete decoder; decoder = NULL;
+	UNLOCK (decoder_stream_mtx);
+
+	out_buf_wait (out_buf);
 
 	logit ("exiting");
 }
@@ -668,8 +466,8 @@ void player_cleanup ()
 	rc = pthread_cond_destroy (&request_cond);
 	if (rc != 0) log_errno ("Can't destroy request condition", rc);
 
-	precache_wait (&precache);
-	precache_reset (&precache);
+	precache.drop();
+	delete decoder; decoder = NULL;
 }
 
 void player_reset ()
@@ -680,58 +478,35 @@ void player_reset ()
 void player_stop ()
 {
 	logit ("requesting stop");
-	request = REQ_STOP;
-
-	LOCK (decoder_stream_mtx);
-	if (decoder_stream) {
-		logit ("decoder_stream present, aborting...");
-		io_abort (decoder_stream);
-	}
-	UNLOCK (decoder_stream_mtx);
-
 	LOCK (request_cond_mtx);
+	request = REQ_STOP;
 	pthread_cond_signal (&request_cond);
 	UNLOCK (request_cond_mtx);
+
+	{
+		LockGuard g(decoder_stream_mtx);
+		if (decoder && decoder->stream) {
+			logit ("decoder_stream present, aborting...");
+			io_abort (decoder->stream);
+		}
+	}
 }
 
 void player_seek (const int sec)
 {
-	int time;
-
-	time = audio_get_time ();
-	if (time >= 0) {
-		request = REQ_SEEK;
-		req_seek = sec + time;
-		LOCK (request_cond_mtx);
-		pthread_cond_signal (&request_cond);
-		UNLOCK (request_cond_mtx);
-	}
+	int time = audio_get_time ();
+	if (time < 0) return;
+	
+	LockGuard g(request_cond_mtx);
+	request = REQ_SEEK;
+	req_seek = sec + time;
+	pthread_cond_signal (&request_cond);
 }
 
 void player_jump_to (const int sec)
 {
+	LockGuard g(request_cond_mtx);
 	request = REQ_SEEK;
 	req_seek = sec;
-	LOCK (request_cond_mtx);
 	pthread_cond_signal (&request_cond);
-	UNLOCK (request_cond_mtx);
-}
-
-/* Stop playing, clear the output buffer, but allow to unpause by starting
- * playing the same stream.  This is useful for Internet streams that can't
- * be really paused. */
-void player_pause ()
-{
-	request = REQ_PAUSE;
-	LOCK (request_cond_mtx);
-	pthread_cond_signal (&request_cond);
-	UNLOCK (request_cond_mtx);
-}
-
-void player_unpause ()
-{
-	request = REQ_UNPAUSE;
-	LOCK (request_cond_mtx);
-	pthread_cond_signal (&request_cond);
-	UNLOCK (request_cond_mtx);
 }

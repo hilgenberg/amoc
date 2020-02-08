@@ -216,29 +216,14 @@ static long sfmt_best_matching (const long formats_with_endian,
 /* Return the number of bytes per sample for the given format. */
 int sfmt_Bps (const long format)
 {
-	int Bps = -1;
-
-	switch (format & SFMT_MASK_FORMAT) {
-		case SFMT_S8:
-		case SFMT_U8:
-			Bps = 1;
-			break;
-		case SFMT_S16:
-		case SFMT_U16:
-			Bps = 2;
-			break;
-		case SFMT_S32:
-		case SFMT_U32:
-			Bps = 4;
-			break;
-		case SFMT_FLOAT:
-			Bps = sizeof (float);
-			break;
+	switch (format & SFMT_MASK_FORMAT)
+	{
+		case SFMT_S8:  case SFMT_U8:  return 1;
+		case SFMT_S16: case SFMT_U16: return 2;
+		case SFMT_S32: case SFMT_U32: return 4;
+		case SFMT_FLOAT:  return sizeof(float);
 	}
-
-	assert (Bps > 0);
-
-	return Bps;
+	assert (false); return -1;
 }
 
 void audio_fail_file (const str &path)

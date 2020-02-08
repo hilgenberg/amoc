@@ -24,8 +24,5 @@ void tags_change ();
 void ctime_change ();
 void status_msg (const str &msg);
 void tags_response (const int client_id, const str &file, const file_tags *tags);
-void ev_audio_start ();
-void ev_audio_stop ();
-void ev_audio_fail (const str &path); // path failed to play
 
 #endif
