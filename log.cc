@@ -120,8 +120,8 @@ void internal_logit (const char *file,
 {
 #ifndef NDEBUG
 	int saved_errno = errno;
-	char *msg;
 	va_list va;
+	str msg;
 
 	LOCK_(logging_mtx);
 
@@ -132,8 +132,7 @@ void internal_logit (const char *file,
 			break;
 		case BUFFERING:
 			/* Don't let storage run away on us. */
-			if (buffered_log.size() < 128)
-				break;
+			if (buffered_log.size() < 128) break;
 			++log_records_spilt;
 		case LOGGING:
 			goto end;
@@ -143,10 +142,9 @@ void internal_logit (const char *file,
 	log_signals_raised ();
 
 	va_start (va, format);
-	msg = format_msg_va (format, va);
+	msg = format_va (format, va);
 	va_end (va);
-	locked_logit (file, line, function, msg);
-	free (msg);
+	locked_logit (file, line, function, msg.c_str());
 
 	flush_log ();
 
@@ -163,8 +161,7 @@ end:
 void log_init_stream (FILE *f, const char *fn)
 {
 #ifndef NDEBUG
-	char *msg;
-
+	str msg;
 	LOCK_(logging_mtx);
 
 	logfp = f;
@@ -178,17 +175,14 @@ void log_init_stream (FILE *f, const char *fn)
 	}
 
 	logging_state = LOGGING;
-	if (!logfp)
-		goto end;
+	if (!logfp) goto end;
 
-	msg = format_msg ("Writing log to: %s", fn);
-	locked_logit (__FILE__, __LINE__, __func__, msg);
-	free (msg);
+	msg = format("Writing log to: %s", fn);
+	locked_logit (__FILE__, __LINE__, __func__, msg.c_str());
 
 	if (log_records_spilt > 0) {
-		msg = format_msg ("%d log records spilt", log_records_spilt);
-		locked_logit (__FILE__, __LINE__, __func__, msg);
-		free (msg);
+		msg = format("%d log records spilt", log_records_spilt);
+		locked_logit (__FILE__, __LINE__, __func__, msg.c_str());
 	}
 
 	flush_log ();

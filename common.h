@@ -78,8 +78,6 @@ void xsignal (int signum, void (*func)(int));
 void error (const char *format, ...);
 void fatal (const char *format, ...) ATTR_NORETURN;
 void set_me_server ();
-char *format_msg (const char *format, ...);
-char *format_msg_va (const char *format, va_list va);
 int get_realtime (struct timespec *ts);
 double now();
 

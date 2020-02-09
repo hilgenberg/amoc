@@ -13,15 +13,12 @@ static void sig_winch(int sig) { log_signal(sig); Client::want_resize = true; }
 
 void interface_fatal (const char *format, ...)
 {
-	char *msg;
-	va_list va;
-
-	va_start (va, format);
-	msg = format_msg_va (format, va);
+	va_list va; va_start (va, format);
+	str msg = format_va (format, va);
 	va_end (va);
 
 	endwin();
-	fatal ("%s", msg);
+	fatal ("%s", msg.c_str());
 }
 
 Client::Client(int sock, strings &args)

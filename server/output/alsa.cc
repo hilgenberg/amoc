@@ -81,10 +81,9 @@ static void log_cb(const char *, int, const char *, int, const char *fmt, ...)
 {
 	assert (fmt);
 	va_list va; va_start(va, fmt);
-	char *msg = format_msg_va(fmt, va);
+	str msg = format_va(fmt, va);
 	va_end(va);
-	logit ("ALSA said: %s", msg);
-	free(msg);
+	logit ("ALSA said: %s", msg.c_str());
 }
 #endif
 

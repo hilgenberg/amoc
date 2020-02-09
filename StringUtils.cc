@@ -30,6 +30,33 @@ str format(const char *fmt, ...)
 	
 	return str(buf, (size_t)n);
 }
+/* Format a vararg list according to 'format' and return it as a
+ * malloc()ed string. */
+str format_va(const char *fmt, va_list va)
+{
+	va_list  ap;
+	va_copy (ap, va);
+
+	char              buf1[1024]; // avoid heap allocation most of the time
+	std::vector<char> buf2;       // use this if buf1 is too small
+	size_t            size = sizeof(buf1);
+	char             *buf  = buf1;
+	int               n;
+	
+	while (true)
+	{
+		n = vsnprintf(buf, size, fmt, ap);
+		if (n >= 0 && (size_t)n <= size) break;
+		
+		size = n > 0 ? (size_t)n+1 : size*2;
+		buf2.resize(size);
+		buf = buf2.data();
+	}
+	
+	va_end (ap);
+	
+	return str(buf, (size_t)n);	
+}
 
 str spaces(int n)
 {

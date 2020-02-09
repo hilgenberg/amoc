@@ -25,13 +25,12 @@ void error (const char *format, ...)
 {
 	int saved_errno = errno;
 	va_list va; va_start (va, format);
-	char *msg = format_msg_va (format, va);
+	str msg = format_va (format, va);
 	va_end (va);
 	if (im_server)
-		server_error(NULL, 0, NULL, msg);
+		server_error(NULL, 0, NULL, msg.c_str());
 	else
-		fputs(msg, stderr);
-	free (msg);
+		fputs(msg.c_str(), stderr);
 	errno = saved_errno;
 }
 
@@ -40,19 +39,17 @@ void error (const char *format, ...)
 void fatal (const char *format, ...)
 {
 	va_list va; va_start (va, format);
-	char *msg = format_msg_va (format, va);
-	fprintf (stderr, "\nFATAL_ERROR: %s\n\n", msg);
+	str msg = format_va (format, va);
+	fprintf (stderr, "\nFATAL_ERROR: %s\n\n", msg.c_str());
 #ifndef NDEBUG
-	internal_logit (NULL, 0, NULL, "FATAL ERROR: %s", msg);
+	internal_logit (NULL, 0, NULL, "FATAL ERROR: %s", msg.c_str());
 #endif
 	va_end (va);
 
 	log_close ();
 
 	if (im_server)
-		syslog (LOG_USER|LOG_ERR, "%s", msg);
-
-	free (msg);
+		syslog (LOG_USER|LOG_ERR, "%s", msg.c_str());
 
 	exit (EXIT_FATAL);
 }
@@ -158,37 +155,6 @@ void xsignal (int signum, void (*func)(int))
 void set_me_server ()
 {
 	im_server = 1;
-}
-
-/* Format argument values according to 'format' and return it as a
- * malloc()ed string. */
-char *format_msg (const char *format, ...)
-{
-	char *result;
-	va_list va;
-
-	va_start (va, format);
-	result = format_msg_va (format, va);
-	va_end (va);
-
-	return result;
-}
-
-/* Format a vararg list according to 'format' and return it as a
- * malloc()ed string. */
-char *format_msg_va (const char *format, va_list va)
-{
-	int len;
-	char *result;
-	va_list va_copy;
-
-	va_copy (va_copy, va);
-	len = vsnprintf (NULL, 0, format, va_copy) + 1;
-	va_end (va_copy);
-	result = (char*) xmalloc (len);
-	vsnprintf (result, len, format, va);
-
-	return result;
 }
 
 int get_realtime (struct timespec *ts)

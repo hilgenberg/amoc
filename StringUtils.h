@@ -6,6 +6,7 @@
 
 // like sprintf for std::string.
 str format(const char *fmt, ...);
+str format_va(const char *fmt, va_list va);
 
 str spaces(int n);
 

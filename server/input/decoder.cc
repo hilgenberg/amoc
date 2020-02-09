@@ -22,19 +22,15 @@ void decoder_error::warn(const char *format, ...)
 {
 	type = ERROR_STREAM;
 	va_list va; va_start(va, format);
-	char *err_str = format_msg_va (format, va);
+	desc = format_va (format, va);
 	va_end (va);
-	if (err_str) desc = err_str;
-	free (err_str);
 }
 void decoder_error::fatal(const char *format, ...)
 {
 	type = ERROR_FATAL;
 	va_list va; va_start (va, format);
-	char *err_str = format_msg_va (format, va);
+	desc = format_va (format, va);
 	va_end (va);
-	if (err_str) desc = err_str;
-	free (err_str);
 }
 
 Codec* Decoder::open(const str &file)

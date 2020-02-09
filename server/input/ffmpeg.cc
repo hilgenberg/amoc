@@ -43,77 +43,11 @@ struct extn_list {
 };
 static std::set<std::string> supported_extns;
 
-static void ffmpeg_log_repeats (char *msg)
-{
-#ifndef NDEBUG
-	static int msg_count = 0;
-	static char *prev_msg = NULL;
-	static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
-	/* We need to gate the decoder and precaching threads. */
-	LOCK (mutex);
-
-	if (prev_msg && (!msg || strcmp (msg, prev_msg))) {
-		if (msg_count > 1)
-			logit ("FFmpeg said: Last message repeated %d times", msg_count);
-		free (prev_msg);
-		prev_msg = NULL;
-		msg_count = 0;
-	}
-	if (prev_msg && msg) {
-		free (msg);
-		msg = NULL;
-		msg_count += 1;
-	}
-	if (!prev_msg && msg) {
-		for (auto &s : split(msg, "\n"))
-			logit ("FFmpeg said: %s", s.c_str());
-
-		prev_msg = msg;
-		msg_count = 1;
-	}
-	UNLOCK (mutex);
-#endif
-}
-
-#ifndef NDEBUG
-static void ffmpeg_log_cb (void *unused, int level,
-                           const char *fmt, va_list vl)
-{
-	int len;
-	char *msg;
-
-	assert (fmt);
-
-	if (level > av_log_get_level ())
-		return;
-
-	msg = format_msg_va (fmt, vl);
-
-#if LIBAVFORMAT_VERSION_INT >= AV_VERSION_INT(56,33,101)
-	/* Drop this message because it is issued repeatedly and is pointless. */
-	const char skipping[] = "Skipping 0 bytes of junk";
-
-	if (!strncmp (skipping, msg, sizeof (skipping) - 1)) {
-		free (msg);
-		return;
-	}
-#endif
-
-	len = strlen (msg);
-	for (len = strlen (msg); len > 0 && msg[len - 1] == '\n'; len -= 1)
-		msg[len - 1] = 0x00;
-
-	ffmpeg_log_repeats (msg);
-}
-#endif
-
 /* FFmpeg-provided error code to description function wrapper. */
 static inline char *ffmpeg_strerror (int errnum)
 {
 	char *result;
 
-	ffmpeg_log_repeats (NULL);
 	result = (char*) xmalloc (256);
 	av_strerror (errnum, result, 256);
 	result[255] = 0;
@@ -577,7 +511,6 @@ struct ffmpeg_data : public Codec
 		timing_broken = is_timing_broken (ic);
 
 		if (timing_broken && extn && !strcasecmp (extn, "wav")) {
-			ffmpeg_log_repeats (NULL);
 			error.fatal("Broken WAV file; use W64!");
 			avcodec_close (enc);
 			goto end;
@@ -596,7 +529,6 @@ struct ffmpeg_data : public Codec
 
 	end:
 		avformat_close_input (&ic);
-		ffmpeg_log_repeats (NULL);
 	}
 
 	void put_in_remain_buf (const char *buf, const int len)
@@ -860,7 +792,6 @@ struct ffmpeg_data : public Codec
 
 	#ifdef AV_PKT_FLAG_CORRUPT
 			if (pkt->flags & AV_PKT_FLAG_CORRUPT) {
-				ffmpeg_log_repeats (NULL);
 				debug ("Dropped corrupt packet.");
 				av_packet_free (&pkt);
 				continue;
@@ -923,8 +854,6 @@ struct ffmpeg_data : public Codec
 			free_remain_buf ();
 		}
 
-		ffmpeg_log_repeats (NULL);
-
 		if (iostream) {
 			io_close (iostream);
 			iostream = NULL;
@@ -964,14 +893,6 @@ struct ffmpeg_decoder : public Decoder
 	{
 		int rc;
 
-		#ifndef NDEBUG
-		# ifdef DEBUG
-		av_log_set_level (AV_LOG_INFO);
-		# else
-		av_log_set_level (AV_LOG_ERROR);
-		# endif
-		av_log_set_callback (ffmpeg_log_cb);
-		#endif
 		avcodec_register_all ();
 		av_register_all ();
 
@@ -991,7 +912,6 @@ struct ffmpeg_decoder : public Decoder
 	{
 		av_lockmgr_register (NULL);
 		av_log_set_level (AV_LOG_QUIET);
-		ffmpeg_log_repeats (NULL);
 		supported_extns.clear();
 	}
 
@@ -1050,7 +970,6 @@ struct ffmpeg_decoder : public Decoder
 
 	end:
 		avformat_close_input (&ic);
-		ffmpeg_log_repeats (NULL);
 	}
 
 	Codec* open(const str &file) override
