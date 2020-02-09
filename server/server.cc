@@ -474,10 +474,7 @@ static void req_jump_to (client &cli)
 
 static void update_eq_name()
 {
-	char *n = equalizer_current_eqname();
-	str msg = format("EQ set to %s", n);
-	free(n);
-	status_msg(msg.c_str());
+	status_msg(format("EQ set to %s", equalizer_current_eqname().c_str()));
 }
 
 static void req_toggle_equalizer ()

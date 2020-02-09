@@ -16,11 +16,15 @@ namespace options
 
 	extern bool StartInMusicDir;
 	extern str  LastDir; // client's cwd when it was last shut down
-	extern bool Softmixer_SaveState;
-	extern bool Equalizer_SaveState;
 	extern int  SeekTime;
 	extern int  SilentSeekTime;
 	extern int  MessageLingerTime;
+	extern bool Softmixer_SaveState;
+	extern bool SoftmixerActive, SoftmixerMono;
+	extern int  SoftmixerValue;
+	extern bool Equalizer_SaveState;
+	extern bool EqualizerActive;
+	extern str  EqualizerPreset;
 
 	extern Ratio  hsplit, vsplit;
 	extern Layout layout;

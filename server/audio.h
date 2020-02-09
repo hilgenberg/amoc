@@ -186,11 +186,7 @@ struct AudioDriver
 	 */
 	virtual void toggle_mixer_channel() = 0;
 
-	/** Get the mixer channel's name.
-	 *
-	 * Get the currently used mixer channel's name.
-	 *
-	 * \return malloc()ed channel's name.
+	/* Get the currently used mixer channel's name.
 	 */
 	virtual str get_mixer_channel_name() const = 0;
 };

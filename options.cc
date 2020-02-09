@@ -220,8 +220,13 @@ void load(Component who)
 	OPT(ALSAMixer2);
 	OPT(ALSAStutterDefeat);
 	OPT(Softmixer_SaveState);
-	OPT(Equalizer_SaveState);
+	OPT(SoftmixerActive);
+	OPT(SoftmixerMono);
+	OPT(SoftmixerValue);
 	OPT(ShowMixer);
+	OPT(Equalizer_SaveState);
+	OPT(EqualizerActive);
+	OPT(EqualizerPreset);
 	OPT(ShowHiddenFiles);
 	OPT(HideFileExtension);
 	OPT(RunDir);
@@ -282,6 +287,19 @@ void save(Component who)
 		items["Shuffle"]  = Shuffle  ? "yes" : "no";
 		items["Repeat"]   = Repeat   ? "yes" : "no";
 		items["AutoNext"] = AutoNext ? "yes" : "no";
+
+		if (Softmixer_SaveState)
+		{
+			items["SoftmixerActive"] = SoftmixerActive ? "yes" : "no";
+			items["SoftmixerMono"]   = SoftmixerMono   ? "yes" : "no";
+			items["SoftmixerValue"]  = format("%d", SoftmixerValue);
+		}
+		if (Equalizer_SaveState)
+		{
+			items["EqualizerActive"] = EqualizerActive ? "yes" : "no";
+			items["EqualizerPreset"] = EqualizerPreset;
+		}
+
 		write_config_file(add_path(ConfigDir, "config_srv"), items, header);
 	}
 }
@@ -300,7 +318,6 @@ bool Repeat = false;
 bool Shuffle = false;
 bool AutoNext = true;
 bool ASCIILines = false, HideBorder = false;
-//str  ("FormatString", "%(n:%n :)%(a:%a - :)%(t:%t:)%(A: \\(%A\\):)", CHECK_NONE);
 int InputBuffer = 512;
 int OutputBuffer = 512;
 int Prebuffering = 64;
@@ -324,8 +341,13 @@ str  ALSAMixer2 = "Master";
 bool ALSAStutterDefeat = false;
 
 bool Softmixer_SaveState = true;
-bool Equalizer_SaveState = true;
 bool ShowMixer = true;
+bool SoftmixerActive = false, SoftmixerMono = false;
+int  SoftmixerValue = 100;
+
+bool Equalizer_SaveState = true;
+bool EqualizerActive = false;
+str  EqualizerPreset;
 
 bool ShowHiddenFiles = false;
 bool HideFileExtension = false;

@@ -78,38 +78,23 @@ static int current_mixer = 0;
 char *sfmt_str (const long format, char *msg, const size_t buf_size)
 {
 	assert (sound_format_ok(format));
-
 	assert (buf_size > 0);
 	msg[0] = 0;
 
-	if (format & SFMT_S8)
-		strncat (msg, ", 8-bit signed", buf_size - strlen(msg) - 1);
-	if (format & SFMT_U8)
-		strncat (msg, ", 8-bit unsigned", buf_size - strlen(msg) - 1);
-	if (format & SFMT_S16)
-		strncat (msg, ", 16-bit signed", buf_size - strlen(msg) - 1);
-	if (format & SFMT_U16)
-		strncat (msg, ", 16-bit unsigned", buf_size - strlen(msg) - 1);
-	if (format & SFMT_S32)
-		strncat (msg, ", 24-bit signed (as 32-bit samples)",
-				buf_size - strlen(msg) - 1);
-	if (format & SFMT_U32)
-		strncat (msg, ", 24-bit unsigned (as 32-bit samples)",
-				buf_size - strlen(msg) - 1);
-	if (format & SFMT_FLOAT)
-		strncat (msg, ", float",
-				buf_size - strlen(msg) - 1);
+	if (format & SFMT_S8) 	strncat (msg, ", 8-bit signed", buf_size - strlen(msg) - 1);
+	if (format & SFMT_U8) 	strncat (msg, ", 8-bit unsigned", buf_size - strlen(msg) - 1);
+	if (format & SFMT_S16) 	strncat (msg, ", 16-bit signed", buf_size - strlen(msg) - 1);
+	if (format & SFMT_U16) 	strncat (msg, ", 16-bit unsigned", buf_size - strlen(msg) - 1);
+	if (format & SFMT_S32) 	strncat (msg, ", 24-bit signed (as 32-bit samples)", buf_size - strlen(msg) - 1);
+	if (format & SFMT_U32) 	strncat (msg, ", 24-bit unsigned (as 32-bit samples)", buf_size - strlen(msg) - 1);
+	if (format & SFMT_FLOAT) strncat (msg, ", float", buf_size - strlen(msg) - 1);
 
-	if (format & SFMT_LE)
-		strncat (msg, " little-endian", buf_size - strlen(msg) - 1);
-	else if (format & SFMT_BE)
-		strncat (msg, " big-endian", buf_size - strlen(msg) - 1);
-	if (format & SFMT_NE)
-		strncat (msg, " (native)", buf_size - strlen(msg) - 1);
+	if (format & SFMT_LE) strncat (msg, " little-endian", buf_size - strlen(msg) - 1);
+	else if (format & SFMT_BE) strncat (msg, " big-endian", buf_size - strlen(msg) - 1);
+	if (format & SFMT_NE) strncat (msg, " (native)", buf_size - strlen(msg) - 1);
 
 	/* skip first ", " */
-	if (msg[0])
-		memmove (msg, msg + 2, strlen(msg) + 1);
+	if (msg[0]) memmove (msg, msg + 2, strlen(msg) + 1);
 
 	return msg;
 }
@@ -117,18 +102,10 @@ char *sfmt_str (const long format, char *msg, const size_t buf_size)
 /* Return != 0 if fmt1 and fmt2 have the same sample width. */
 int sfmt_same_bps (const long fmt1, const long fmt2)
 {
-	if (fmt1 & (SFMT_S8 | SFMT_U8)
-			&& fmt2 & (SFMT_S8 | SFMT_U8))
-		return 1;
-	if (fmt1 & (SFMT_S16 | SFMT_U16)
-			&& fmt2 & (SFMT_S16 | SFMT_U16))
-		return 1;
-	if (fmt1 & (SFMT_S32 | SFMT_U32)
-			&& fmt2 & (SFMT_S32 | SFMT_U32))
-		return 1;
-	if (fmt1 & fmt2 & SFMT_FLOAT)
-		return 1;
-
+	if (fmt1 & (SFMT_S8 | SFMT_U8) && fmt2 & (SFMT_S8 | SFMT_U8)) return 1;
+	if (fmt1 & (SFMT_S16 | SFMT_U16) && fmt2 & (SFMT_S16 | SFMT_U16)) return 1;
+	if (fmt1 & (SFMT_S32 | SFMT_U32) && fmt2 & (SFMT_S32 | SFMT_U32)) return 1;
+	if (fmt1 & fmt2 & SFMT_FLOAT) return 1;
 	return 0;
 }
 
@@ -144,52 +121,31 @@ static long sfmt_best_matching (const long formats_with_endian,
 	if (formats & req)
 		best = req;
 	else if (req == SFMT_S8 || req == SFMT_U8) {
-		if (formats & SFMT_S8)
-			best = SFMT_S8;
-		else if (formats & SFMT_U8)
-			best = SFMT_U8;
-		else if (formats & SFMT_S16)
-			best = SFMT_S16;
-		else if (formats & SFMT_U16)
-			best = SFMT_U16;
-		else if (formats & SFMT_S32)
-			best = SFMT_S32;
-		else if (formats & SFMT_U32)
-			best = SFMT_U32;
-		else if (formats & SFMT_FLOAT)
-			best = SFMT_FLOAT;
+		if      (formats & SFMT_S8) 	best = SFMT_S8;
+		else if (formats & SFMT_U8) 	best = SFMT_U8;
+		else if (formats & SFMT_S16)	best = SFMT_S16;
+		else if (formats & SFMT_U16)	best = SFMT_U16;
+		else if (formats & SFMT_S32)	best = SFMT_S32;
+		else if (formats & SFMT_U32)	best = SFMT_U32;
+		else if (formats & SFMT_FLOAT)	best = SFMT_FLOAT;
 	}
 	else if (req == SFMT_S16 || req == SFMT_U16) {
-		if (formats & SFMT_S16)
-			best = SFMT_S16;
-		else if (formats & SFMT_U16)
-			best = SFMT_U16;
-		else if (formats & SFMT_S32)
-			best = SFMT_S32;
-		else if (formats & SFMT_U32)
-			best = SFMT_U32;
-		else if (formats & SFMT_FLOAT)
-			best = SFMT_FLOAT;
-		else if (formats & SFMT_S8)
-			best = SFMT_S8;
-		else if (formats & SFMT_U8)
-			best = SFMT_U8;
+		if      (formats & SFMT_S16) 	best = SFMT_S16;
+		else if (formats & SFMT_U16) 	best = SFMT_U16;
+		else if (formats & SFMT_S32) 	best = SFMT_S32;
+		else if (formats & SFMT_U32) 	best = SFMT_U32;
+		else if (formats & SFMT_FLOAT) 	best = SFMT_FLOAT;
+		else if (formats & SFMT_S8) 	best = SFMT_S8;
+		else if (formats & SFMT_U8) 	best = SFMT_U8;
 	}
 	else if (req == SFMT_S32 || req == SFMT_U32 || req == SFMT_FLOAT) {
-		if (formats & SFMT_S32)
-			best = SFMT_S32;
-		else if (formats & SFMT_U32)
-			best = SFMT_U32;
-		else if (formats & SFMT_S16)
-			best = SFMT_S16;
-		else if (formats & SFMT_U16)
-			best = SFMT_U16;
-		else if (formats & SFMT_FLOAT)
-			best = SFMT_FLOAT;
-		else if (formats & SFMT_S8)
-			best = SFMT_S8;
-		else if (formats & SFMT_U8)
-			best = SFMT_U8;
+		if      (formats & SFMT_S32) 	best = SFMT_S32;
+		else if (formats & SFMT_U32) 	best = SFMT_U32;
+		else if (formats & SFMT_S16) 	best = SFMT_S16;
+		else if (formats & SFMT_U16) 	best = SFMT_U16;
+		else if (formats & SFMT_FLOAT) 	best = SFMT_FLOAT;
+		else if (formats & SFMT_S8) 	best = SFMT_S8;
+		else if (formats & SFMT_U8) 	best = SFMT_U8;
 	}
 
 	assert (best != 0);
@@ -585,7 +541,7 @@ int audio_send_pcm (const char *buf, const size_t size)
 		equalized = (char*) xmalloc (size);
 		memcpy (equalized, buf, size);
 
-		equalizer_process_buffer (equalized, size, &driver_sound_params);
+		equalizer_process_buffer (equalized, size, driver_sound_params);
 
 		buf = equalized;
 	}
@@ -602,7 +558,7 @@ int audio_send_pcm (const char *buf, const size_t size)
 			memcpy (softmixed, buf, size);
 		}
 
-		softmixer_process_buffer (softmixed, size, &driver_sound_params);
+		softmixer_process_buffer (softmixed, size, driver_sound_params);
 
 		buf = softmixed;
 	}
@@ -713,7 +669,6 @@ void audio_initialize ()
 
 	out_buf = out_buf_new (options::OutputBuffer * 1024);
 
-	softmixer_init();
 	equalizer_init();
 
 	player_init ();
@@ -738,7 +693,6 @@ void audio_exit ()
 	if (last_stream_url)
 		free (last_stream_url);
 
-	softmixer_shutdown();
 	equalizer_shutdown();
 }
 
