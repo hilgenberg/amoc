@@ -11,6 +11,7 @@ Decoder *ffmpeg_plugin();
 Decoder *timidity_plugin();
 Decoder *sndfile_plugin();
 Decoder *vorbis_plugin();
+Decoder *noise_plugin();
 
 #define ALL_INPUTS \
 	H(mp3);\
@@ -23,5 +24,6 @@ Decoder *vorbis_plugin();
 	H(ffmpeg);\
 	H(timidity);\
 	H(sndfile);\
-	H(vorbis);
+	H(vorbis);\
+	H(noise);
 
