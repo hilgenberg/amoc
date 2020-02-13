@@ -19,8 +19,8 @@ public:
 	bool  synced; // is our playlist synced with the server's?
 
 	bool handle_command(key_cmd cmd); // does everything that's not purely UI
-	void files_mv(const str &dst);
-	void files_rm();
+	void files_mv(std::pair<int,int> sel, const str &dst);
+	void files_rm(std::pair<int,int> sel);
 
 	static volatile int  want_quit;      // 1=quit client, 2=quit server
 	static volatile bool want_interrupt; // user hit Ctrl-C?

@@ -382,9 +382,8 @@ void Client::delete_item ()
 	iface.select_song(i); // clear multi-selection
 }
 
-void Client::files_mv(const str &dst)
+void Client::files_mv(std::pair<int,int> sel, const str &dst)
 {
-	auto sel = iface.selection();
 	const int n = (sel.second+1-sel.first);
 	if (sel.first < 0 || n <= 0) return;
 	auto &pl = iface.active->items;
@@ -464,9 +463,8 @@ void Client::files_mv(const str &dst)
 	iface.deselect();
 }
 
-void Client::files_rm()
+void Client::files_rm(std::pair<int,int> sel)
 {
-	auto sel = iface.selection();
 	const int n = (sel.second+1-sel.first);
 	if (sel.first < 0 || n <= 0) return;
 	auto &pl = iface.active->items;

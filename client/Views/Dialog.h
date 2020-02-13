@@ -27,6 +27,7 @@ public:
 private:
 	Interface &iface;
 	Function function;
+	std::pair<int,int> sel;
 
 	mutable int cursor, hscroll;
 	str response;

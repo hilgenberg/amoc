@@ -154,7 +154,7 @@ Dialog::Dialog(Interface &iface, Function f)
 		case EDIT_ALBUM:
 		case EDIT_TITLE:
 		{
-			auto sel = iface.selection();
+			sel = iface.selection();
 			auto tag = default_tags(iface.client, iface.active->items, sel.first, sel.second);
 
 			response = (function==EDIT_ARTIST ? tag.artist :
@@ -171,14 +171,14 @@ Dialog::Dialog(Interface &iface, Function f)
 
 		case FILES_MV:
 		{
-			auto sel = iface.selection();
+			sel = iface.selection();
 			response = default_dst(iface.active->items, sel.first, sel.second);
 			break;
 		}
 
 		case FILES_RM:
 		{
-			auto sel = iface.selection();
+			sel = iface.selection();
 			confirming = format("Really delete %d items?", sel.second-sel.first+1);
 			break;
 		}
@@ -224,7 +224,7 @@ bool Dialog::ok(bool confirmed)
 		case EDIT_ALBUM:
 		case EDIT_TITLE:
 		{
-			auto sel = iface.selection(); if (sel.first < 0) return cancel();
+			if (sel.first < 0) return cancel();
 			auto &pl = iface.active->items;
 
 			auto mf = (function==EDIT_ARTIST ? &Client::change_artist :
@@ -247,8 +247,8 @@ bool Dialog::ok(bool confirmed)
 			iface.client.want_quit = 1;
 			break;
 
-		case FILES_MV: iface.client.files_mv(response); break;
-		case FILES_RM: assert(confirmed); iface.client.files_rm(); break;
+		case FILES_MV: iface.client.files_mv(sel, response); break;
+		case FILES_RM: assert(confirmed); iface.client.files_rm(sel); break;
 	}
 	return cancel();
 }
