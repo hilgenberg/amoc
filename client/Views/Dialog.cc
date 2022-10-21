@@ -8,16 +8,12 @@ static void trim(str &s, bool remove_track_number=false)
 	while (i0 <= i1 && (isspace(s[i0]) || s[i0] == '-' || s[i0] == '/')) ++i0;
 	while (i0 <= i1 && (isspace(s[i1]) || s[i1] == '-' || s[i1] == '/')) --i1;
 	if (i0 > i1) s.clear(); else s = s.substr(i0, i1-i0+1);
-	i0 = 0; i1 = (int)s.length() - 1;
 	if (!remove_track_number) return;
+	i0 = 0; i1 = (int)s.length() - 1;
 
 	while (i0 <= i1 && isdigit(s[i0])) ++i0;
-	if (i0 <= i1 && (s[i0] == ' ' || s[i0] == '-'))
-	{
-		++i0;
-		s = s.substr(i0+1);
-		trim(s, false);
-	}
+	while (i0 <= i1 && (s[i0] == ' ' || s[i0] == '-')) ++i0;
+	if (i0 > i1) s.clear(); else s = s.substr(i0, i1-i0+1);
 }
 static file_tags default_tags(Client &client, const plist &pl, const int i0, const int i1)
 {
