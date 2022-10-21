@@ -139,6 +139,7 @@ bool Interface::handle_command(key_cmd cmd)
 				int k = (cmd == KEY_CMD_TAG_DEL_NUMBERS ? 0 : i-sel.first+1);
 				client.change_track(it, k);
 			}
+			redraw(2);
 			break;
 		}
 

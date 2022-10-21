@@ -255,7 +255,7 @@ bool Menu::handle_command(key_cmd cmd)
 		case KEY_CMD_MENU_LEFT: sel += N-1; sel %= N; break;
 		case KEY_CMD_MENU_RIGHT: ++sel; sel %= N; break;
 
-		case KEY_CMD_MENU_EXEC: m.items[m.sel].execute(iface); active = false; break;
+		case KEY_CMD_MENU_EXEC: m.items[m.sel].execute(iface); active = false; iface.redraw(2); break;
 		case KEY_CMD_MENU_EXEC_NOCLOSE: m.items[m.sel].execute(iface); break;
 
 		default: return false;
