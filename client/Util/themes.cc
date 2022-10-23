@@ -42,31 +42,53 @@ static void make_color (color_index i, short foreground, short background, attr_
 		++pair_count;
 	}
 }
+static void make_color (color_index i, color_index j)
+{
+	// default color i to whatever color j gets set to
+	static short pair_count = 1;
+	assert (pair_count < COLOR_PAIRS);
+	assert (i < CLR_LAST);
+	assert (j < CLR_LAST);
+	assert (i != j);
+
+	if (colors[i] == -1) {
+		colors[i] = -1000 - j;
+	}
+}
 
 static void set_default_colors ()
 {
 	make_color (CLR_BACKGROUND, COLOR_WHITE, COLOR_BLUE, A_NORMAL);
+
 	make_color (CLR_FRAME, COLOR_WHITE, COLOR_BLUE, A_NORMAL);
-	make_color (CLR_WIN_TITLE, COLOR_WHITE, COLOR_BLUE, A_NORMAL);
-	make_color (CLR_PANEL_DIR, COLOR_WHITE, COLOR_BLUE, A_BOLD);
-	make_color (CLR_PANEL_DIR_SELECTED, COLOR_WHITE, COLOR_BLACK, A_BOLD);
-	make_color (CLR_PANEL_PLAYLIST, COLOR_WHITE, COLOR_BLUE, A_BOLD);
-	make_color (CLR_PANEL_PLAYLIST_SELECTED, COLOR_WHITE, COLOR_BLACK, A_BOLD);
+	make_color (CLR_WIN_TITLE, CLR_FRAME);
+	
+	make_color (CLR_PANEL_DIR, CLR_PANEL_FILE);
+	make_color (CLR_PANEL_DIR_SELECTED, CLR_PANEL_FILE_SELECTED);
+	make_color (CLR_PANEL_PLAYLIST, CLR_PANEL_FILE);
+	make_color (CLR_PANEL_PLAYLIST_SELECTED, CLR_PANEL_FILE_SELECTED);
+
 	make_color (CLR_PANEL_FILE, COLOR_WHITE, COLOR_BLUE, A_NORMAL);
 	make_color (CLR_PANEL_FILE_SELECTED, COLOR_WHITE, COLOR_BLACK, A_NORMAL);
 	make_color (CLR_PANEL_FILE_MARKED, COLOR_GREEN, COLOR_BLUE, A_BOLD);
-	make_color (CLR_PANEL_FILE_MARKED_SELECTED, COLOR_GREEN, COLOR_BLACK, A_BOLD);
+	make_color (CLR_PANEL_FILE_MARKED_SELECTED, CLR_PANEL_FILE_MARKED);
+	
 	make_color (CLR_PANEL_INFO, COLOR_BLUE, COLOR_BLUE, A_BOLD);
 	make_color (CLR_PANEL_INFO_SELECTED, COLOR_BLUE, COLOR_BLACK, A_BOLD);
 	make_color (CLR_PANEL_INFO_MARKED, COLOR_BLUE, COLOR_BLUE, A_BOLD);
-	make_color (CLR_PANEL_INFO_MARKED_SELECTED, COLOR_BLUE, COLOR_BLACK, A_BOLD);
-	make_color (CLR_STATUS, COLOR_WHITE, COLOR_BLUE, A_NORMAL);
+	make_color (CLR_PANEL_INFO_MARKED_SELECTED, CLR_PANEL_INFO_MARKED);
+	make_color (CLR_PANEL_RATING, CLR_PANEL_INFO);
+	make_color (CLR_PANEL_RATING_SELECTED, CLR_PANEL_INFO_SELECTED);
+	make_color (CLR_PANEL_RATING_MARKED, CLR_PANEL_INFO_MARKED);
+	make_color (CLR_PANEL_RATING_MARKED_SELECTED, CLR_PANEL_RATING_MARKED);
+	
+	make_color (CLR_STATUS, CLR_FRAME);
 	make_color (CLR_TITLE, COLOR_WHITE, COLOR_BLUE, A_BOLD);
 	make_color (CLR_STATE, COLOR_WHITE, COLOR_BLUE, A_BOLD);
 	make_color (CLR_TIME_CURRENT, COLOR_WHITE, COLOR_BLUE, A_BOLD);
-	make_color (CLR_TIME_LEFT, COLOR_WHITE, COLOR_BLUE, A_BOLD);
-	make_color (CLR_TIME_TOTAL_FRAMES, COLOR_WHITE, COLOR_BLUE, A_NORMAL);
-	make_color (CLR_TIME_TOTAL, COLOR_WHITE, COLOR_BLUE, A_BOLD);
+	make_color (CLR_TIME_LEFT, CLR_TIME_CURRENT);
+	make_color (CLR_TIME_TOTAL, CLR_TIME_CURRENT);
+	make_color (CLR_TIME_TOTAL_FRAMES, CLR_FRAME);
 	make_color (CLR_SOUND_PARAMS, COLOR_WHITE, COLOR_BLUE, A_BOLD);
 	make_color (CLR_LEGEND, COLOR_WHITE, COLOR_BLUE, A_NORMAL);
 	make_color (CLR_INFO_DISABLED, COLOR_BLUE, COLOR_BLUE, A_BOLD);
@@ -85,6 +107,19 @@ static void set_default_colors ()
 	make_color (CLR_MENU_SELECTED, COLOR_WHITE, COLOR_BLACK, A_BOLD);
 	make_color (CLR_MENU_GREY, COLOR_YELLOW, COLOR_BLUE, A_BOLD);
 	make_color (CLR_MENU_GREY_SELECTED, COLOR_RED, COLOR_BLACK, A_BOLD);
+
+	// resolve all linked colors
+	for (int i = 0; i < CLR_LAST; ++i)
+	{
+		assert(colors[i] != -1);
+		int j = i;
+		for (int k = 0; colors[j] <= -1000; ++k)
+		{
+			if (k > CLR_LAST) interface_fatal("Circular dependency in theme colors");
+			j = -1000-colors[j];
+		}
+		if (j != i) colors[i] = colors[j];
+	}
 }
 
 /* Find the index of a color element by name. Return CLR_LAST if not found. */
@@ -110,6 +145,10 @@ static enum color_index find_color_element_name (const char *name)
 		{ "selected_info",	CLR_PANEL_INFO_SELECTED },
 		{ "marked_info",	CLR_PANEL_INFO_MARKED },
 		{ "marked_selected_info", CLR_PANEL_INFO_MARKED_SELECTED },
+		{ "rating",		CLR_PANEL_RATING },
+		{ "selected_rating",	CLR_PANEL_RATING_SELECTED },
+		{ "marked_rating",	CLR_PANEL_RATING_MARKED },
+		{ "marked_selected_rating", CLR_PANEL_RATING_MARKED_SELECTED },
 
 		{ "menu_item",		CLR_MENU_ITEM },
 		{ "menu_selected",	CLR_MENU_SELECTED },
@@ -264,5 +303,5 @@ void theme_init ()
 		if (f.bad()) interface_fatal("Error reading theme file: %s", xstrerror(errno));
 	}
 
-	set_default_colors ();
+	set_default_colors();
 }

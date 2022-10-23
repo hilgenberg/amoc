@@ -373,6 +373,11 @@ void Panel::draw() const
 			selected ? CLR_PANEL_INFO_SELECTED :
 			i == mark ? CLR_PANEL_INFO_MARKED :
 			CLR_PANEL_INFO;
+		auto rating_color = 
+			selected && i == mark ? CLR_PANEL_RATING_MARKED_SELECTED :
+			selected ? CLR_PANEL_RATING_SELECTED :
+			i == mark ? CLR_PANEL_RATING_MARKED :
+			CLR_PANEL_RATING;
 		auto file_color = 
 			selected && i == mark ? CLR_PANEL_FILE_MARKED_SELECTED :
 			i == mark ? CLR_PANEL_FILE_MARKED :
@@ -396,8 +401,7 @@ void Panel::draw() const
 			x1 -= 13;
 			win.put(y, x1+1, '[');
 		
-			win.color(file_color);
-			wattroff(win.WIN(), A_BOLD); // some utf8 chars do not have bold versions
+			win.color(rating_color);
 			int rating = (it.tags ? it.tags->rating : 0);
 			if (rating < 0) rating = 0;
 			if (rating > 5) rating = 5;
