@@ -169,7 +169,7 @@ void equalizer_refresh()
 	struct dirent *de;
 	while((de = readdir(d)))
 	{
-		if (!de->d_name || de->d_name[0] == '.') continue;
+		if (de->d_name[0] == '.') continue;
 		str filename = options::config_file_path(format("eqsets/%s", de->d_name).c_str());
 
 		struct stat st;

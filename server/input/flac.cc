@@ -66,8 +66,6 @@ static size_t pack_pcm_signed (FLAC__byte *data,
 		}
 	}
 
-	debug ("Converted %u bytes", wide_samples * channels * bytes_per_sample);
-
 	return wide_samples * channels * bytes_per_sample;
 }
 
@@ -201,9 +199,8 @@ struct flac_data : public Codec
 
 		error.clear();
 
-		if (!sample_buffer_fill) {
-			debug ("decoding...");
-
+		if (!sample_buffer_fill)
+		{
 			if (FLAC__stream_decoder_get_state(decoder) == FLAC__STREAM_DECODER_END_OF_STREAM) {
 				logit ("EOF");
 				return 0;
@@ -230,10 +227,6 @@ struct flac_data : public Codec
 
 			last_decode_position = decode_position;
 		}
-		else
-			debug ("Some date remain in the buffer.");
-
-		debug ("Decoded %d bytes", sample_buffer_fill);
 
 		to_copy = MIN((unsigned int)buf_len, sample_buffer_fill);
 		memcpy (buf, sample_buffer, to_copy);
