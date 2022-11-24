@@ -1,8 +1,7 @@
-*.o
-*.gch
+/build_*/
 /amoc
-__pycache__/
-*.dblite
+/build.ninja
+/stuff/
 *.swp
 *~
 /.vscode/
