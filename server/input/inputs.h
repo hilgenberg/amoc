@@ -8,7 +8,6 @@ Decoder *muse_plugin();
 Decoder *flac_plugin();
 Decoder *speex_plugin();
 Decoder *ffmpeg_plugin();
-Decoder *timidity_plugin();
 Decoder *sndfile_plugin();
 Decoder *vorbis_plugin();
 Decoder *noise_plugin();
@@ -22,7 +21,6 @@ Decoder *noise_plugin();
 	H(flac);\
 	H(speex);\
 	H(ffmpeg);\
-	H(timidity);\
 	H(sndfile);\
 	H(vorbis);\
 	H(noise);
