@@ -259,7 +259,7 @@ tags_db::tags_db()
 
 	#ifndef NDEBUG
 	db_env->set_errcall (db_env, db_err_cb);
-	db_env->set_msgcall (db_env, db_msg_cb);
+	//db_env->set_msgcall (db_env, db_msg_cb);
 	ret = db_env->set_paniccall (db_env, db_panic_cb);
 	if (ret) logit ("Could not set DB panic callback");
 	#endif
@@ -285,7 +285,7 @@ tags_db::tags_db()
 
 	#ifndef NDEBUG
 	db->set_errcall (db, db_err_cb);
-	db->set_msgcall (db, db_msg_cb);
+	//db->set_msgcall (db, db_msg_cb);
 	ret = db->set_paniccall (db, db_panic_cb);
 	if (ret) logit ("Could not set DB panic callback");
 	#endif
