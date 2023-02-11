@@ -26,7 +26,6 @@
 /*#define DEBUG*/
 
 #include "io.h"
-#include "io_curl.h"
 
 #ifdef HAVE_MMAP
 static void *io_mmap_file (const struct io_stream *s)
@@ -134,11 +133,6 @@ static ssize_t io_internal_read (struct io_stream *s, const int dont_move,
 		res = io_read_mmap (s, dont_move, buf, count);
 		break;
 #endif
-	case IO_SOURCE_CURL:
-		if (dont_move)
-			fatal ("You can't peek data directly from CURL!");
-		res = io_curl_read (s, buf, count);
-		break;
 	default:
 		fatal ("Unknown io_stream->source: %d", s->source);
 	}
@@ -161,8 +155,6 @@ static off_t io_seek_fd (struct io_stream *s, const off_t where)
 static off_t io_seek_buffered (struct io_stream *s, const off_t where)
 {
 	off_t res = -1;
-
-	assert (s->source != IO_SOURCE_CURL);
 
 	logit ("Seeking...");
 
@@ -192,8 +184,7 @@ static off_t io_seek_buffered (struct io_stream *s, const off_t where)
 static off_t io_seek_unbuffered (struct io_stream *s, const off_t where)
 {
 	off_t res = -1;
-
-	assert (s->source != IO_SOURCE_CURL);
+	s->eof = 0;
 
 	switch (s->source) {
 #ifdef HAVE_MMAP
@@ -218,7 +209,7 @@ off_t io_seek (struct io_stream *s, off_t offset, int whence)
 	assert (s != NULL);
 	assert (s->opened);
 
-	if (s->source == IO_SOURCE_CURL || !io_ok(s))
+	if (!io_ok(s))
 		return -1;
 
 	LOCK (s->io_mtx);
@@ -255,13 +246,6 @@ off_t io_seek (struct io_stream *s, off_t offset, int whence)
 	return res;
 }
 
-/* Wake up the IO reading thread. */
-static void io_wake_up (struct io_stream *s)
-{
-	if (s->source == IO_SOURCE_CURL)
-		io_curl_wake_up (s);
-}
-
 /* Abort an IO operation from another thread. */
 void io_abort (struct io_stream *s)
 {
@@ -271,7 +255,6 @@ void io_abort (struct io_stream *s)
 		logit ("Aborting...");
 		LOCK (s->buf_mtx);
 		s->stop_read_thread = 1;
-		io_wake_up (s);
 		pthread_cond_broadcast (&s->buf_fill_cond);
 		pthread_cond_broadcast (&s->buf_free_cond);
 		UNLOCK (s->buf_mtx);
@@ -308,9 +291,6 @@ void io_close (struct io_stream *s)
 			close (s->fd);
 			break;
 #endif
-		case IO_SOURCE_CURL:
-			io_curl_close (s);
-			break;
 		default:
 			fatal ("Unknown io_stream->source: %d", s->source);
 		}
@@ -327,11 +307,6 @@ void io_close (struct io_stream *s)
 			if (rc != 0)
 				log_errno ("Destroying buf_fill_cond failed", rc);
 		}
-
-		if (s->metadata.title)
-			free (s->metadata.title);
-		if (s->metadata.url)
-			free (s->metadata.url);
 	}
 
 	rc = pthread_mutex_destroy (&s->buf_mtx);
@@ -340,9 +315,6 @@ void io_close (struct io_stream *s)
 	rc = pthread_mutex_destroy (&s->io_mtx);
 	if (rc != 0)
 		log_errno ("Destroying io_mtx failed", rc);
-	rc = pthread_mutex_destroy (&s->metadata.mtx);
-	if (rc != 0)
-		log_errno ("Destroying metadata.mtx failed", rc);
 
 	if (s->strerror)
 		free (s->strerror);
@@ -470,8 +442,10 @@ static void io_open_file (struct io_stream *s, const char *file)
 }
 
 /* Open the file. */
-struct io_stream *io_open (const char *file, const int buffered)
+struct io_stream *io_open (const char *file, bool buffered)
 {
+	buffered = 0;
+
 	int rc;
 	struct io_stream *s;
 
@@ -484,17 +458,11 @@ struct io_stream *io_open (const char *file, const int buffered)
 	s->opened = 0;
 	s->size = -1;
 	s->buf = NULL;
-	memset (&s->metadata, 0, sizeof(s->metadata));
 
-	s->curl.mime_type = NULL;
-	if (is_url (file))
-		io_curl_open (s, file);
-	else
-		io_open_file (s, file);
+	io_open_file (s, file);
 
 	pthread_mutex_init (&s->buf_mtx, NULL);
 	pthread_mutex_init (&s->io_mtx, NULL);
-	pthread_mutex_init (&s->metadata.mtx, NULL);
 
 	if (!s->opened)
 		return s;
@@ -667,9 +635,7 @@ char *io_strerror (struct io_stream *s)
 	if (s->strerror)
 		free (s->strerror);
 
-	if (s->source == IO_SOURCE_CURL)
-		io_curl_strerror (s);
-	else if (s->errno_val)
+	if (s->errno_val)
 		s->strerror = xstrerror (s->errno_val);
 	else
 		s->strerror = xstrdup ("OK");
@@ -716,72 +682,4 @@ int io_eof (struct io_stream *s)
 	UNLOCK (s->buf_mtx);
 
 	return eof;
-}
-
-void io_init ()
-{
-	io_curl_init ();
-}
-
-void io_cleanup ()
-{
-	io_curl_cleanup ();
-}
-
-/* Return the mime type if available or NULL.
- * The mime type is read by curl only after the first read (or peek), until
- * then it's NULL. */
-char *io_get_mime_type (struct io_stream *s)
-{
-	return s->curl.mime_type;
-}
-
-/* Return the malloc()ed stream title if available or NULL. */
-char *io_get_metadata_title (struct io_stream *s)
-{
-	char *t;
-
-	LOCK (s->metadata.mtx);
-	t = xstrdup (s->metadata.title);
-	UNLOCK (s->metadata.mtx);
-
-	return t;
-}
-
-/* Return the malloc()ed stream url (from metadata) if available or NULL. */
-char *io_get_metadata_url (struct io_stream *s)
-{
-	char *t;
-
-	LOCK (s->metadata.mtx);
-	t = xstrdup (s->metadata.url);
-	UNLOCK (s->metadata.mtx);
-
-	return t;
-}
-
-/* Set the metadata title of the stream. */
-void io_set_metadata_title (struct io_stream *s, const char *title)
-{
-	LOCK (s->metadata.mtx);
-	if (s->metadata.title)
-		free (s->metadata.title);
-	s->metadata.title = xstrdup (title);
-	UNLOCK (s->metadata.mtx);
-}
-
-/* Set the metadata url for the stream. */
-void io_set_metadata_url (struct io_stream *s, const char *url)
-{
-	LOCK (s->metadata.mtx);
-	if (s->metadata.url)
-		free (s->metadata.url);
-	s->metadata.url = xstrdup (url);
-	UNLOCK (s->metadata.mtx);
-}
-
-/* Return a non-zero value if the stream is seekable. */
-int io_seekable (const struct io_stream *s)
-{
-	return s->source == IO_SOURCE_FD || s->source == IO_SOURCE_MMAP;
 }

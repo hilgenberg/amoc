@@ -243,18 +243,6 @@ Decoder *get_decoder_by_content (io_stream &stream)
 		return NULL;
 	}
 
-	// get decoder by mime type
-	const char *tmp = io_get_mime_type (&stream);
-	if (tmp) {
-		str mime = tmp;
-		Decoder *d = find_decoder (NULL, &mime);
-		if (d) {
-			logit ("Found decoder for MIME type %s", mime.c_str());
-			return d;
-		}
-	}
-	else logit ("No MIME type.");
-
 	for (auto &p : plugins) {
 		if (p.decoder->can_decode(stream)) {
 			logit ("Found decoder for stream: %s", p.name);

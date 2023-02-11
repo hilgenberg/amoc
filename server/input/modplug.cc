@@ -19,6 +19,7 @@
 */
 
 #include <libmodplug/modplug.h>
+#include <climits>
 #include "io.h"
 #include "decoder.h"
 

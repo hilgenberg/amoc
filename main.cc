@@ -133,7 +133,6 @@ static void start_moc (const struct parameters *params, strings &args)
 			server_loop ();
 			options::save(SERVER);
 			decoder_cleanup ();
-			io_cleanup ();
 			files_cleanup ();
 			exit (EXIT_SUCCESS);
 		case -1:
@@ -456,7 +455,6 @@ int main (int argc, const char *argv[])
 	options::load(params.allow_iface ? GUI : CLI);
 	check_moc_dir();
 
-	io_init ();
 	decoder_init ();
 	srand (time(NULL));
 
@@ -466,7 +464,6 @@ int main (int argc, const char *argv[])
 		server_command (&params, args);
 
 	decoder_cleanup ();
-	io_cleanup ();
 	files_cleanup ();
 
 	return EXIT_SUCCESS;

@@ -223,8 +223,7 @@ static mpc_int32_t get_size_cb (mpc_reader *t)
 
 static mpc_bool_t canseek_cb (mpc_reader *t)
 {
-	struct musepack_data *data = (struct musepack_data*) t->data;
-	return io_seekable (data->stream);
+	return true;
 }
 
 struct musepack_decoder : public Decoder

@@ -10,7 +10,7 @@ import shutil
 
 # config
 target  = 'amoc'
-libs    = ('z m db ncurses curl tag id3tag pthread faad avcodec avutil avformat ' +
+libs    = ('z m db ncurses tag id3tag pthread faad avcodec avutil avformat ' +
            'speex modplug ogg vorbis vorbisfile mad popt sndfile FLAC ' +
            'wavpack asound jack sndio magic mpcdec resample samplerate')
 pch     = "config.h" # pre-compiled header path or None
