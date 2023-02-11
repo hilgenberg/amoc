@@ -845,9 +845,7 @@ bool Client::handle_command(key_cmd cmd)
 		case KEY_CMD_EQUALIZER_PREV: srv.send(CMD_EQUALIZER_PREV); break;
 		case KEY_CMD_EQUALIZER_NEXT: srv.send(CMD_EQUALIZER_NEXT); break;
 		case KEY_CMD_TOGGLE_MAKE_MONO: srv.send(CMD_TOGGLE_MAKE_MONO); break;
-		case KEY_CMD_WRONG:
-			iface.message("Bad command / key not bound to anything");
-			break;
+		case KEY_CMD_WRONG: return false;
 		default:
 			iface.message(format("BUG: invalid key command %d!", (int)cmd));
 			return false;
