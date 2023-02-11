@@ -20,7 +20,7 @@
 #include "../../server/output/softmixer.h"
 
 // width of the toggles for shuffle, repeat, ...
-static constexpr int w_toggles = 6+3+7+6+4*2+3*1;
+static constexpr int w_toggles = 6+7+6+3*2+2*1;
 
 InfoView::InfoView(Interface &iface)
 : iface(iface), drag_x0(-1)
@@ -73,7 +73,6 @@ bool InfoView::handle_click(int x, int y, bool dbl)
 			x -= (len)+3
 
 		CHK(6,KEY_CMD_TOGGLE_MAKE_MONO); // STEREO
-		x -= 3+3; // NET
 		CHK(7,KEY_CMD_TOGGLE_SHUFFLE); // SHUFFLE
 		CHK(6,KEY_CMD_TOGGLE_REPEAT); // REPEAT
 		#undef CHK
@@ -214,7 +213,6 @@ void InfoView::draw() const
 		#define SW(x, v) win.color((v) ? CLR_INFO_ENABLED : CLR_INFO_DISABLED);\
 			win.put_ascii("[" #x "]")
 		SW(STEREO, channels==2); win.put(' ');
-		SW(NET, is_url(iface.curr_file.c_str())); win.put(' ');
 		SW(SHUFFLE, options::Shuffle); win.put(' ');
 
 		win.color(options::Repeat ? CLR_INFO_ENABLED : CLR_INFO_DISABLED);
