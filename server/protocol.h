@@ -26,7 +26,7 @@ enum ServerEvents : int
 	EV_BITRATE,		/* the bitrate has changed */
 	EV_RATE,		/* the rate has changed */
 	EV_CHANNELS,		/* the number of channels has changed */
-	EV_OPTIONS,		/* the options (repeat, shuffle, autonext) have changed */
+	EV_OPTIONS,		/* the options (repeat, shuffle) have changed */
 	EV_AVG_BITRATE,		/* average bitrate has changed */
 	EV_MIXER_CHANGE		/* (20) the mixer channel was changed */
 };
@@ -70,7 +70,7 @@ enum ServerCommands : int
 	CMD_GET_MIXER_CHANNEL_NAME,/* get the mixer channel's name */
 
 	CMD_GET_OPTIONS = 5001,	/* request an EV_OPTIONS */
-	CMD_SET_OPTION_SHUFFLE, CMD_SET_OPTION_REPEAT, CMD_SET_OPTION_AUTONEXT,
+	CMD_SET_OPTION_SHUFFLE, CMD_SET_OPTION_REPEAT,
 	CMD_TOGGLE_MIXER_CHANNEL,/* toggle the mixer channel */
 	CMD_TOGGLE_SOFTMIXER,	/* toggle use of softmixer */
 	CMD_TOGGLE_EQUALIZER,	/* toggle use of equalizer */

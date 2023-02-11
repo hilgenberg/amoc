@@ -149,19 +149,10 @@ ServerPlaylist::song ServerPlaylist::next(bool force) const
 	int n = p.size();
 	bool have_valid_item = (i1 >= 0 && i1 < n && VALID(i1));
 	
-	if (!options::AutoNext)
+	if (options::Repeat == REPEAT_ONE)
 	{
-		if (options::Repeat)
-		{
-			if (have_valid_item) return current();
-			if (options::Shuffle) return random();
-		}
-		else
-		{
-			if (!force) return NIL;
-			if (options::Shuffle) return random();
-			if (have_valid_item) return current();
-		}
+		if (have_valid_item) return current();
+		if (options::Shuffle) return random();
 		return first();
 	}
 

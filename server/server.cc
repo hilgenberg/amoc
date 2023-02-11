@@ -500,7 +500,7 @@ static void req_toggle_make_mono()
 
 static void send_ev_options(int where = -1)
 {
-	int v = options::AutoNext + 2*options::Repeat + 4*options::Shuffle;
+	int v = options::Repeat + 4*options::Shuffle;
 	if (where == -1)
 		add_event_all(EV_OPTIONS, v);
 	else
@@ -657,9 +657,8 @@ static void handle_command (const int client_id)
 			case CMD_GET_RATE: send_data_int(&cli, sound_info.rate); break;
 			case CMD_GET_CHANNELS: send_data_int(&cli, sound_info.channels); break;
 			case CMD_GET_OPTIONS: send_ev_options(client_id); break;
-			case CMD_SET_OPTION_AUTONEXT: options::AutoNext = cli.socket->get_bool(); send_ev_options(); break;
-			case CMD_SET_OPTION_SHUFFLE:  options::Shuffle  = cli.socket->get_bool(); send_ev_options(); break;
-			case CMD_SET_OPTION_REPEAT:   options::Repeat   = cli.socket->get_bool(); send_ev_options(); break;
+			case CMD_SET_OPTION_SHUFFLE: options::Shuffle  = cli.socket->get_bool(); send_ev_options(); break;
+			case CMD_SET_OPTION_REPEAT:  options::Repeat   = (RepeatType)cli.socket->get_int(); send_ev_options(); break;
 			case CMD_GET_MIXER: send_data_int(&cli, audio_get_mixer()); break;
 			case CMD_SET_MIXER: audio_set_mixer(cli.socket->get_int()); break;
 			case CMD_TOGGLE_MIXER_CHANNEL:

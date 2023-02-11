@@ -357,7 +357,7 @@ void player (const char *file, const char *next_file, struct out_buf *out_buf)
 		|| (decoder->done && out_buf_get_fill(out_buf)))
 		{
 			if (next_file && !precache.running && !precache.decoder && 
-			plist_item::ftype(next_file) == F_SOUND && options::AutoNext)
+			plist_item::ftype(next_file) == F_SOUND)
 				precache.start(next_file);
 			
 			LOCK (request_cond_mtx);

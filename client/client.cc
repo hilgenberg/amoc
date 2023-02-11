@@ -724,13 +724,25 @@ bool Client::handle_command(key_cmd cmd)
 			srv.send(!options::Shuffle);
 			break;
 		case KEY_CMD_TOGGLE_REPEAT:
+		{
+			int r = options::Repeat; ++r; r %= 3;
 			srv.send(CMD_SET_OPTION_REPEAT);
-			srv.send(!options::Repeat);
+			srv.send(r);
 			break;
-		case KEY_CMD_TOGGLE_AUTO_NEXT:
-			srv.send(CMD_SET_OPTION_AUTONEXT);
-			srv.send(!options::AutoNext);
+		}
+		case KEY_CMD_REPEAT_OFF:
+			srv.send(CMD_SET_OPTION_REPEAT);
+			srv.send((int)REPEAT_OFF);
 			break;
+		case KEY_CMD_REPEAT_ALL:
+			srv.send(CMD_SET_OPTION_REPEAT);
+			srv.send((int)REPEAT_ALL);
+			break;
+		case KEY_CMD_REPEAT_ONE:
+			srv.send(CMD_SET_OPTION_REPEAT);
+			srv.send((int)REPEAT_ONE);
+			break;
+
 		case KEY_CMD_TOGGLE_PLAYLIST_FULL_PATHS:
 			options::PlaylistFullPaths ^= 1;
 			iface.redraw(3);
@@ -874,8 +886,7 @@ void Client::handle_server_event (int type)
 		case EV_OPTIONS: 
 		{
 			int v = srv.get_int();
-			options::AutoNext = v & 1;
-			options::Repeat   = v & 2;
+			options::Repeat   = (RepeatType)(v & 3);
 			options::Shuffle  = v & 4;
 			iface.redraw(1);
 			break;

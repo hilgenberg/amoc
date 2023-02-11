@@ -16,7 +16,7 @@ static void parse(str &o, const char *v)
 {
 	o = v;
 }
-static void eparse(int &o, const char *v, ...)
+static void eparse(const char *item, int &o, const char *v, ...)
 {
 	va_list ap; va_start(ap, v);
 	for (int i = 0; true; ++i)
@@ -31,7 +31,7 @@ static void eparse(int &o, const char *v, ...)
 		}
 	}
 	va_end(ap);
-	throw std::runtime_error(format("Invalid value: '%s'", v));
+	throw std::runtime_error(format("Invalid %s value: '%s'", item, v));
 }
 
 static void build_rating_strings(const char *s0 = " ", const char *s1 = "*")
@@ -186,7 +186,7 @@ void load(Component who)
 	int hsplit_plist = 1, hsplit_dirlist = 1, vsplit_plist = 1, vsplit_dirlist = 1;
 
 	#define OPT(x) if (items.count(#x)) ::parse(x, items[#x].c_str())
-	#define EOPT(x,...) if (items.count(#x)) { int tmp; ::eparse(tmp, items[#x].c_str(), __VA_ARGS__, NULL); x = (decltype(x))tmp; }
+	#define EOPT(x,...) if (items.count(#x)) { int tmp; ::eparse(#x, tmp, items[#x].c_str(), __VA_ARGS__, NULL); x = (decltype(x))tmp; }
 
 	EOPT(layout, "hsplit", "vsplit", "single");
 	OPT(hsplit_plist); OPT(hsplit_dirlist);
@@ -198,9 +198,8 @@ void load(Component who)
 	OPT(ReadTags);
 	OPT(MusicDir);
 	OPT(StartInMusicDir);
-	OPT(Repeat);
+	EOPT(Repeat, "off", "all", "one");
 	OPT(Shuffle);
-	OPT(AutoNext);
 	OPT(ASCIILines); OPT(HideBorder);
 	OPT(InputBuffer);
 	OPT(OutputBuffer);
@@ -282,8 +281,7 @@ void save(Component who)
 	else if (who == SERVER)
 	{
 		items["Shuffle"]  = Shuffle  ? "yes" : "no";
-		items["Repeat"]   = Repeat   ? "yes" : "no";
-		items["AutoNext"] = AutoNext ? "yes" : "no";
+		items["Repeat"]   = Repeat==REPEAT_ALL ? "all" : Repeat==REPEAT_ONE ? "one" : "off";
 
 		if (Softmixer_SaveState)
 		{
@@ -311,9 +309,8 @@ Layout layout = HSPLIT;
 bool ReadTags = true;
 bool StartInMusicDir = false;
 str  LastDir = "";
-bool Repeat = false;
+RepeatType Repeat = REPEAT_OFF;
 bool Shuffle = false;
-bool AutoNext = true;
 bool ASCIILines = false, HideBorder = false;
 int InputBuffer = 512;
 int OutputBuffer = 512;

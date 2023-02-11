@@ -64,8 +64,13 @@ MENU("Playlist");
 	ITEM("Remove dead entries", KEY_CMD_PLIST_REMOVE_DEAD_ENTRIES);
 	ITEM("Make local copy", KEY_CMD_PLIST_DESYNC); GREY(!iface.client.synced);
 	SEPARATOR;
-	ITEM("Repeat", KEY_CMD_TOGGLE_REPEAT); CHK(options::Repeat);
-	ITEM("Auto-advance songs", KEY_CMD_TOGGLE_AUTO_NEXT); CHK(options::AutoNext);
+
+	ITEM("Repeat Off", KEY_CMD_REPEAT_OFF); SEL(options::Repeat == REPEAT_OFF);
+	ITEM("Repeat All", KEY_CMD_REPEAT_ALL); SEL(options::Repeat == REPEAT_ALL);
+	ITEM("Repeat One", KEY_CMD_REPEAT_ONE); SEL(options::Repeat == REPEAT_ONE);
+	ITEM("Cycle Repeat Mode", KEY_CMD_TOGGLE_REPEAT);
+	SEPARATOR;
+
 	ITEM("Shuffle", KEY_CMD_TOGGLE_SHUFFLE); CHK(options::Shuffle);
 	SEPARATOR;
 	ITEM("Pause", KEY_CMD_PAUSE);

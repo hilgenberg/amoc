@@ -3,6 +3,7 @@
 enum Component { CLI, GUI, SERVER };
 
 enum Layout { HSPLIT=0, VSPLIT=1, SINGLE=2 };
+enum RepeatType { REPEAT_OFF=0, REPEAT_ALL=1, REPEAT_ONE=2 };
 
 namespace options
 {
@@ -44,9 +45,8 @@ namespace options
 
 	extern int  InputBuffer, OutputBuffer;
 	extern bool UseRealtimePriority;
-	extern bool Repeat;
+	extern RepeatType Repeat;
 	extern bool Shuffle;
-	extern bool AutoNext;
 	extern str  HTTPProxy;
 	extern str  TiMidity_Config;
 	extern bool UseMimeMagic;

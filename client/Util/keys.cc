@@ -193,7 +193,6 @@ void keys_init ()
 
 	CMD(KEY_CMD_TOGGLE_SHUFFLE,	"toggle_shuffle",	'S'); // Toggle Shuffle
 	CMD(KEY_CMD_TOGGLE_REPEAT,	"toggle_repeat",	'R'); // Toggle Repeat
-	CMD(KEY_CMD_TOGGLE_AUTO_NEXT,	"toggle_auto_next",	'X'); // Toggle AutoNext
 	CMD(KEY_CMD_TOGGLE_MENU,	"toggle_menu",	'\t'); // Switch between playlist and file list
 	CMD(KEY_CMD_TOGGLE_LAYOUT,	"toggle_layout",	'l'); // Switch between layouts
 	CMD(KEY_CMD_PLIST_ADD,		"add",	'a'); // Add a file/directory to the playlist
