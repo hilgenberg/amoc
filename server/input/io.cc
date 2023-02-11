@@ -411,14 +411,6 @@ static void *io_read_thread (void *data)
 				break;
 
 			if (put > 0) {
-				if (s->buf_fill_callback) {
-					UNLOCK (s->buf_mtx);
-					s->buf_fill_callback (s,
-						s->buf->get_fill(),
-						s->buf->get_size(),
-						s->buf_fill_callback_data);
-					LOCK (s->buf_mtx);
-				}
 				pthread_cond_broadcast (&s->buf_fill_cond);
 				read_buf_pos += put;
 				continue;
@@ -491,7 +483,6 @@ struct io_stream *io_open (const char *file, const int buffered)
 	s->strerror = NULL;
 	s->opened = 0;
 	s->size = -1;
-	s->buf_fill_callback = NULL;
 	s->buf = NULL;
 	memset (&s->metadata, 0, sizeof(s->metadata));
 
@@ -787,21 +778,6 @@ void io_set_metadata_url (struct io_stream *s, const char *url)
 		free (s->metadata.url);
 	s->metadata.url = xstrdup (url);
 	UNLOCK (s->metadata.mtx);
-}
-
-/* Set the callback function to be invoked when the fill of the buffer
- * changes.  data_ptr is a pointer passed to this function along with
- * the pointer to the stream. */
-void io_set_buf_fill_callback (struct io_stream *s,
-		buf_fill_callback_t callback, void *data_ptr)
-{
-	assert (s != NULL);
-	assert (callback != NULL);
-
-	LOCK (s->buf_mtx);
-	s->buf_fill_callback = callback;
-	s->buf_fill_callback_data = data_ptr;
-	UNLOCK (s->buf_mtx);
 }
 
 /* Return a non-zero value if the stream is seekable. */
