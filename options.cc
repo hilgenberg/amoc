@@ -204,7 +204,6 @@ void load(Component who)
 	OPT(ASCIILines); OPT(HideBorder);
 	OPT(InputBuffer);
 	OPT(OutputBuffer);
-	OPT(Prebuffering);
 	OPT(HTTPProxy);
 	EOPT(SoundDriver, "SNDIO", "JACK", "ALSA", "OSS", "NULL");
 	OPT(JackClientName);
@@ -248,7 +247,6 @@ void load(Component who)
 	OPT(MessageLingerTime);
 
 	build_rating_strings(RatingSpace.c_str(), RatingStar.c_str());
-	if (Prebuffering > InputBuffer) InputBuffer = Prebuffering;
 
 	if (RunDir.empty()) RunDir = ConfigDir;
 	normalize_path(RunDir);
@@ -320,7 +318,6 @@ bool AutoNext = true;
 bool ASCIILines = false, HideBorder = false;
 int InputBuffer = 512;
 int OutputBuffer = 512;
-int Prebuffering = 64;
 str HTTPProxy = "";
 
 SoundDriver_t SoundDriver = SoundDriver_t::AUTO;

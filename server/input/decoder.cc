@@ -35,7 +35,7 @@ void decoder_error::fatal(const char *format, ...)
 
 Codec* Decoder::open(const str &file)
 {
-	io_stream *stream = io_open(file.c_str(), 1);
+	io_stream *stream = io_open(file.c_str());
 
 	if (!io_ok (stream))
 	{

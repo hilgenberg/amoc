@@ -101,7 +101,7 @@ struct flac_data : public Codec
 
 	int ok; /* was this stream successfully opened? */
 
-	flac_data(const char *file, const int buffered)
+	flac_data(const char *file)
 	{
 		decoder = NULL;
 		bitrate = -1;
@@ -112,7 +112,7 @@ struct flac_data : public Codec
 		length = -1;
 		ok = 0;
 
-		stream = io_open (file, buffered);
+		stream = io_open (file);
 		if (!io_ok(stream)) {
 			error.fatal("Can't load file: %s", io_strerror(stream));
 			return;
@@ -344,13 +344,13 @@ struct flac_decoder : public Decoder
 {
 	Codec* open (const str &file) override
 	{
-		return new flac_data(file.c_str(), 1);
+		return new flac_data(file.c_str());
 	}
 
 
 	void read_tags(const str &file_name, file_tags &info) override
 	{
-		struct flac_data *data = new flac_data(file_name.c_str(), 0);
+		struct flac_data *data = new flac_data(file_name.c_str());
 		if (data->ok) info.time = data->length;
 		delete data;
 

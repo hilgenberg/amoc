@@ -65,7 +65,7 @@ struct modplug_data : public Codec
 		modplugfile = NULL;
 		filedata = NULL;
 
-		struct io_stream *s = io_open(file, 0);
+		struct io_stream *s = io_open(file);
 		if(!io_ok(s))
 		{
 			error.fatal("Can't open file: %s", file);

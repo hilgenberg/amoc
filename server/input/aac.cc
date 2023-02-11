@@ -90,7 +90,7 @@ struct aac_data : public Codec
 		if (stream_)
 			stream = stream_;
 		else {
-			stream = io_open (fname, 1);
+			stream = io_open (fname);
 			if (!io_ok(stream)) {
 				error.fatal("Can't open AAC file: %s", io_strerror(stream));
 				return;

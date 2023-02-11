@@ -613,7 +613,7 @@ struct ffmpeg_decoder : public Decoder
 		ffmpeg_data *data = new ffmpeg_data;
 
 		data->filename = xstrdup (file.c_str());
-		data->iostream = io_open (file.c_str(), 1);
+		data->iostream = io_open (file.c_str());
 		if (!io_ok (data->iostream)) {
 			data->error.fatal("Can't open file: %s", io_strerror(data->iostream));
 			return data;

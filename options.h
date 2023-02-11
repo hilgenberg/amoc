@@ -42,7 +42,7 @@ namespace options
 	extern str  TimeBarLine;
 	extern str  TimeBarSpace;
 
-	extern int  Prebuffering, InputBuffer, OutputBuffer;
+	extern int  InputBuffer, OutputBuffer;
 	extern bool UseRealtimePriority;
 	extern bool Repeat;
 	extern bool Shuffle;

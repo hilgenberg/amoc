@@ -313,7 +313,7 @@ struct mp3_data : public Codec
 		return mad_timer_count (duration, MAD_UNITS_SECONDS);
 	}
 
-	mp3_data(const char *file, bool buffered)
+	mp3_data(const char *file)
 	{
 		ok = 0;
 		freq = 0;
@@ -321,7 +321,7 @@ struct mp3_data : public Codec
 		skip_frames = 0;
 		bitrate = -1;
 		avg_bitrate = -1;
-		io_stream = io_open (file, buffered);
+		io_stream = io_open (file);
 		if (io_ok(io_stream)) {
 			ok = 1;
 
@@ -518,14 +518,14 @@ struct mp3_decoder : public Decoder
 {
 	Codec* open (const str &file) override
 	{
-		return new mp3_data(file.c_str(), 1);
+		return new mp3_data(file.c_str());
 	}
 
 	/* Get the time for mp3 file, return -1 on error.
 	* Adapted from mpg321. */
 	int get_duration(const str &file) override
 	{
-		mp3_data data(file.c_str(), 0);
+		mp3_data data(file.c_str());
 		return data.ok ? data.duration : -1;
 	}
 

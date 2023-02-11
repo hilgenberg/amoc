@@ -18,7 +18,6 @@
 #include "player.h"
 
 #define PCM_BUF_SIZE		(36 * 1024)
-#define PREBUFFER_THRESHOLD	(18 * 1024)
 
 enum Request
 {
@@ -91,7 +90,7 @@ struct DecoderState
 	{
 		if (is_url(path))
 		{
-			stream = io_open (path.c_str(), 1);
+			stream = io_open (path.c_str());
 			if (!io_ok(stream))
 			{
 				io_close (stream); stream = NULL;
@@ -120,8 +119,6 @@ struct DecoderState
 			audio_fail_file (path);
 			return;
 		}
-		if (stream) io_prebuffer(stream, options::Prebuffering * 1024);
-
 		done = false;
 	}
 	~DecoderState()
@@ -343,17 +340,10 @@ void player (const char *file, const char *next_file, struct out_buf *out_buf)
 
 	out_buf_set_free_callback (out_buf, buf_free_cb);
 
-	LOCK (decoder_stream_mtx);
-	io_stream *decoder_stream = decoder->codec ? decoder->codec->get_stream() : NULL;
-	UNLOCK (decoder_stream_mtx);
-
 	while (true)
 	{
 		if (!decoder->done)
 		{
-			if (decoder_stream && out_buf_get_fill(out_buf) < PREBUFFER_THRESHOLD)
-				io_prebuffer(decoder_stream, options::Prebuffering * 1024);
-
 			decoder->decode();
 
 			decoder_error &err = decoder->codec->error;
@@ -482,14 +472,6 @@ void player_stop ()
 	request = REQ_STOP;
 	pthread_cond_signal (&request_cond);
 	UNLOCK (request_cond_mtx);
-
-	{
-		LockGuard g(decoder_stream_mtx);
-		if (decoder && decoder->stream) {
-			logit ("decoder_stream present, aborting...");
-			io_abort (decoder->stream);
-		}
-	}
 }
 
 void player_seek (const int sec)
