@@ -100,7 +100,7 @@ struct DecoderState
 				return;
 			}
 		}
-		Decoder *f = stream ? get_decoder_by_content(*stream) : get_decoder(path);;
+		Decoder *f = stream ? get_decoder_by_content(*stream) : get_decoder(path);
 		if (!f)
 		{
 			delete stream; stream = NULL;
@@ -116,7 +116,7 @@ struct DecoderState
 				error ("Codec error for %s: %s", path.c_str(), codec->error.desc.c_str());
 			else
 				error ("No codec for %s", path.c_str());
-			delete codec;
+			delete codec; codec = NULL;
 			audio_fail_file (path);
 			return;
 		}
