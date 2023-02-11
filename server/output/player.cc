@@ -90,11 +90,12 @@ struct DecoderState
 	{
 		if (is_url(path))
 		{
-			stream = io_open (path.c_str());
-			if (!io_ok(stream))
+			try {
+				stream = new io_stream(path.c_str());
+			}
+			catch (std::exception &e)
 			{
-				io_close (stream); stream = NULL;
-				error ("Could not open URL: %s", io_strerror(stream));
+				error ("Could not open URL: %s", e.what());
 				audio_fail_file (path);
 				return;
 			}
@@ -102,7 +103,7 @@ struct DecoderState
 		Decoder *f = stream ? get_decoder_by_content(*stream) : get_decoder(path);;
 		if (!f)
 		{
-			if (stream) io_close(stream); stream = NULL;
+			delete stream; stream = NULL;
 			error ("No decoder for %s", path.c_str());
 			audio_fail_file (path);
 			return;
@@ -110,7 +111,7 @@ struct DecoderState
 		codec = stream ? f->open(*stream) : f->open(path);
 		if (!codec || codec->error.type == ERROR_FATAL)
 		{
-			if (stream) io_close(stream); stream = NULL;
+			delete stream; stream = NULL;
 			if (codec)
 				error ("Codec error for %s: %s", path.c_str(), codec->error.desc.c_str());
 			else
@@ -124,7 +125,7 @@ struct DecoderState
 	~DecoderState()
 	{
 		delete codec;
-		if (stream) io_close(stream);
+		delete stream;
 	}
 
 	bool decode() // returns false if buffer was already full

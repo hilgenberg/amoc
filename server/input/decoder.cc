@@ -35,15 +35,14 @@ void decoder_error::fatal(const char *format, ...)
 
 Codec* Decoder::open(const str &file)
 {
-	io_stream *stream = io_open(file.c_str());
-
-	if (!io_ok (stream))
+	try {
+		io_stream *stream = new io_stream(file.c_str());
+		return open(*stream);
+	}
+	catch (...)
 	{
-		io_close(stream);
 		return NULL;
 	}
-
-	return open(*stream);
 }
 
 void Decoder::read_tags(const str &file_name, file_tags &info)
@@ -234,7 +233,7 @@ Decoder *get_decoder_by_content (io_stream &stream)
 	logit ("Testing the stream...");
 	res = io_peek (&stream, buf, sizeof (buf));
 	if (res < 0) {
-		error("Stream error: %s", io_strerror (&stream));
+		error("Stream error");
 		return NULL;
 	}
 

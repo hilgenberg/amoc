@@ -49,7 +49,6 @@ namespace options
 	extern bool AutoNext;
 	extern str  HTTPProxy;
 	extern str  TiMidity_Config;
-	extern bool UseMMap;
 	extern bool UseMimeMagic;
 	extern bool FileNamesIconv;
 	enum class ResampleMethod_t : int { SincBestQuality, SincMediumQuality, SincFastest, ZeroOrderHold, Linear };

@@ -70,7 +70,7 @@ struct musepack_data : public Codec
 			mpc_demux_exit (demux);
 			free (remain_buf);
 		}
-		io_close (stream);
+		delete stream; stream = NULL;
 	}
 
 	int seek (int sec) override
@@ -232,9 +232,13 @@ struct musepack_decoder : public Decoder
 	{
 		musepack_data *data = new musepack_data;
 		data->ok = 0;
-		data->stream = io_open (file.c_str());
-		if (!io_ok(data->stream)) {
-			data->error.fatal("Can't open file: %s", io_strerror(data->stream));
+
+		try {
+			data->stream = new io_stream(file.c_str());
+		}
+		catch (std::exception &e)
+		{
+			data->error.fatal("Can't open file: %s", e.what());
 			return data;
 		}
 

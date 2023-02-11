@@ -515,10 +515,8 @@ struct ffmpeg_data : public Codec
 		}
 		if (context) avcodec_free_context(&context);
 
-		if (iostream) {
-			io_close (iostream);
-			iostream = NULL;
-		}
+		delete iostream;
+		iostream = NULL;
 
 		free (filename);
 	}
@@ -613,9 +611,18 @@ struct ffmpeg_decoder : public Decoder
 		ffmpeg_data *data = new ffmpeg_data;
 
 		data->filename = xstrdup (file.c_str());
-		data->iostream = io_open (file.c_str());
-		if (!io_ok (data->iostream)) {
-			data->error.fatal("Can't open file: %s", io_strerror(data->iostream));
+
+		try {
+			data->iostream = new io_stream(file.c_str());
+		}
+		catch (std::exception &e)
+		{
+			data->error.fatal("Can't open file: %s", e.what());
+			return data;
+		}
+		
+		if (io_file_size(data->iostream) < 1024) {
+			data->error.fatal("File empty or too short");
 			return data;
 		}
 
@@ -638,7 +645,7 @@ struct ffmpeg_decoder : public Decoder
 
 		int res = io_peek (&stream, buf, sizeof (buf));
 		if (res < 0) {
-			error ("Stream error: %s", io_strerror(&stream));
+			error("Stream error");
 			return 0;
 		}
 

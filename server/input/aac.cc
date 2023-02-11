@@ -89,12 +89,13 @@ struct aac_data : public Codec
 
 		if (stream_)
 			stream = stream_;
-		else {
-			stream = io_open (fname);
-			if (!io_ok(stream)) {
-				error.fatal("Can't open AAC file: %s", io_strerror(stream));
-				return;
-			}
+		else try {
+			stream = new io_stream(fname);
+		}
+		catch (std::exception &e)
+		{
+			error.fatal("Can't open AAC file: %s", e.what());
+			return;
 		}
 
 		/* find a frame */
@@ -140,7 +141,7 @@ struct aac_data : public Codec
 	~aac_data()
 	{
 		if (decoder) NeAACDecClose (decoder);
-		if (stream)  io_close (stream);
+		delete stream;
 	}
 
 	int   buffer_length() const { return rbuf_len - rbuf_pos; }

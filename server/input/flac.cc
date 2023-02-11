@@ -112,9 +112,11 @@ struct flac_data : public Codec
 		length = -1;
 		ok = 0;
 
-		stream = io_open (file);
-		if (!io_ok(stream)) {
-			error.fatal("Can't load file: %s", io_strerror(stream));
+		try {
+			stream = new io_stream(file);
+		}
+		catch (std::exception &e) {
+			error.fatal("Can't load file: %s", e.what());
 			return;
 		}
 
@@ -159,7 +161,7 @@ struct flac_data : public Codec
 			FLAC__stream_decoder_finish (decoder);
 			FLAC__stream_decoder_delete (decoder);
 		}
-		io_close (stream);
+		delete stream;
 	}
 
 	int seek (int sec) override
@@ -429,7 +431,7 @@ static FLAC__StreamDecoderReadStatus read_cb (const FLAC__StreamDecoder *, FLAC_
 		return FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM;
 	}
 
-	error ("read error: %s", io_strerror(data->stream));
+	error ("read error");
 
 	return FLAC__STREAM_DECODER_READ_STATUS_ABORT;
 }

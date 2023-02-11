@@ -119,7 +119,7 @@ struct spx_data : public Codec
 			nb_read = io_read (stream, buf, 200);
 
 			if (nb_read < 0) {
-				error.fatal("Can't open speex file: IO error: %s", io_strerror(stream));
+				error.fatal("Can't open speex file: IO error");
 				return 0;
 			}
 
@@ -225,7 +225,7 @@ struct spx_data : public Codec
 			ogg_sync_clear (&oy);
 		}
 
-		io_close (stream);
+		delete stream;
 		free (header);
 	}
 

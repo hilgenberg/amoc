@@ -136,7 +136,7 @@ static int put_output (char *buf, int buf_len, struct mad_pcm *pcm,
 
 struct mp3_data : public Codec
 {
-	struct io_stream *io_stream;
+	io_stream *io;
 	unsigned long bitrate;
 	long avg_bitrate;
 
@@ -175,15 +175,15 @@ struct mp3_data : public Codec
 			remaining = 0;
 		}
 
-		read_size = io_read (io_stream, read_start, read_size);
+		read_size = io_read (io, read_start, read_size);
 		if (read_size < 0) {
-			error.fatal("read error: %s", io_strerror(io_stream));
+			error.fatal("read error");
 			return 0;
 		}
 		else if (read_size == 0)
 			return 0;
 
-		if (io_eof (io_stream)) {
+		if (io_eof (io)) {
 			memset (read_start + read_size, 0, MAD_BUFFER_GUARD);
 			read_size += MAD_BUFFER_GUARD;
 		}
@@ -321,47 +321,48 @@ struct mp3_data : public Codec
 		skip_frames = 0;
 		bitrate = -1;
 		avg_bitrate = -1;
-		io_stream = io_open (file);
-		if (io_ok(io_stream)) {
-			ok = 1;
-
-			size = io_file_size (io_stream);
-
-			mad_stream_init (&stream);
-			mad_frame_init (&frame);
-			mad_synth_init (&synth);
-
-			mad_stream_options (&stream, MAD_OPTION_IGNORECRC);
-
-			duration = count_time_internal ();
-			mad_frame_mute (&frame);
-			stream.next_frame = NULL;
-			stream.sync = 0;
-			stream.error = MAD_ERROR_NONE;
-
-			if (io_seek(io_stream, 0, SEEK_SET) == -1) {
-				error.fatal("seek failed");
-				mad_stream_finish (&stream);
-				mad_frame_finish (&frame);
-				mad_synth_finish (&synth);
-				ok = 0;
-			}
-
-			stream.error = MAD_ERROR_BUFLEN;
+		try {
+			io = new io_stream(file);
 		}
-		else {
-			error.fatal("Can't open: %s", io_strerror(io_stream));
+		catch (std::exception &e)
+		{
+			error.fatal("Can't open: %s", e.what());
 		}
+		ok = 1;
+
+		size = io_file_size (io);
+
+		mad_stream_init (&stream);
+		mad_frame_init (&frame);
+		mad_synth_init (&synth);
+
+		mad_stream_options (&stream, MAD_OPTION_IGNORECRC);
+
+		duration = count_time_internal ();
+		mad_frame_mute (&frame);
+		stream.next_frame = NULL;
+		stream.sync = 0;
+		stream.error = MAD_ERROR_NONE;
+
+		if (io_seek(io, 0, SEEK_SET) == -1) {
+			error.fatal("seek failed");
+			mad_stream_finish (&stream);
+			mad_frame_finish (&frame);
+			mad_synth_finish (&synth);
+			ok = 0;
+		}
+
+		stream.error = MAD_ERROR_BUFLEN;
 	}
 
-	mp3_data(struct io_stream *s)
+	mp3_data(io_stream *s)
 	{
 		ok = 1;
 		freq = 0;
 		channels = 0;
 		skip_frames = 0;
 		bitrate = -1;
-		io_stream = s;
+		io = s;
 		duration = -1;
 		size = -1;
 
@@ -379,7 +380,7 @@ struct mp3_data : public Codec
 			mad_frame_finish (&frame);
 			mad_synth_finish (&synth);
 		}
-		io_close (io_stream);
+		delete io;
 	}
 
 	/* If the current frame in the stream is an ID3 tag, then swallow it. */
@@ -475,7 +476,7 @@ struct mp3_data : public Codec
 		else if (new_position >= size)
 			return -1;
 
-		if (io_seek(io_stream, new_position, SEEK_SET) == -1) {
+		if (io_seek(io, new_position, SEEK_SET) == -1) {
 			logit ("seek to %" PRId64 " failed", new_position);
 			return -1;
 		}
@@ -510,7 +511,7 @@ struct mp3_data : public Codec
 
 	struct io_stream *mp3_get_stream ()
 	{
-		return io_stream;
+		return io;
 	}
 };
 

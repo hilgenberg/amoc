@@ -65,11 +65,12 @@ struct modplug_data : public Codec
 		modplugfile = NULL;
 		filedata = NULL;
 
-		struct io_stream *s = io_open(file);
-		if(!io_ok(s))
-		{
-			error.fatal("Can't open file: %s", file);
-			io_close(s);
+		struct io_stream *s = NULL;
+		try {
+			s = new io_stream(file);
+		}
+		catch (std::exception &e) {
+			error.fatal("Can't open file: %s", e.what());
 			return;
 		}
 
@@ -77,13 +78,14 @@ struct modplug_data : public Codec
 
 		if (!RANGE(1, size, INT_MAX)) {
 			error.fatal("Module size unsuitable for loading: %s", file);
-			io_close(s);
+			delete s;
+			return;
 		}
 
 		filedata = (char *)xmalloc((size_t)size);
 
 		io_read(s, filedata, (size_t)size);
-		io_close(s);
+		delete s; s = NULL;
 
 		modplugfile = ModPlug_Load(filedata, (int)size);
 

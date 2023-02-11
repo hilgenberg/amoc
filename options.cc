@@ -229,7 +229,6 @@ void load(Component who)
 	OPT(ShowHiddenFiles);
 	OPT(HideFileExtension);
 	OPT(RunDir);
-	OPT(UseMMap);
 	OPT(UseMimeMagic);
 	OPT(FileNamesIconv);
 	OPT(TiMidity_Config);
@@ -349,7 +348,6 @@ str  EqualizerPreset;
 bool ShowHiddenFiles = false;
 bool HideFileExtension = false;
 
-bool UseMMap = false;
 bool UseMimeMagic = false;
 bool FileNamesIconv = false;
 str  TiMidity_Config = "no";

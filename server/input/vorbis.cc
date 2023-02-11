@@ -155,7 +155,7 @@ struct vorbis_data : public Codec
 	~vorbis_data()
 	{
 		if (ok) ov_clear (&vf);
-		io_close (stream);
+		delete stream;
 		delete tags;
 	}
 
@@ -267,13 +267,13 @@ struct vorbis_decoder : public Decoder
 	{
 		auto *stream = io_open (file, 1);
 		if (!io_ok(stream)) {
-			io_close(stream);
+			delete stream;
 			return NULL;
 		}
 
 		/* This a restriction placed on us by the vorbisfile API. */
 		if (io_file_size (stream) > LONG_MAX) {
-			io_close(stream);
+			delete stream;
 			return NULL;
 		}
 
