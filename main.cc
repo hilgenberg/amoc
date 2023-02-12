@@ -226,13 +226,12 @@ static void server_command (struct parameters *params, strings &args)
 	else if (params->toggle_pause) {
 		srv.send(CMD_GET_STATE);
 		// this should be wait_for_data()...
-		int ev = srv.get_int(), state = srv.get_int();
-		if (ev != EV_DATA) fatal("Can't get state");
-
-		if (state == STATE_PAUSE)
-			srv.send(CMD_UNPAUSE);
-		else if (state == STATE_PLAY)
-			srv.send(CMD_PAUSE);
+		if (srv.get_int() != EV_DATA) fatal("Can't get state");
+		switch (srv.get_int()) {
+			case STATE_STOP:  interface_cmdline_play_first(srv); break;
+			case STATE_PAUSE: srv.send(CMD_UNPAUSE); break;
+			case STATE_PLAY:  srv.send(CMD_PAUSE); break;
+		}
 	}
 
 	srv.send(CMD_DISCONNECT);
