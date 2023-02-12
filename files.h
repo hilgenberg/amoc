@@ -14,7 +14,6 @@ char *ext_pos (char *file);
 bool file_exists (const str &file);
 bool is_dir (const str &file);
 bool is_sound_file (const str &name); // in decoder.cc
-bool is_url (const str &str);
 bool is_plist_file (const str &name);
 bool is_regular_file(const str &file);
 

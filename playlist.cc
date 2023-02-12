@@ -14,7 +14,6 @@ file_type plist_item::ftype (const str &file)
 	struct stat file_stat;
 	const char *f = file.c_str();
 
-	if (is_url(f)) return F_URL;
 	if (stat(f, &file_stat) == -1) return F_OTHER;
 	if (S_ISDIR(file_stat.st_mode)) return F_DIR;
 	if (is_sound_file(f)) return F_SOUND;
@@ -339,11 +338,6 @@ bool plist::load_m3u (const str &fname)
 		for (char *c = line + strlen(line) - 1; c >= line && isblank(*c); --c) *c = 0;
 
 		if (!*line) continue;
-
-		if (is_url(line)){
-			items.emplace_back(new plist_item(line, F_URL));
-			continue;
-		}
 
 		str p = (line[0] == '/' ? str(line) : base + line);
 		normalize_path(p);

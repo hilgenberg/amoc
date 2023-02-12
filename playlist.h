@@ -7,7 +7,6 @@ enum file_type
 	F_OTHER = 0,
 	F_DIR,
 	F_SOUND,
-	F_URL,
 	F_PLAYLIST
 };
 
@@ -16,14 +15,14 @@ class plist_item
 public:
 	static file_type ftype(const str &path);
 
-	explicit plist_item(str &&p) : path(p), type(ftype(path)), tags(NULL) { assert(!path.empty() && (type == F_URL || path[0] == '/')); }
-	explicit plist_item(const str &p) : path(p), type(ftype(path)), tags(NULL) { assert(!path.empty() && (type == F_URL || path[0] == '/')); }
-	plist_item(const str &p, file_type t) : path(p), type(t), tags(NULL) { assert(!path.empty() && (type == F_URL || path[0] == '/')); }
+	explicit plist_item(str &&p) : path(p), type(ftype(path)), tags(NULL) { assert(!path.empty() && path[0] == '/'); }
+	explicit plist_item(const str &p) : path(p), type(ftype(path)), tags(NULL) { assert(!path.empty() && path[0] == '/'); }
+	plist_item(const str &p, file_type t) : path(p), type(t), tags(NULL) { assert(!path.empty() && path[0] == '/'); }
 	plist_item(const plist_item &i) : path(i.path), type(i.type), tags(i.tags) { if (tags) ++tags->usage; }
 
 	bool can_tag() const; // can we write tags for this?
 
-	str       path; // absolute path or URL
+	str       path; // absolute path
 	file_type type;
 	mutable file_tags *tags; // not owned, not deleted!
 };

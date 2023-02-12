@@ -28,7 +28,7 @@ enum ServerEvents : int
 	EV_CHANNELS,		/* the number of channels has changed */
 	EV_OPTIONS,		/* the options (repeat, shuffle) have changed */
 	EV_AVG_BITRATE,		/* average bitrate has changed */
-	EV_MIXER_CHANGE		/* (20) the mixer channel was changed */
+	EV_MIXER_CHANGE		/* the mixer channel was changed */
 };
 
 /* Definition of server commands. */

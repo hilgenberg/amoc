@@ -224,7 +224,6 @@ struct vorbis_data : public Codec
 	int get_bitrate () const override { return bitrate; }
 	int get_avg_bitrate () const override { return avg_bitrate; }
 	int get_duration () const override { return duration; }
-	io_stream *get_stream () override { return stream; }
 };
 
 struct vorbis_decoder : public Decoder

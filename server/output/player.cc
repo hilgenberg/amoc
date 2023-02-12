@@ -86,32 +86,18 @@ struct DecoderState
 	DecoderState(const str &path)
 	: buf(PCM_BUF_SIZE), buf_fill(0), path(path), time(0.0)
 	, sp{ -1, -1, -1 }, sound_params_changed(false), tags_changed(false)
-	, stream(NULL), codec(NULL), done(true)
+	, codec(NULL), done(true)
 	{
-		if (is_url(path))
-		{
-			try {
-				stream = new io_stream(path.c_str());
-			}
-			catch (std::exception &e)
-			{
-				error ("Could not open URL: %s", e.what());
-				audio_fail_file (path);
-				return;
-			}
-		}
-		Decoder *f = stream ? get_decoder_by_content(*stream) : get_decoder(path);
+		Decoder *f = get_decoder(path);
 		if (!f)
 		{
-			delete stream; stream = NULL;
 			error ("No decoder for %s", path.c_str());
 			audio_fail_file (path);
 			return;
 		}
-		codec = stream ? f->open(*stream) : f->open(path);
+		codec = f->open(path);
 		if (!codec || codec->error.type == ERROR_FATAL)
 		{
-			delete stream; stream = NULL;
 			if (codec)
 				error ("Codec error for %s: %s", path.c_str(), codec->error.desc.c_str());
 			else
@@ -125,7 +111,6 @@ struct DecoderState
 	~DecoderState()
 	{
 		delete codec;
-		delete stream;
 	}
 
 	bool decode() // returns false if buffer was already full
@@ -161,7 +146,6 @@ struct DecoderState
 
 
 	Codec *codec;
-	io_stream *stream;
 	str path; // what is this decoding?
 
 	std::vector<char> buf;
@@ -332,7 +316,6 @@ void player (const char *file, const char *next_file, struct out_buf *out_buf)
 	if (d->done && !d->buf_fill) return;
 
 	delete decoder; decoder = d;
-	if (is_url(file)) next_file = NULL;
 	
 	audio_state_started_playing ();
 	assert(decoder); if (!decoder) return;

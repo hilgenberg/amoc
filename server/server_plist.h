@@ -49,7 +49,7 @@ public:
 	}
 
 private:
-	inline static bool valid_type(file_type t) { return t == F_SOUND || t == F_URL; }
+	inline static bool valid_type(file_type t) { return t == F_SOUND; }
 	static constexpr file_type invalid_type = F_OTHER;
 
 	song random() const;

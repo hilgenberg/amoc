@@ -531,11 +531,6 @@ struct spx_data : public Codec
 	{
 		return bitrate / 1000;
 	}
-
-	io_stream* get_stream () override
-	{
-		return stream;
-	}
 };
 
 struct spx_decoder : public Decoder

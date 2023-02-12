@@ -260,7 +260,6 @@ void Panel::draw() const
 			for (const auto &ip : items.items)
 			{
 				const auto &it = *ip;
-				if (it.type == F_URL) continue;
 				if (first)
 				{
 					common_prefix = it.path;
@@ -413,7 +412,7 @@ void Panel::draw() const
 			if (it.tags && it.tags->time > -1)
 				win.time(it.tags->time);
 			else
-				win.put_ascii(it.type == F_URL ? "--:--" : "     ");
+				win.put_ascii("     ");
 			win.put(']');
 		}
 
@@ -445,10 +444,6 @@ void Panel::draw() const
 		else if (is_up_dir && it.type == F_DIR)
 		{
 			win.field("../", x1-x0+1, 'l');
-		}
-		else if (it.type == F_URL)
-		{
-			win.field(sanitized(it.path), x1-x0+1, 'c');
 		}
 		else
 		{

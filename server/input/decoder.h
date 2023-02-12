@@ -128,14 +128,6 @@ public:
 	 */
 	virtual bool current_tags(file_tags &tags) { return false; }
 
-	/* Get a pointer to the io_stream object used by the decoder. This
-	 * is used for fast interrupting especially when the stream reads
-	 * from a network. This function is optional.
-	 *
-	 * \return Pointer to the used IO stream.
-	 */
-	virtual io_stream* get_stream() { return NULL; }
-
 	/* Get the bitrate of the whole file.
 	 *
 	 * \return Average bitrate in kbps or -1 if not available.

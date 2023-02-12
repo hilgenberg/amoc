@@ -32,10 +32,7 @@ public:
 	void request(const str &path, Socket &srv)
 	{
 		if (requests.count(path) || tags.count(path)) return;
-		if (is_url(path)) return;
-
 		requests.insert(path);
-
 		srv.send(CMD_GET_FILE_TAGS);
 		srv.send(path);
 	}

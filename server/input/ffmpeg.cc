@@ -521,11 +521,6 @@ struct ffmpeg_data : public Codec
 		free (filename);
 	}
 
-	io_stream *get_stream() override
-	{
-		return iostream;
-	}
-
 	int get_bitrate () const override
 	{
 		return timing_broken ? -1 : bitrate / 1000;

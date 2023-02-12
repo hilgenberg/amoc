@@ -223,7 +223,7 @@ void tags_cache::clear_queue (int client_id)
 file_tags tags_cache::get_immediate (const str &file)
 {
 	debug ("Immediate tags read for %s", file.c_str());
-	return !is_url(file) ? read_add(file, -1) : file_tags();
+	return read_add(file, -1);
 }
 
 void tags_cache::files_rm(std::set<str> &src)

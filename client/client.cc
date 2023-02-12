@@ -62,10 +62,6 @@ Client::Client(int sock, strings &args)
 		want_sync = false;
 		for (str &arg : args)
 		{
-			if (is_url(arg.c_str())) {
-				playlist += arg;
-				continue;
-			}
 			str p = absolute_path(arg);
 			if (is_dir (p.c_str()))
 				playlist.add_directory(p, true);
@@ -285,7 +281,6 @@ void Client::add_to_plist(bool at_end)
 				if (tmp.load_m3u(item.path)) pl += std::move(tmp);
 				break;
 			}
-			case F_URL:
 			case F_OTHER: break;
 		}
 	}
@@ -314,34 +309,6 @@ void Client::add_to_plist(bool at_end)
 	}
 
 	iface.left.move_selection(REQ_DOWN);
-}
-
-void Client::add_url(const str &url, bool at_end)
-{
-	if (!is_url(url)) return;
-	plist pl;
-
-	int pos = -1;
-	if (!at_end)
-	{
-		int idx = iface.get_curr_index();
-		pos = (idx < 0 ? 0 : idx+1); // insert at beginning if nothing plays
-	}
-
-	if (synced)
-	{
-		srv.send(CMD_PLIST_ADD);
-		srv.send(url);
-		srv.send("");
-		srv.send(pos);
-		iface.select_song(pos < 0 ? playlist.size() : pos);
-	}
-	else
-	{
-		playlist.insert(url, pos);
-		iface.select_song(pos < 0 ? playlist.size()-1 : pos);
-		iface.redraw(3);
-	}
 }
 
 void Client::set_rating (int r)
@@ -393,11 +360,6 @@ void Client::files_mv(std::pair<int,int> sel, const str &dst)
 	for (int i = sel.first; i <= sel.second; ++i)
 	{
 		auto &it = pl[i];
-		if (it.type == F_URL)
-		{
-			iface.error_message("URLs have no files to move");
-			return;
-		}
 		if (it.type == F_DIR)
 		{
 			iface.error_message("moving directories not implemented yet");
@@ -473,11 +435,6 @@ void Client::files_rm(std::pair<int,int> sel)
 	for (int i = sel.first; i <= sel.second; ++i)
 	{
 		auto &it = pl[i];
-		if (it.type == F_URL)
-		{
-			iface.error_message("URLs have no files to delete");
-			return;
-		}
 		if (it.type == F_DIR)
 		{
 			iface.error_message("deleting directories not implemented yet");
@@ -503,7 +460,7 @@ void Client::go_to_playing_file ()
 		}
 	}
 
-	str path = iface.get_curr_file(); if (path.empty() || is_url(path)) return;
+	str path = iface.get_curr_file(); if (path.empty()) return;
 	if (!go_to_dir(containing_directory(path).c_str()))
 	{
 		iface.status("File not found!");
@@ -516,7 +473,7 @@ void Client::go_to_playing_file ()
 /* Handle silent seek key. */
 void Client::seek_silent (int sec)
 {
-	if (iface.info.get_state() != STATE_PLAY || is_url(iface.get_curr_file().c_str())) return;
+	if (iface.info.get_state() != STATE_PLAY) return;
 
 	if (silent_seek_pos == -1) silent_seek_pos = iface.info.get_curr_time();
 	silent_seek_pos += sec;
@@ -663,7 +620,7 @@ bool Client::handle_command(key_cmd cmd)
 		{
 			const plist_item *i = iface.sel_item();
 			if (!i) break;
-			if (i->type == F_SOUND || i->type == F_URL)
+			if (i->type == F_SOUND)
 			{
 				if (iface.in_dir_plist())
 				{

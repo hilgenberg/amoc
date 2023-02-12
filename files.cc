@@ -225,18 +225,10 @@ str file_name(const str &path)
 	return i == str::npos ? path : path.substr(i+1);
 }
 
-
-/* Is the string a URL? */
-bool is_url (const str &str)
-{
-	return has_prefix(str, "http://", true) || has_prefix(str, "https://", true) ||
-	       has_prefix(str, "ftp://", true);
-}
-
 /* Return 1 if the file is a directory, 0 if not, -1 on error. */
 bool is_dir (const str &file)
 {
-	if (file.empty() || is_url(file)) return false;
+	if (file.empty()) return false;
 
 	struct stat file_stat;
 	if (stat (file.c_str(), &file_stat) == -1) {

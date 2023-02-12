@@ -62,10 +62,6 @@ static struct sound_params req_sound_params = { 0, 0, 0 };
 static struct audio_conversion sound_conv;
 static int need_audio_conversion = 0;
 
-/* URL of the last played stream. Used to fake pause/unpause of internet
- * streams. Protected by plist_mtx. */
-static char *last_stream_url = NULL;
-
 static int current_mixer = 0;
 
 /* Check if the two sample rates don't differ so much that we can't play. */
@@ -219,11 +215,6 @@ static void *play_thread (void *unused)
 
 		LOCK (plist_mtx);
 
-		if (last_stream_url) {
-			free (last_stream_url);
-			last_stream_url = NULL;
-		}
-
 		if (stop_playing) {
 			playlist.stop();
 			logit ("stopped");
@@ -351,18 +342,7 @@ void audio_pause ()
 
 	auto *song = playlist.current_item();
 	if (song) {
-		if (song->type == F_URL) {
-			UNLOCK (plist_mtx);
-			audio_stop ();
-			LOCK (plist_mtx);
-
-			if (last_stream_url)
-				free (last_stream_url);
-			last_stream_url = xstrdup (song->path.c_str());
-		}
-		else
-			out_buf_pause (out_buf);
-
+		out_buf_pause (out_buf);
 		prev_state = state;
 		state = STATE_PAUSE;
 		state_change ();
@@ -374,14 +354,7 @@ void audio_pause ()
 void audio_unpause ()
 {
 	LOCK (plist_mtx);
-	if (last_stream_url && is_url(last_stream_url)) {
-		char *url = xstrdup (last_stream_url);
-
-		UNLOCK (plist_mtx);
-		audio_play (url);
-		free (url);
-	}
-	else if (!playlist.stopped()) {
+	if (!playlist.stopped()) {
 		out_buf_unpause (out_buf);
 		prev_state = state;
 		state = STATE_PLAY;
@@ -689,9 +662,6 @@ void audio_exit ()
 	rc = pthread_mutex_destroy (&request_mtx);
 	if (rc != 0)
 		log_errno ("Can't destroy request_mtx", rc);
-
-	if (last_stream_url)
-		free (last_stream_url);
 
 	equalizer_shutdown();
 }

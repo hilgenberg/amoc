@@ -115,7 +115,6 @@ static str default_dst(const plist &pl, const int i0, const int i1)
 	for (int i = i0; i <= i1; ++i)
 	{
 		auto &it = pl[i];
-		if (it.type ==  F_URL) continue;
 		if (first) ret = it.path; else intersect(ret, it.path);
 		first = false;
 	}
@@ -142,10 +141,6 @@ Dialog::Dialog(Interface &iface, Function f)
 			cursor = strwidth(response)-4;
 			break;
 		
-		case ADD_URL:
-			response = "http://";
-			break;
-
 		case EDIT_ARTIST:
 		case EDIT_ALBUM:
 		case EDIT_TITLE:
@@ -209,11 +204,6 @@ bool Dialog::ok(bool confirmed)
 			iface.client.playlist.save(response);
 			if (!confirmed) iface.client.handle_command(KEY_CMD_RELOAD);
 			iface.message("Playlist saved.");
-			break;
-		
-		case ADD_URL:
-			if (response.empty()) return cancel();
-			iface.client.add_url(response, true);
 			break;
 		
 		case EDIT_ARTIST:
@@ -314,7 +304,6 @@ static str prompt(Dialog::Function f)
 	switch (f)
 	{
 		case Dialog::SAVE_PLIST:  return "SAVE PLAYLIST";
-		case Dialog::ADD_URL:     return "ADD URL";
 		case Dialog::EDIT_ARTIST: return "ARTIST";
 		case Dialog::EDIT_ALBUM:  return "ALBUM";
 		case Dialog::EDIT_TITLE:  return "TITLE";

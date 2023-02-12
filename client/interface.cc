@@ -71,7 +71,6 @@ bool Interface::can_mv() const
 	for (int i = sel.first; i <= sel.second; ++i)
 	{
 		auto &it = pl[i];
-		if (it.type == F_URL) return false;
 		for (auto &d : dirs)
 			if (has_prefix(it.path, d, false)) return false;
 		if (it.type == F_DIR) dirs.insert(it.path + "/");
@@ -88,7 +87,7 @@ bool Interface::can_rm() const
 	for (int i = sel.first; i <= sel.second; ++i)
 	{
 		auto &it = pl[i];
-		if (it.type == F_URL || it.type == F_DIR) return false;
+		if (it.type == F_DIR) return false;
 	}
 	return true;
 }
@@ -110,11 +109,6 @@ bool Interface::handle_command(key_cmd cmd)
 		case KEY_CMD_TOGGLE_LAYOUT: cycle_layouts(); break;
 
 		case KEY_CMD_MENU: menu.active = !menu.active; redraw(2); break;
-
-		case KEY_CMD_ADD_STREAM:
-			dlg.reset(new Dialog(*this, Dialog::ADD_URL));
-			redraw(2);
-			break;
 
 		case KEY_CMD_PLIST_SAVE:
 			if (!client.playlist.size())
@@ -152,10 +146,6 @@ bool Interface::handle_command(key_cmd cmd)
 			break;*/
 		/*case KEY_CMD_GO_DIR:
 			prompt("GO", NULL, ...);
-			break;
-		case KEY_CMD_GO_URL:
-			prompt("URL", NULL, ...);
-			iface_make_entry (ENTRY_GO_URL);
 			break;*/
 		default:
 			return client.handle_command(cmd);

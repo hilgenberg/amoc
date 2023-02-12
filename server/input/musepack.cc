@@ -182,11 +182,6 @@ struct musepack_data : public Codec
 	{
 		return mpc_streaminfo_get_length (&info);
 	}
-
-	io_stream *get_stream () override
-	{
-		return stream;
-	}
 };
 
 static mpc_int32_t read_cb (mpc_reader *t, void *buf, mpc_int32_t size)
